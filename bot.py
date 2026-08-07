@@ -1,4 +1,4 @@
-import os
+ import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
@@ -14,4 +14,4 @@ def main():
     app.run_polling()
 
 if __name__ == "__main__":
-    main( تحديث)
+    main()
