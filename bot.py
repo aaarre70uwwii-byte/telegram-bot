@@ -1,24 +1,18 @@
 import os
-import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+import telebot
 
-# تفعيل اللوجز عشان نشوف الاخطاء
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# يقرأ التوكن من Railway Variables
+TOKEN = os.environ.get('BOT_TOKEN')
 
-TOKEN = os.environ.get("TOKEN")
+bot = telebot.TeleBot(TOKEN)
 
-if not TOKEN:
-    raise ValueError("ما لقيت TOKEN. اتأكد انك حطيته في Variables")
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "اهلا! البوت اشتغل بنجاح ✅")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("مرحبا 👋 البوت شغال الان")
+@bot.message_handler(func=lambda message: True)
+def echo_all(message):
+    bot.reply_to(message, "انت قلت: " + message.text)
 
-def main():
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    print("البوت اشتغل...")
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
+print("Bot is running...")
+bot.infinity_polling()
