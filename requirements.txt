@@ -1,1 +1,2 @@
-    pyTelegramBotAPI
+python-telegram-bot==21.7
+yt-dlp
