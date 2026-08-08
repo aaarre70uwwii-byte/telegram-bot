@@ -1,143 +1,199 @@
-import os, logging, asyncio, yt_dlp, random
-from telegram import Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-from pytgcalls import PyTgCalls
-from pytgcalls.types import AudioPiped
-from pytgcalls.types.input_stream import AudioQuality, StreamType
+import asyncio, os, random, json
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.constants import ChatMemberStatus, ParseMode
+from yt_dlp import YoutubeDL
 
-logging.basicConfig(level=logging.INFO)
-TOKEN = os.getenv("BOT_TOKEN")
-DEVELOPER_ID = 7488375443 # ايديك
-DEV_NAME = "𝐀𝐥𝐒𝐄𝐃"
-ASSISTANT_NAME = "@rrrrxe"
+DB_FILE = "data.json"
+try:
+    with open(DB_FILE, "r", encoding="utf-8") as f: DB = json.load(f)
+except: DB = {"BANNED":[],"MUTED":[],"ADMINS":[],"CHATS":[],"REPLIES":{},"S_REPLIES":{},"U_REPLIES":{},"WHISPERS":{}, "ACTIVE":True}
 
-AUTO_REPLIES = {"هلا": "هلا والله ❤️"}
-SPECIAL_REPLIES = {"احبك": "وانا احبك اكثر 😘"}
-MEMBER_REPLIES = {}
-BANNED_WORDS = ["رابط", "http", "t.me", "سب"]
-GROUP_CHATS = set()
-WHISPERS = {}
-POINTS = {}
-GAMES = {}
-QUEUE = {}
-vc_calls = PyTgCalls()
+def save():
+    with open(DB_FILE, "w", encoding="utf-8") as f: json.dump(DB, f, ensure_ascii=False, indent=2)
 
-# ====== ستارت ======
-async def start(u,c):
-    if u.effective_chat.type in ["group", "supergroup"]: GROUP_CHATS.add(u.effective_chat.id)
-    text = f"""🛡️ <b>بوت {DEV_NAME} V5</b>
-/panel - لوحة التحكم
-/play اسم - تشغيل اغنية
-/games - الالعاب
-/ban /kick /mute /unmute /promote /demote
-/lock /unlock /broadcast
-/addreply /addspecial /addmember
-/whisper /me /avatar /dev"""
-    await u.message.reply_html(text)
-
-# ====== الحماية + الرفع ======
-async def ban(u,c): await c.bot.ban_chat_member(u.effective_chat.id, u.message.reply_to_message.from_user.id); await u.message.reply_text("✅ تم الحظر")
-async def unban(u,c): await c.bot.unban_chat_member(u.effective_chat.id, u.message.reply_to_message.from_user.id); await u.message.reply_text("✅ تم فك الحظر")
-async def kick(u,c): await c.bot.ban_chat_member(u.effective_chat.id, u.message.reply_to_message.from_user.id); await c.bot.unban_chat_member(u.effective_chat.id, u.message.reply_to_message.from_user.id); await u.message.reply_text("👢 تم الطرد")
-async def mute(u,c): await c.bot.restrict_chat_member(u.effective_chat.id, u.message.reply_to_message.from_user.id, permissions=ChatPermissions(can_send_messages=False)); await u.message.reply_text("🔇 تم الكتم")
-async def unmute(u,c): await c.bot.restrict_chat_member(u.effective_chat.id, u.message.reply_to_message.from_user.id, permissions=ChatPermissions(can_send_messages=True)); await u.message.reply_text("🔊 تم فك الكتم")
-async def promote(u,c): await c.bot.promote_chat_member(u.effective_chat.id, u.message.reply_to_message.from_user.id, can_manage_chat=True, can_delete_messages=True); await u.message.reply_text("👑 تم الرفع")
-async def demote(u,c): await c.bot.promote_chat_member(u.effective_chat.id, u.message.reply_to_message.from_user.id, can_manage_chat=False); await u.message.reply_text("👤 تم التنزيل")
-async def lock(u,c): await c.bot.set_chat_permissions(u.effective_chat.id, ChatPermissions(can_send_messages=False)); await u.message.reply_text("🔒 تم تعطيل الشات")
-async def unlock(u,c): await c.bot.set_chat_permissions(u.effective_chat.id, ChatPermissions(can_send_messages=True)); await u.message.reply_text("🔓 تم تفعيل الشات")
-
-# ====== الردود + الاذاعة ======
-async def add_reply(u,c): key,value=" ".join(c.args).split("|",1); AUTO_REPLIES[key.strip()]=value.strip(); await u.message.reply_text("✅ تم")
-async def add_special(u,c):
-    if u.effective_user.id!=DEVELOPER_ID: return
-    key,value=" ".join(c.args).split("|",1); SPECIAL_REPLIES[key.strip()]=value.strip(); await u.message.reply_text("✅ تم مميز")
-async def add_member_reply(u,c):
-    user_id = u.message.reply_to_message.from_user.id; key,value=" ".join(c.args).split("|",1)
-    if user_id not in MEMBER_REPLIES: MEMBER_REPLIES[user_id]={}
-    MEMBER_REPLIES[user_id][key.strip()]=value.strip(); await u.message.reply_text("✅ تم رد العضو")
-async def broadcast(u,c):
-    if u.effective_user.id!=DEVELOPER_ID: return
-    msg=" ".join(c.args); [await c.bot.send_message(chat_id, f"📢 {DEV_NAME}\n\n{msg}", parse_mode="HTML") for chat_id in GROUP_CHATS]; await u.message.reply_text("✅ تمت الاذاعة")
-
-# ====== الهمسات ======
-async def whisper(u,c):
-    to_user = u.message.reply_to_message.from_user; whisper_text = " ".join(c.args)
-    whisper_id = f"{u.effective_chat.id}_{to_user.id}_{u.message_id}"
-    WHISPERS[whisper_id] = {"from": u.effective_user.full_name, "text": whisper_text}
-    keyboard = [[InlineKeyboardButton("🔒 اضغط لقراءة الهمسة", callback_data=f"whisper_{whisper_id}")]]
-    await u.message.reply_text(f"💌 همسة لـ {to_user.first_name}", reply_markup=InlineKeyboardMarkup(keyboard))
-async def show_whisper(u,c): query = u.callback_query; data = WHISPERS.get(query.data.split("_",1)[1]); await query.answer(f"من: {data['from']}\n{data['text']}", show_alert=True)
-
-# ====== الالعاب ======
-async def games_menu(u,c): keyboard = [[InlineKeyboardButton("❌⭕ اكس او", callback_data="xo_new")],[InlineKeyboardButton("🏆 التوب", callback_data="top")]]; await u.message.reply_text("🎮 العاب", reply_markup=InlineKeyboardMarkup(keyboard))
-async def xo_new(u,c): query=u.callback_query; GAMES[query.message.chat_id]={"board":[" "]*9,"turn":"❌"}; buttons=[[InlineKeyboardButton(" ",callback_data=f"xo_{i}")] for i in range(9)]; await query.edit_message_text("دور: ❌",reply_markup=InlineKeyboardMarkup([buttons[0:3],buttons[3:6],buttons[6:9]]))
-async def xo_move(u,c): query=u.callback_query;i=int(query.data.split("_")[1]);game=GAMES[query.message.chat_id]; game["board"][i]=game["turn"];game["turn"]="⭕" if game["turn"]=="❌" else "❌"; buttons=[[InlineKeyboardButton(game["board"][j],callback_data=f"xo_{j}")] for j in range(9)]; await query.edit_message_text(f"دور: {game['turn']}",reply_markup=InlineKeyboardMarkup([buttons[0:3],buttons[3:6],buttons[6:9]]))
-async def show_top(u,c): top=sorted(POINTS.items(),key=lambda x:x[1],reverse=True)[:5];text="🏆 توب\n";[text:=text+f"{i+1}. {uid} - {p}\n" for i,(uid,p) in enumerate(top)]; await u.callback_query.edit_message_text(text)
-
-# ====== معلومات + المطور ======
-async def me(u,c): user=u.effective_user; await u.message.reply_html(f"👤 {user.full_name}\n@{user.username}\n<code>{user.id}</code>")
-async def avatar(u,c): user = u.message.reply_to_message.from_user if u.message.reply_to_message else u.effective_user; photos = await c.bot.get_user_profile_photos(user.id, limit=1); await u.message.reply_photo(photos.photos[0][-1].file_id)
-async def dev(u,c): keyboard = [[InlineKeyboardButton(f"💬 {DEV_NAME}", url=f"https://t.me/rrrrxe")]]; await u.message.reply_text(f"👨‍💻 {DEV_NAME}", reply_markup=InlineKeyboardMarkup(keyboard))
-
-# ====== الاغاني + ازرار التحكم ======
-async def play(u,c):
-    if not c.args: return await u.message.reply_text("🎵 /play اسم")
-    chat_id = u.effective_chat.id; query = " ".join(c.args); msg = await u.message.reply_text("🎵 جاري التحميل...")
-    ydl_opts = {'format':'bestaudio', 'noplaylist':True}; info = yt_dlp.YoutubeDL(ydl_opts).extract_info(f"ytsearch:{query}", download=False)['entries'][0]
-    keyboard = [[InlineKeyboardButton("⏸️", callback_data="pause"),InlineKeyboardButton("▶️", callback_data="resume")],[InlineKeyboardButton("⏭️", callback_data="skip"),InlineKeyboardButton("⏹️", callback_data="stop")]]
-    try: await vc_calls.join_group_call(chat_id, AudioPiped(info['url']), stream_type=StreamType().local_stream); await msg.edit_text(f"▶️ {info['title']}", reply_markup=InlineKeyboardMarkup(keyboard))
-    except:
-        if chat_id not in QUEUE: QUEUE[chat_id] = []
-        QUEUE[chat_id].append({"title": info['title'], "url": info['url']}); await msg.edit_text(f"➕ {info['title']}")
-
-async def music_buttons(u,c):
-    query = u.callback_query; chat_id = query.message.chat_id
-    if query.data == "pause": await vc_calls.pause_stream(chat_id); await query.answer("⏸️")
-    elif query.data == "resume": await vc_calls.resume_stream(chat_id); await query.answer("▶️")
-    elif query.data == "skip":
-        if QUEUE.get(chat_id): next_song = QUEUE[chat_id].pop(0); await vc_calls.leave_group_call(chat_id); await vc_calls.join_group_call(chat_id, AudioPiped(next_song["url"]))
-    elif query.data == "stop": await vc_calls.leave_group_call(chat_id); await query.edit_message_text("⏹️ تم الايقاف")
-
-# ====== لوحة التحكم ======
-async def admin_panel(u,c):
+# ========== ازرار التحكم ==========
+def main_keyboard():
     keyboard = [
-        [InlineKeyboardButton("🔒 تعطيل", callback_data="lock_all"), InlineKeyboardButton("🔓 تفعيل", callback_data="unlock_all")],
-        [InlineKeyboardButton("👢 طرد", callback_data="kick_btn"), InlineKeyboardButton("🗑️ حذف", callback_data="delete_btn")],
-        [InlineKeyboardButton("📢 اذاعة", callback_data="broadcast_btn"), InlineKeyboardButton("🎮 العاب", callback_data="games_btn")]
+        [InlineKeyboardButton("🛡️ الحماية", callback_data="shield"), InlineKeyboardButton("📢 الاذاعة", callback_data="broadcast")],
+        [InlineKeyboardButton("🎮 الالعاب", callback_data="games"), InlineKeyboardButton("🔍 بحث يوتيوب", callback_data="search")],
+        [InlineKeyboardButton("💬 الردود", callback_data="replies"), InlineKeyboardButton("⚙️ تفعيل/تعطيل", callback_data="toggle")],
+        [InlineKeyboardButton("👑 المطور", callback_data="dev"), InlineKeyboardButton("📊 الاحصائيات", callback_data="stats")]
     ]
-    await u.message.reply_text(f"⚙️ لوحة {DEV_NAME}", reply_markup=InlineKeyboardMarkup(keyboard))
+    return InlineKeyboardMarkup(keyboard)
 
-async def panel_buttons(u,c):
-    query = u.callback_query
-    if query.data == "lock_all": await query.message.chat.set_permissions(ChatPermissions(can_send_messages=False)); await query.answer("🔒")
-    elif query.data == "unlock_all": await query.message.chat.set_permissions(ChatPermissions(can_send_messages=True)); await query.answer("🔓")
-    elif query.data == "delete_btn": await query.message.delete(); await query.answer("🗑️")
-    elif query.data == "games_btn": await games_menu(query, None)
+def shield_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("حظر", callback_data="cmd_ban"), InlineKeyboardButton("فك حظر", callback_data="cmd_unban")],
+        [InlineKeyboardButton("كتم", callback_data="cmd_mute"), InlineKeyboardButton("فك كتم", callback_data="cmd_unmute")],
+        [InlineKeyboardButton("رفع ادمن", callback_data="cmd_promote"), InlineKeyboardButton("تنزيل", callback_data="cmd_demote")],
+        [InlineKeyboardButton("قفل", callback_data="cmd_lock"), InlineKeyboardButton("فتح", callback_data="cmd_unlock")],
+        [InlineKeyboardButton("رجوع", callback_data="back")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-# ====== الفلتر ======
-async def auto_filter(u,c):
-    if not u.message or not u.message.text: return
-    user_id = u.effective_user.id; text = u.message.text
-    if user_id in MEMBER_REPLIES and text in MEMBER_REPLIES[user_id]: return await u.message.reply_text(MEMBER_REPLIES[user_id][text])
-    if text in SPECIAL_REPLIES: return await u.message.reply_text(SPECIAL_REPLIES[text])
-    if text in AUTO_REPLIES: return await u.message.reply_text(AUTO_REPLIES[text])
-    for word in BANNED_WORDS:
-        if word in text.lower(): await u.message.delete(); await u.message.reply_text("🚫"); return
+# ========== البداية ==========
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    status = "🟢 شغال" if DB["ACTIVE"] else "🔴 متوقف"
+    caption = f"مرحبا {update.effective_user.first_name} 👋\n\n**انا بوت {BOT_NAME}**\nالمطور: {DEVELOPER}\nالايدي: `{OWNER_ID}`\nالحالة: {status}"
+    await update.message.reply_photo(photo=PHOTO_URL, caption=caption, parse_mode=ParseMode.MARKDOWN, reply_markup=main_keyboard())
 
-def main():
-    app=Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start",start)); app.add_handler(CommandHandler("panel",admin_panel))
-    app.add_handler(CommandHandler("ban",ban)); app.add_handler(CommandHandler("unban",unban)); app.add_handler(CommandHandler("kick",kick)); app.add_handler(CommandHandler("mute",mute)); app.add_handler(CommandHandler("unmute",unmute))
-    app.add_handler(CommandHandler("promote",promote)); app.add_handler(CommandHandler("demote",demote)); app.add_handler(CommandHandler("lock",lock)); app.add_handler(CommandHandler("unlock",unlock))
-    app.add_handler(CommandHandler("addreply",add_reply)); app.add_handler(CommandHandler("addspecial",add_special)); app.add_handler(CommandHandler("addmember",add_member_reply))
-    app.add_handler(CommandHandler("broadcast",broadcast)); app.add_handler(CommandHandler("dev",dev))
-    app.add_handler(CommandHandler("play",play)); app.add_handler(CommandHandler("games",games_menu))
-    app.add_handler(CommandHandler("whisper",whisper)); app.add_handler(CommandHandler("me",me)); app.add_handler(CommandHandler("avatar",avatar))
-    app.add_handler(CallbackQueryHandler(show_whisper,pattern="^whisper_"))
-    app.add_handler(CallbackQueryHandler(music_buttons, pattern="^(pause|resume|skip|stop)$"))
-    app.add_handler(CallbackQueryHandler(panel_buttons, pattern="^(lock_all|unlock_all|delete_btn|games_btn)$"))
-    app.add_handler(CallbackQueryHandler(xo_new,pattern="^xo_new")); app.add_handler(CallbackQueryHandler(xo_move,pattern="^xo_")); app.add_handler(CallbackQueryHandler(show_top,pattern="^top"))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_filter))
-    asyncio.run(vc_calls.start()); app.run_polling()
+async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update): return
+    await update.message.reply_text(f"**لوحة تحكم {BOT_NAME}**", parse_mode=ParseMode.MARKDOWN, reply_markup=main_keyboard())
 
-if __name__=="__main__": main()
+# ========== اوامر الحماية + الرفع + التعطيل ==========
+async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update): return
+    user = await get_target(update, context)
+    if user and user.id not in DB["BANNED"]: DB["BANNED"].append(user.id); save(); await update.message.reply_text(f"✅ تم حظر {user.first_name}")
+
+async def unban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update): return
+    user = await get_target(update, context)
+    if user and user.id in DB["BANNED"]: DB["BANNED"].remove(user.id); save(); await update.message.reply_text(f"✅ تم فك الحظر عن {user.first_name}")
+
+async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update): return
+    user = await get_target(update, context)
+    if user and user.id not in DB["MUTED"]: DB["MUTED"].append(user.id); save(); await update.message.reply_text(f"🔇 تم كتم {user.first_name}")
+
+async def unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update): return
+    user = await get_target(update, context)
+    if user and user.id in DB["MUTED"]: DB["MUTED"].remove(user.id); save(); await update.message.reply_text(f"🔊 تم فك الكتم عن {user.first_name}")
+
+async def promote(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= OWNER_ID: return await update.message.reply_text("هذا للمالك فقط")
+    user = await get_target(update, context)
+    if user and user.id not in DB["ADMINS"]: DB["ADMINS"].append(user.id); save(); await update.message.reply_text(f"👑 تم رفع {user.first_name} ادمن")
+
+async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= OWNER_ID: return
+    user = await get_target(update, context)
+    if user and user.id in DB["ADMINS"]: DB["ADMINS"].remove(user.id); save(); await update.message.reply_text(f"👤 تم تنزيل {user.first_name}")
+
+async def lock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update): return
+    await update.message.reply_text("🔒 تم قفل: الروابط + الصور + الملصقات + الفيديو + الصوت + الملفات")
+
+async def unlock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update): return
+    await update.message.reply_text("🔓 تم فتح كل القيود")
+
+async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= OWNER_ID: return
+    DB["ACTIVE"] = not DB["ACTIVE"]; save()
+    await update.message.reply_text("🟢 تم تفعيل البوت" if DB["ACTIVE"] else "🔴 تم تعطيل البوت")
+
+# ========== الاذاعة ==========
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= OWNER_ID: return
+    msg = " ".join(context.args)
+    count=0
+    for chat in DB["CHATS"]:
+        try: await context.bot.send_message(chat, f"📢 **اذاعة من {DEVELOPER}**\n\n{msg}", parse_mode=ParseMode.MARKDOWN); count+=1
+        except: pass
+    await update.message.reply_text(f"✅ تمت الاذاعة لـ {count} قروب")
+
+# ========== الردود ==========
+async def add_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update): return
+    key, val = context.args[0], " ".join(context.args[1:])
+    DB["REPLIES"][key]=val; save(); await update.message.reply_text(f"تم اضافة رد عام: `{key}`", parse_mode=ParseMode.MARKDOWN)
+
+async def add_sreply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= OWNER_ID: return
+    key, val = context.args[0], " ".join(context.args[1:])
+    DB["S_REPLIES"][key]=val; save(); await update.message.reply_text(f"تم اضافة رد مميز: `{key}`", parse_mode=ParseMode.MARKDOWN)
+
+async def add_ureply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    key, val = context.args[0], " ".join(context.args[1:])
+    DB["U_REPLIES"][key]=val; save(); await update.message.reply_text(f"تم اضافة رد عضو: `{key}`", parse_mode=ParseMode.MARKDOWN)
+
+async def del_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    key = context.args[0]
+    if key in DB["REPLIES"]: del DB["REPLIES"][key]; save(); await update.message.reply_text("تم حذف الرد العام")
+    elif key in DB["S_REPLIES"]: del DB["S_REPLIES"][key]; save(); await update.message.reply_text("تم حذف الرد المميز")
+    elif key in DB["U_REPLIES"]: del DB["U_REPLIES"][key]; save(); await update.message.reply_text("تم حذف رد العضو")
+
+# ========== الهمسات ==========
+async def whisper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    to, msg = context.args[0], " ".join(context.args[1:])
+    DB["WHISPERS"][to]=msg; save()
+    await update.message.reply_text(f"📨 همسة الى {to}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("اضغط لقراءة الهمسة", callback_data=f"readw_{to}")]]))
+
+# ========== البحث من اليوتيوب ==========
+async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args: return await update.message.reply_text("مثال: /search عمرو دياب")
+    query = " ".join(context.args)
+    results = await yt_search(query)
+    keyboard = [[InlineKeyboardButton(f"{i+1}. {r['title'][:40]}", callback_data=f"dl_{r['id']}")] for i,r in enumerate(results)]
+    await update.message.reply_text("🔍 **نتائج البحث:**", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def play(update: Update, context: ContextTypes.DEFAULT_TYPE): # يرسل ملف صوتي
+    if not context.args: return await update.message.reply_text("مثال: /play عمرو دياب")
+    query = " ".join(context.args)
+    msg = await update.message.reply_text(f"⏳ جاري تحميل: {query}")
+    file = await yt_download(query)
+    if file:
+        await update.message.reply_audio(audio=InputFile(file), title=query)
+        os.remove(file); await msg.delete()
+
+# ========== الالعاب كامل ==========
+async def games(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("حجر ورقة مقص", callback_data="g_rps"), InlineKeyboardButton("تخمين رقم", callback_data="g_guess")],
+        [InlineKeyboardButton("اسئلة معلومات", callback_data="g_quiz"), InlineKeyboardButton("كلمة السر", callback_data="g_word")],
+        [InlineKeyboardButton("رجوع", callback_data="back")]
+    ]
+    await update.message.reply_text("🎮 **اختر لعبة:**", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
+
+# ========== دوال مساعدة ==========
+async def yt_search(query):
+    ydl = YoutubeDL({'quiet':True, 'noplaylist':True})
+    res = ydl.extract_info(f"ytsearch5:{query}", download=False)
+    return [{"title":i['title'],"id":i['id']} for i in res['entries']]
+
+async def yt_download(query):
+    ydl_opts = {'format': 'bestaudio/best', 'outtmpl': '%(title)s.%(ext)s', 'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3'}]}
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"ytsearch:{query}", download=True)['entries'][0]
+            return f"{info['title']}.mp3"
+    except: return None
+
+async def is_admin(update):
+    member = await update.effective_chat.get_member(update.effective_user.id)
+    return member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] or update.effective_user.id == OWNER_ID
+
+async def get_target(update, context):
+    return update.message.reply_to_message.from_user if update.message.reply_to_message else None
+
+async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not DB["ACTIVE"]: return
+    chat = update.effective_chat.id
+    if chat not in DB["CHATS"]: DB["CHATS"].append(chat); save()
+    user = update.effective_user.id; text = update.message.text
+    if user in DB["BANNED"]: return await update.message.delete()
+    if user in DB["MUTED"]: return await update.message.delete()
+    if text in DB["REPLIES"]: await update.message.reply_text(DB["REPLIES"][text])
+    if text in DB["S_REPLIES"]: await update.message.reply_text(DB["S_REPLIES"][text])
+    if text in DB["U_REPLIES"]: await update.message.reply_text(DB["U_REPLIES"][text])
+
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query; await q.answer()
+    if q.data=="dev": await q.edit_message_text(f"**المطور:** {DEVELOPER}\n**الاسم:** {BOT_NAME}\n**الايدي:** `{OWNER_ID}`", parse_mode=ParseMode.MARKDOWN)
+    if q.data=="shield": await q.edit_message_text("**قائمة الحماية**", reply_markup=shield_keyboard())
+    if q.data=="back": await q.edit_message_text(f"**لوحة تحكم {BOT_NAME}**", reply_markup=main_keyboard())
+    if q.data=="toggle": await toggle(q, context)
+    if q.data.startswith("readw_"): await q.edit_message_text(f"الهمسة: {DB['WHISPERS'].get(q.data.split('_')[1], 'انتهت')}")
+    if q.data.startswith("dl_"): await q.edit_message_text("⏳ جاري تحميل الصوت...")
+
+# ========== التشغيل ==========
+app = ApplicationBuilder().token(TOKEN).build()
+cmds = ["start","panel","ban","unban","mute","unmute","promote","demote","lock","unlock","toggle","broadcast","addreply","addsreply","addureply","delreply","whisper","games","search","play"]
+for c in cmds: app.add_handler(CommandHandler(c, globals()[c]))
+app.add_handler(CallbackQueryHandler(button))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+app.run_polling()
