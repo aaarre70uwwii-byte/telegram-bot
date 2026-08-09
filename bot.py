@@ -1,29 +1,32 @@
-import telebot
 import os
+import telebot
+from flask import Flask
 
-TOKEN = os.environ.get('BOT_TOKEN')
+# جيب التوكن من متغيرات البيئة
+TOKEN = os.environ.get("TOKEN") 
 bot = telebot.TeleBot(TOKEN)
 
-# امر /start
+# عشان ما يطفي على Render
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+# مثال امر /start
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, "هلا والله 👋\nانا بوتك شغال 24 ساعة على Railway\nاكتب /help عشان تشوف الاوامر")
+    bot.reply_to(message, "اهلا! انا بوت 𝐓𝐢𝐚 شغال 24 ساعة 🔥")
 
-# امر /help  
-@bot.message_handler(commands=['help'])
-def send_help(message):
-    bot.reply_to(message, "الاوامر المتاحة:\n/start - ترحيب\n/help - المساعدة\n/echo - عيد الكلام")
-
-# امر /echo
-@bot.message_handler(commands=['echo'])
-def send_echo(message):
-    txt = message.text.replace('/echo ', '')
-    bot.reply_to(message, f"انت قلت: {txt}")
-
-# يرد على اي رسالة عادية
-@bot.message_handler(func=lambda m: True)
+# شغل البوت
+@bot.message_handler(func=lambda message: True)
 def echo_all(message):
-    bot.reply_to(message, f"وصلني: {message.text}")
+    bot.reply_to(message, f"قلت: {message.text}")
 
-print("Bot is running...")
-bot.polling()
+def run_bot():
+    bot.infinity_polling()
+
+if __name__ == "__main__":
+    import threading
+    threading.Thread(target=run_bot).start()
+    app.run(host='0.0.0.0', port=os.environ.get('PORT', 8080))
