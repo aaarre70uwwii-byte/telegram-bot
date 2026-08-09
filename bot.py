@@ -6,22 +6,27 @@ import threading
 from flask import Flask
 
 TOKEN = os.environ.get("TOKEN")
-ADMIN_ID = int(os.environ.get("ADMIN_ID", "0"))
 YOUTUBE_API = os.environ.get("YOUTUBE_API", "")
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask('')
-warns = {}
+warns = {} # {chat_id: {user_id: عدد التحذيرات}}
 
-# ===== 1. الحماية =====
+def is_admin(chat_id, user_id):
+    try:
+        member = bot.get_chat_member(chat_id, user_id)
+        return member.status in ['administrator', 'creator']
+    except: return False
+
+# ===== الحماية =====
 @bot.message_handler(content_types=['new_chat_members'])
 def welcome(message):
     for user in message.new_chat_members:
-        bot.send_message(message.chat.id, f"🔥 اهلا {user.first_name} نورت القروب\nممنوع الروابط والسب")
+        bot.send_message(message.chat.id, f"🔥 اهلا {user.first_name} نورت القروب")
 
 @bot.message_handler(content_types=['text'])
 def anti(message):
-    if message.from_user.id == ADMIN_ID: return
+    if is_admin(message.chat.id, message.from_user.id): return # الادمن معفي
     text = message.text.lower()
     if "http" in text or "t.me/" in text:
         bot.delete_message(message.chat.id, message.message_id)
@@ -29,17 +34,21 @@ def anti(message):
         warn_user(message)
 
 def warn_user(message):
+    chat_id = message.chat.id
     user_id = message.from_user.id
-    warns[user_id] = warns.get(user_id, 0) + 1
-    if warns[user_id] >= 3:
-        bot.ban_chat_member(message.chat.id, user_id)
-        bot.send_message(message.chat.id, "تم الحظر بسبب 3 تحذيرات")
+    if chat_id not in warns: warns[chat_id] = {}
+    warns[chat_id][user_id] = warns[chat_id].get(user_id, 0) + 1
+    if warns[chat_id][user_id] >= 3:
+        bot.ban_chat_member(chat_id, user_id)
+        bot.send_message(chat_id, "تم الحظر بسبب 3 تحذيرات")
     else:
-        bot.send_message(message.chat.id, f"تحذير {warns[user_id]}/3")
+        bot.send_message(chat_id, f"تحذير {warns[chat_id][user_id]}/3")
 
+# ===== اوامر الادمن =====
 @bot.message_handler(commands=['ban','mute','unmute','kick'])
 def admin_cmd(message):
-    if message.from_user.id!= ADMIN_ID: return
+    if not is_admin(message.chat.id, message.from_user.id): 
+        return bot.reply_to(message, "انت مش ادمن")
     if not message.reply_to_message: return
     uid = message.reply_to_message.from_user.id
     cmd = message.text
@@ -49,25 +58,10 @@ def admin_cmd(message):
     if cmd == '/unmute': bot.restrict_chat_member(message.chat.id, uid, can_send_messages=True)
     bot.reply_to(message, f"تم {cmd}")
 
-# ===== 2. البحث والتفعيل =====
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.reply_to(message, "🔥 البوت مفعل وشغال\nاكتب /help للاوامر")
-
-@bot.message_handler(commands=['help'])
-def help_cmd(message):
-    bot.reply_to(message, """**اوامر البوت:**
-
-**حماية:** /ban /mute /unmute /kick رد على العضو
-**بحث:** /yt اسم الفيديو
-**تحميل:** /song اسم الاغنية
-**تفعيل:** البوت شغال 24 ساعة""", parse_mode="Markdown")
-
-# ===== 3. بحث يوتيوب =====
+# ===== يوتيوب + اغاني =====
 @bot.message_handler(commands=['yt'])
 def search_yt(message):
     query = message.text.replace("/yt ", "")
-    if not query: return bot.reply_to(message, "استخدم: /yt اسم الفيديو")
     url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API}&q={query}&part=snippet&type=video&maxResults=3"
     res = requests.get(url).json()
     if "items" in res:
@@ -76,29 +70,18 @@ def search_yt(message):
             link = f"https://youtu.be/{item['id']['videoId']}"
             bot.send_message(message.chat.id, f"🎬 {title}\n{link}")
 
-# ===== 4. تحميل اغاني =====
 @bot.message_handler(commands=['song'])
 def download_song(message):
     query = message.text.replace("/song ", "")
-    if not query: return bot.reply_to(message, "استخدم: /song اسم الاغنية")
     msg = bot.reply_to(message, f"جاري تحميل: {query} ⏳")
-    
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': 'song.%(ext)s',
-        'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
-        'quiet': True, 'noplaylist': True, 'default_search': 'ytsearch1'
-    }
+    ydl_opts = {'format': 'bestaudio/best','outtmpl': 'song.%(ext)s','postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3'}],'quiet': True, 'default_search': 'ytsearch1'}
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(query, download=True)
-            filename = ydl.prepare_filename(info).replace(".webm", ".mp3").replace(".m4a", ".mp3")
-            title = info['title']
-        with open(filename, 'rb') as audio:
-            bot.send_audio(message.chat.id, audio, title=title)
-        os.remove(filename)
-        bot.delete_message(message.chat.id, msg.message_id)
-    except: bot.reply_to(message, "صار خطأ في التحميل")
+            filename = ydl.prepare_filename(info).replace(".webm", ".mp3")
+        with open(filename, 'rb') as audio: bot.send_audio(message.chat.id, audio)
+        os.remove(filename); bot.delete_message(message.chat.id, msg.message_id)
+    except: bot.reply_to(message, "صار خطأ")
 
 def run_bot():
     bot.infinity_polling()
