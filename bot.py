@@ -1,58 +1,49 @@
-from pyrogram import Client, filters
-from pyrogram.types import Message
+import os
+import random
+import logging
+from telegram import Update, ChatMember
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# ضع بيانات البوت هنا
-api_id = 1234567  # استبدل برقم الـ API ID
-api_hash = "your_api_hash"  # استبدل الـ API Hash
-bot_token = "your_bot_token"  # استبدل توكن البوت
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-app = Client("MyBot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+BOT_NAME = "𝐓𝐢𝐚"
+DEVELOPER_ID = 7488375443 # ايديك انت
 
-# ايدي المطور الخاص بك
-DEV_ID = 123456789  # استبدل بايدي المطور
+if not BOT_TOKEN:
+    raise ValueError("حط BOT_TOKEN في Railway Variables")
 
+# === البيانات ===
+BANNED_WORDS = ["غبي", "احمق", "كلب"]
+BANNED_LINKS = ["http://", "https://", "t.me/", ".com"]
+warnings = {}
+muted_users = set()
 
-@app.on_message(filters.command("start"))
-async def start_cmd(client: Client, message: Message):
-  await message.reply(
-      "أهلاً بك! أنا بوت حماية وألعاب وأغاني. استخدم الأوامر لمعرفة المساعد."
-  )
+def is_admin(update, context):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    member = context.bot.get_chat_member(chat_id, user_id)
+    return member.status in [ChatMember.ADMINISTRATOR, ChatMember.OWNER]
 
+def is_dev(user_id):
+    return user_id == DEVELOPER_ID
 
-# رد المطور
-@app.on_message(filters.command("المطور") | filters.regex("من هو مطوري"))
-async def dev_cmd(client: Client, message: Message):
-  await message.reply("مبمج هذا البوت هو مطور البوت الذكي. ايديه: 123456789")
+# === 1. اوامر البوت العامة ===
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = f"""مرحبا انا {BOT_NAME} 🤖🔒
 
+**اوامر عامة:**
+/help - عرض كل الاوامر
+/song اسم - بحث اغنية
+/rps حجر - حجر ورق مقص
+/guess - تخمين رقم
+/joke - نكتة
+/id - يجيب ايديك وايدي القروب
+"""
+    await update.message.reply_text(msg)
 
-# قسم الحماية (مثال كتم عضو)
-@app.on_message(filters.command("كتم") & filters.group)
-async def mute_cmd(client: Client, message: Message):
-  if not message.reply_to_message:
-    return await message.reply("بالرد على الرسالة لكتم المستخدم.")
-  user_id = message.reply_to_message.from_user.id
-  # كود كتم المستخدم في المجموعة
-  await message.chat.restrict_member(
-      user_id, permissions=pyrogram.types.ChatPermissions()
-  )
-  await message.reply("تم كتم المستخدم بنجاح.")
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = f"""📜 **اوامر {BOT_NAME}**
 
-
-# قسم الأوامر والبحث
-@app.on_message(filters.command("بحث"))
-async def search_cmd(client: Client, message: Message):
-  query = message.text.split(None, 1)
-  if len(query) < 2:
-    return await message.reply("اكتب ما تريد البحث عنه بعد الأمر.")
-  await message.reply(f"جاري البحث عن: {query[1]}")
-
-
-# قسم الهمسات
-@app.on_message(filters.command("همسة"))
-async def whisper_cmd(client: Client, message: Message):
-  await message.reply("خاصية الهمسات تتيح إرسال رسالة لا يراها غير الشخص المقصود.")
-
-
-# تشغيل البوت
-print("البوت يعمل الان...")
-app.run()
+**اوامر عامة:**
+/start /help /song /rps /guess /
