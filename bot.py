@@ -95,3 +95,102 @@ def main():
 
 if __name__ == "__main__":
     main()
+import os
+import json
+from telegram import Update, ChatPermissions
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+TOKEN = os.getenv("BOT_TOKEN")
+DATA_FILE = "data.json"
+
+try:
+    with open(DATA_FILE, 'r', encoding='utf-8') as f: data = json.load(f)
+except: data = {"devs": [], "admins": {}, "owners": {}, "creators": {}, "vip": {}}
+
+def save():
+    with open(DATA_FILE, 'w', encoding='utf-8') as f: json.dump(data, f, ensure_ascii=False, indent=4)
+
+def is_dev(uid): return uid in data["devs"]
+def is_admin(uid, cid): return uid in data["devs"] or uid in data["admins"].get(str(cid), [])
+
+# ========== م1 ==========
+async def m1(u,c):
+    text = """أهلاً بك عزيزي في قائمة الاوامر :
+━━━━━
+◂ م1 : اوامر الادمنيه
+━━━━━━━━━━━━
+- اوامر الرفع والتنزيل :
+رفع مالك اساسي - تنزيل مالك اساسي
+رفع مالك - تنزيل مالك
+رفع مشرف - تنزيل مشرف
+رفع منشئ - تنزيل منشئ
+رفع مدير - تنزيل مدير
+رفع ادمن - تنزيل ادمن
+رفع مميز - تنزيل مميز
+تنزيل الكل
+
+- اوامر المسح :
+مسح الكل - مسح المحظورين - مسح المكتومين
+
+- اوامر الطرد والحظر :
+حظر - طرد - كتم - تقييد
+الغاء الحظر - الغاء الكتم - فك التقييد
+━━━━━━━━━━━━"""
+    await u.message.reply_text(text)
+
+# ========== اوامر الرفع والتنزيل ==========
+async def promote(u,c):
+    if not is_dev(u.effective_user.id): return
+    if not u.message.reply_to_message: return await u.message.reply_text("رد على الشخص")
+    cid = str(u.effective_chat.id)
+    uid = u.message.reply_to_message.from_user.id
+    rank = u.message.text.split()[1] # ادمن, مدير, الخ
+
+    ranks = {"ادمن": "admins", "مدير": "admins", "منشئ": "creators", "مالك": "owners", "مميز": "vip"}
+    if rank in ranks:
+        if cid not in data[ranks[rank]]: data[ranks[rank]][cid] = []
+        if uid not in data[ranks[rank]][cid]: data[ranks[rank]][cid].append(uid); save()
+        await u.message.reply_text(f"تم رفع {rank} ✅")
+
+async def demote(u,c):
+    if not is_dev(u.effective_user.id): return
+    if not u.message.reply_to_message: return await u.message.reply_text("رد على الشخص")
+    cid = str(u.effective_chat.id)
+    uid = u.message.reply_to_message.from_user.id
+
+    for r in ["admins", "owners", "creators", "vip"]:
+        if cid in data[r] and uid in data[r][cid]: data[r][cid].remove(uid)
+    save()
+    await u.message.reply_text("تم التنزيل ✅")
+
+async def demote_all(u,c):
+    if not is_dev(u.effective_user.id): return
+    cid = str(u.effective_chat.id)
+    data["admins"][cid] = []; data["owners"][cid] = []; data["creators"][cid] = []; data["vip"][cid] = []
+    save()
+    await u.message.reply_text("تم تنزيل الكل ✅")
+
+# ========== اوامر الحظر ==========
+async def ban(u,c):
+    if not is_admin(u.effective_user.id, u.effective_chat.id): return
+    if not u.message.reply_to_message: return await u.message.reply_text("رد على الشخص")
+    await c.bot.ban_chat_member(u.effective_chat.id, u.message.reply_to_message.from_user.id)
+    await u.message.reply_text("تم الحظر ✅")
+
+async def unban(u,c):
+    if not is_admin(u.effective_user.id, u.effective_chat.id): return
+    if not u.message.reply_to_message: return
+    await c.bot.unban_chat_member(u.effective_chat.id, u.message.reply_to_message.from_user.id)
+    await u.message.reply_text("تم الغاء الحظر ✅")
+
+async def kick(u,c):
+    if not is_admin(u.effective_user.id, u.effective_chat.id): return
+    if not u.message.reply_to_message: return
+    uid = u.message.reply_to_message.from_user.id
+    await c.bot.ban_chat_member(u.effective_chat.id, uid)
+    await c.bot.unban_chat_member(u.effective_chat.id, uid)
+    await u.message.reply_text("تم الطرد ✅")
+
+async def mute(u,c):
+    if not is_admin(u.effective_user.id, u.effective_chat.id): return
+    if not u.message.reply_to_message: return
