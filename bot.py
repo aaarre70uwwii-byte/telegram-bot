@@ -1,49 +1,29 @@
-import os
-import random
-import logging
-from telegram import Update, ChatMember
+ import os
+import asyncio
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 BOT_NAME = "𝐓𝐢𝐚"
-DEVELOPER_ID = 7488375443 # ايديك انت
 
-if not BOT_TOKEN:
-    raise ValueError("حط BOT_TOKEN في Railway Variables")
+COMMANDS = [
+    "/start - تشغيل البوت",
+    "/help - المساعدة", 
+    "/id - معرفك",
+]
 
-# === البيانات ===
-BANNED_WORDS = ["غبي", "احمق", "كلب"]
-BANNED_LINKS = ["http://", "https://", "t.me/", ".com"]
-warnings = {}
-muted_users = set()
-
-def is_admin(update, context):
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    member = context.bot.get_chat_member(chat_id, user_id)
-    return member.status in [ChatMember.ADMINISTRATOR, ChatMember.OWNER]
-
-def is_dev(user_id):
-    return user_id == DEVELOPER_ID
-
-# === 1. اوامر البوت العامة ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = f"""مرحبا انا {BOT_NAME} 🤖🔒
-
-**اوامر عامة:**
-/help - عرض كل الاوامر
-/song اسم - بحث اغنية
-/rps حجر - حجر ورق مقص
-/guess - تخمين رقم
-/joke - نكتة
-/id - يجيب ايديك وايدي القروب
-"""
-    await update.message.reply_text(msg)
+    text = "مرحبا انا **" + BOT_NAME + "** \n\n**اوامر " + BOT_NAME + ":**\n" + "\n".join(COMMANDS)
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = f"""📜 **اوامر {BOT_NAME}**
+    text = "**اوامر " + BOT_NAME + ":**\n" + "\n".join(COMMANDS)
+    await update.message.reply_text(text, parse_mode="Markdown")
 
-**اوامر عامة:**
-/start /help /song /rps /guess /
+async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    await update.message.reply_text("معرفك هو: `" + str(user_id) + "`", parse_mode="Markdown")
+
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.lower()
+    if "مرحبا" in text
