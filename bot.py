@@ -5,13 +5,13 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Con
 TOKEN = os.getenv("BOT_TOKEN")
 BOT_NAME = "Tia"
 
-# قائمة الادمن - حط معرفك هنا عشان تتحكم
+# حط معرفك هنا عشان تكون ادمن. جيبه من /id
 ADMIN_IDS = [] 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = update.effective_chat.type
     if chat_type == "private":
-        text = f"مرحبا انا {BOT_NAME} 💜\n\nضفني لجروب وخليني مشرف\nالاوامر:\n/start\n/help\n/id\n/منشن"
+        text = f"مرحبا انا {BOT_NAME} 💜\n\nضفني لجروب وخليني مشرف\nالاوامر:\n/start\n/help\n/id\n/mention"
     else:
         text = f"هلا بالجميع انا {BOT_NAME} 💜\nارسل /help عشان تشوف اوامري"
     await update.message.reply_text(text)
@@ -21,9 +21,9 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /start - تشغيل البوت
 /help - المساعدة
 /id - معرفك + معرف الجروب
-/منشن - يمنشن الكل
-/طرد - طرد عضو "للادمن فقط"
-/حظر - حظر عضو "للادمن فقط"
+/mention - يمنشن الكل
+/kick - طرد عضو "للادمن فقط"
+/ban - حظر عضو "للادمن فقط"
 """
     await update.message.reply_text(text, parse_mode="Markdown")
 
@@ -43,7 +43,7 @@ async def mention_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def kick(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if user_id not in ADMIN_IDS and user_id != update.effective_chat.owner.id:
+    if user_id not in ADMIN_IDS and user_id != (await context.bot.get_chat(update.effective_chat.id)).owner.id:
         await update.message.reply_text("هذا الامر للادمن فقط")
         return
     if not update.message.reply_to_message:
@@ -55,7 +55,7 @@ async def kick(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if user_id not in ADMIN_IDS and user_id != update.effective_chat.owner.id:
+    if user_id not in ADMIN_IDS and user_id != (await context.bot.get_chat(update.effective_chat.id)).owner.id:
         await update.message.reply_text("هذا الامر للادمن فقط")
         return
     if not update.message.reply_to_message:
@@ -79,9 +79,9 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("id", id_cmd))
-    app.add_handler(CommandHandler("منشن", mention_all))
-    app.add_handler(CommandHandler("طرد", kick))
-    app.add_handler(CommandHandler("حظر", ban))
+    app.add_handler(CommandHandler("mention", mention_all)) # غيرنا منشن ل mention
+    app.add_handler(CommandHandler("kick", kick)) # غيرنا طرد ل kick
+    app.add_handler(CommandHandler("ban", ban)) # غيرنا حظر ل ban
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
     
     print(f"{BOT_NAME} شغال في الجروبات")
