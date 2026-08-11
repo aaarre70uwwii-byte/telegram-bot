@@ -1,61 +1,28 @@
- import os
-import json
-import asyncio
-from telegram import ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
+import os
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
-DEV_ID = 7488375443 # حط ايديك هنا
-DATA_FILE = "data.json"
 
-try:
-    with open(DATA_FILE, 'r', encoding='utf-8') as f: data = json.load(f)
-except:
-    data = {"devs": [DEV_ID], "owners": {}, "active_groups": []}
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("مرحبا انا 𝐓𝐢𝐚 \n\nاوامري:\n/start\n/help\n/id")
 
-def save():
-    with open(DATA_FILE, 'w', encoding='utf-8') as f: json.dump(data, f, ensure_ascii=False, indent=4)
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("/start - تشغيل البوت\n/help - المساعدة\n/id - معرفك")
 
-def is_dev(uid): return uid in data["devs"]
-def is_main_dev(uid): return uid == DEV_ID
-def is_owner(uid, cid): return is_dev(uid) or uid in data["owners"].get(str(cid), [])
-def is_active(cid): return str(cid) in data["active_groups"]
+async def id_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"معرفك: {update.effective_user.id}")
 
-def get_panel():
-    keyboard = [
-        [KeyboardButton("✅ تفعيل"), KeyboardButton("❌ تعطيل")],
-        [KeyboardButton("⬆️ رفع مالك"), KeyboardButton("⬇️ تنزيل مالك")],
-        [KeyboardButton("⬆️ رفع مطور"), KeyboardButton("⬇️ تنزيل مطور")]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+def main():
+    if not TOKEN:
+        print("حط BOT_TOKEN في Variables")
+        return
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("id", id_cmd))
+    print("Tia شغال")
+    app.run_polling()
 
-async def start(u,c):
-    await u.message.reply_text("البوت شغال ✅", reply_markup=get_panel())
-
-def get_target(u):
-    if u.message.reply_to_message:
-        return u.message.reply_to_message.from_user.id
-    return None
-
-# ========== اوامر المطور الاساسي فقط ==========
-async def promote_dev(u,c):
-    if not is_main_dev(u.effective_user.id): return
-    uid = get_target(u)
-    if not uid: return await u.message.reply_text("رد على الشخص")
-    if uid not in data["devs"]: data["devs"].append(uid); save()
-    await u.message.reply_text("✅ تم رفع مطور", reply_markup=get_panel())
-
-async def demote_dev(u,c):
-    if not is_main_dev(u.effective_user.id): return
-    uid = get_target(u)
-    if uid == DEV_ID: return await u.message.reply_text("ما اقدر انزل المطور الاساسي")
-    if uid in data["devs"]: data["devs"].remove(uid); save()
-    await u.message.reply_text("✅ تم تنزيل مطور", reply_markup=get_panel())
-
-async def promote_owner(u,c):
-    if not is_main_dev(u.effective_user.id): return
-    uid = get_target(u)
-    if not uid: return
-    cid = str(u.effective_chat.id)
-    if cid not in data["owners"]: data["owners"][cid] = []
-    if uid not in data
+if __name__ == "__main__":
+    main()
