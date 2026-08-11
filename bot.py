@@ -17,17 +17,18 @@ CHANNEL_ID = -1003712880955
 CHANNEL_LINK = "https://t.me/eeecxu"
 
 DATA_FILE = "data.json"
+
+def save(): # <- لازم تكون قبل ما نستخدمها
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
 # انشاء الملف لو مش موجود
 try:
     with open(DATA_FILE, 'r', encoding='utf-8') as f:
         data = json.load(f)
 except FileNotFoundError:
     data = {"devs": [DEVELOPER_ID], "owners": {}, "active_groups": [], "locks": {}}
-    save()
-
-def save():
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    save() # الحين save موجوده
 
 def is_admin(user_id, chat_id):
     if user_id == DEVELOPER_ID: return True
@@ -42,10 +43,10 @@ def main_menu_keyboard():
     markup = InlineKeyboardMarkup()
     markup.row(InlineKeyboardButton("👮 أوامر الإدارة (م1)", callback_data="m1"),
                InlineKeyboardButton("⚙️ أوامر الإعدادات (م2)", callback_data="m2"))
-    markup.row(InlineKeyboardButton("🔒 أوامر القفل (م3)", callback_data="m3"),
-               InlineKeyboardButton("💻 أوامر المطور (م4)", callback_data="m4"))
-    markup.row(InlineKeyboardButton("🎯 أوامر التسلية (م5)", callback_data="m5"),
-               InlineKeyboardButton("🛠️ الأوامر الخدمية (م6)", callback_data="m6"))
+    markup.row(InlineKeyboardButton("🔒 أوامر القفل (m3)", callback_data="m3"),
+               InlineKeyboardButton("💻 أوامر المطور (m4)", callback_data="m4"))
+    markup.row(InlineKeyboardButton("🎯 أوامر التسلية (m5)", callback_data="m5"),
+               InlineKeyboardButton("🛠️ الأوامر الخدمية (m6)", callback_data="m6"))
     markup.row(InlineKeyboardButton("📢 قناة التحديثات", url=CHANNEL_LINK))
     return markup
 
@@ -68,7 +69,7 @@ def welcome(message):
     chat_id = message.chat.id
     if str(chat_id) not in data["owners"]:
         data["owners"][str(chat_id)] = message.from_user.id
-    if chat_id not in data["active_groups"]: # تم التعديل هنا
+    if chat_id not in data["active_groups"]:
         data["active_groups"].append(chat_id)
         save()
         bot.send_message(chat_id, f"تم تعيين {message.from_user.first_name} كمالك للمجموعة ✅")
@@ -78,17 +79,13 @@ def welcome(message):
 def callback(call):
     bot.answer_callback_query(call.id)
     if not call.message: return
-
     cid = call.message.chat.id
-    mid = call.message.message_id
-
+    mid = call.message_id
+    
     if call.data == "main_menu":
         bot.edit_message_text("أهلاً بك في Tia 🤖\nاختر القسم:", cid, mid, reply_markup=main_menu_keyboard())
     elif call.data == "m1":
         txt = "👮 **أوامر الإدارة**\n\n`/حظر` بالرد\n`/طرد` بالرد\n`/كتم` بالرد\n`/الغاء_الكتم` بالرد"
-        bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
-    elif call.data == "m2":
-        txt = "⚙️ **أوامر الإعدادات**\n\n`/وضع_الرابط`\n`/الترحيب` رسالتك"
         bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
     elif call.data == "m3":
         txt = "🔒 **أوامر القفل**\n\n`/قفل_الصور`\n`/قفل_الروابط`\n`/قفل_الملصقات`\n`/فتح_الكل`"
@@ -107,60 +104,32 @@ def callback(call):
         bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
 
 # ===== م1: اوامر الادارة =====
-@bot.message_handler(commands=['حظر'])
-def ban(message):
+@bot.message_handler(commands=['حظر', 'طرد', 'كتم', 'الغاء_الكتم'])
+def admin_cmd(message):
     if not is_admin(message.from_user.id, message.chat.id): return
     if not message.reply_to_message: return bot.reply_to(message, "رد على العضو")
+    uid = message.reply_to_message.from_user.id
+    cmd = message.text.replace('/', '')
     try:
-        bot.ban_chat_member(message.chat.id, message.reply_to_message.from_user.id)
-        bot.reply_to(message, "✅ تم الحظر")
-    except: bot.reply_to(message, "❌ ما اقدر احظر. تأكد اني ادمن")
-
-@bot.message_handler(commands=['طرد'])
-def kick(message):
-    if not is_admin(message.from_user.id, message.chat.id): return
-    if not message.reply_to_message: return bot.reply_to(message, "رد على العضو")
-    try:
-        uid = message.reply_to_message.from_user.id
-        bot.ban_chat_member(message.chat.id, uid)
-        bot.unban_chat_member(message.chat.id, uid)
-        bot.reply_to(message, "✅ تم الطرد")
-    except: bot.reply_to(message, "❌ ما اقدر اطرد. تأكد اني ادمن")
-
-@bot.message_handler(commands=['كتم'])
-def mute(message):
-    if not is_admin(message.from_user.id, message.chat.id): return
-    if not message.reply_to_message: return bot.reply_to(message, "رد على العضو")
-    try:
-        bot.restrict_chat_member(message.chat.id, message.reply_to_message.from_user.id, ChatPermissions(can_send_messages=False))
-        bot.reply_to(message, "✅ تم الكتم")
-    except: bot.reply_to(message, "❌ ما اقدر اكتم. تأكد اني ادمن")
-
-@bot.message_handler(commands=['الغاء_الكتم'])
-def unmute(message):
-    if not is_admin(message.from_user.id, message.chat.id): return
-    if not message.reply_to_message: return bot.reply_to(message, "رد على العضو")
-    try:
-        bot.restrict_chat_member(message.chat.id, message.reply_to_message.from_user.id, ChatPermissions(can_send_messages=True))
-        bot.reply_to(message, "✅ تم فك الكتم")
-    except: bot.reply_to(message, "❌ ما اقدر افك الكتم. تأكد اني ادمن")
+        if cmd == 'حظر': bot.ban_chat_member(message.chat.id, uid); bot.reply_to(message, "✅ تم الحظر")
+        elif cmd == 'طرد': bot.ban_chat_member(message.chat.id, uid); bot.unban_chat_member(message.chat.id, uid); bot.reply_to(message, "✅ تم الطرد")
+        elif cmd == 'كتم': bot.restrict_chat_member(message.chat.id, uid, ChatPermissions(can_send_messages=False)); bot.reply_to(message, "✅ تم الكتم")
+        elif cmd == 'الغاء_الكتم': bot.restrict_chat_member(message.chat.id, uid, ChatPermissions(can_send_messages=True)); bot.reply_to(message, "✅ تم فك الكتم")
+    except: bot.reply_to(message, "❌ ما اقدر. تأكد اني ادمن")
 
 # ===== م3: اوامر القفل =====
-@bot.message_handler(commands=['قفل_الصور', 'قفل_الروابط', 'قفل_الملصقات'])
+@bot.message_handler(commands=['قفل_الصور', 'قفل_الروابط', 'قفل_الملصقات', 'فتح_الكل'])
 def lock_cmd(message):
     if not is_admin(message.from_user.id, message.chat.id): return
-    cmd = message.text.replace('/', '').replace('قفل_', '')
-    data["locks"][str(message.chat.id)] = data["locks"].get(str(message.chat.id), {})
-    data["locks"][str(message.chat.id)][cmd] = True
+    cmd = message.text.replace('/', '')
+    if cmd == 'فتح_الكل':
+        data["locks"][str(message.chat.id)] = {}
+    else:
+        lock_type = cmd.replace('قفل_', '')
+        data["locks"][str(message.chat.id)] = data["locks"].get(str(message.chat.id), {})
+        data["locks"][str(message.chat.id)][lock_type] = True
     save()
-    bot.reply_to(message, f"✅ تم قفل {cmd}")
-
-@bot.message_handler(commands=['فتح_الكل'])
-def unlock_all(message):
-    if not is_admin(message.from_user.id, message.chat.id): return
-    data["locks"][str(message.chat.id)] = {}
-    save()
-    bot.reply_to(message, "✅ تم فتح كل شي")
+    bot.reply_to(message, f"✅ تم {cmd}")
 
 @bot.message_handler(content_types=['photo', 'text', 'sticker'])
 def check_locks(message):
@@ -189,7 +158,7 @@ def stats(message):
     bot.reply_to(message, f"📊 الاحصائيات:\nالمجموعات: {len(data['active_groups'])}\nالمطورين: {len(data['devs'])}")
 
 # ===== م5: اوامر التسلية =====
-jokes = ["واحد محش دخل الامتحان...","مرة واحد بخيل اتصل بالاسعاف...","محش سألوه 2+2 كم؟ قال 22"]
+jokes = ["واحد محش دخل الامتحان...","مرة واحد بخيل اتصل بالاسعاف..."]
 @bot.message_handler(commands=['نكتة'])
 def joke(message):
     bot.reply_to(message, random.choice(jokes))
