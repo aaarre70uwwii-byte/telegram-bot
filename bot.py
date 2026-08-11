@@ -6,6 +6,10 @@ import random
 import time
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+if BOT_TOKEN is None:
+    print("ERROR: BOT_TOKEN not found in Variables!")
+    exit()
+
 bot = telebot.TeleBot(BOT_TOKEN)
 
 DEVELOPER_ID = 7488375443
@@ -13,11 +17,14 @@ CHANNEL_ID = -1003712880955
 CHANNEL_LINK = "https://t.me/eeecxu"
 
 DATA_FILE = "data.json"
+# انشاء الملف لو مش موجود
 try:
     with open(DATA_FILE, 'r', encoding='utf-8') as f: 
         data = json.load(f)
-except:
+except FileNotFoundError:
     data = {"devs": [DEVELOPER_ID], "owners": {}, "active_groups": [], "locks": {}}
+    with open(DATA_FILE, 'w', encoding='utf-8') as f: 
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 def save():
     with open(DATA_FILE, 'w', encoding='utf-8') as f: 
@@ -62,13 +69,19 @@ def welcome(message):
     chat_id = message.chat.id
     if str(chat_id) not in data["owners"]:
         data["owners"][str(chat_id)] = message.from_user.id
-        data["active_groups"].append(chat_id)
+        if chat_id not in data["active_groups"]:
+            data["active_groups"].append(chat_id)
         save()
         bot.send_message(chat_id, f"تم تعيين {message.from_user.first_name} كمالك للمجموعة ✅")
 
-# ===== ازرار القائمة =====
+# ===== ازرار القائمة - تم حل مشكلة CallbackQuery هنا =====
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
+    bot.answer_callback_query(call.id) # مهم عشان الدايرة تختفي
+    
+    if not call.message: # حماية لو الرسالة اتمسحت
+        return
+        
     cid = call.message.chat.id
     mid = call.message_id
     
@@ -76,26 +89,26 @@ def callback(call):
         bot.edit_message_text("أهلاً بك في Tia 🤖\nاختر القسم:", cid, mid, reply_markup=main_menu_keyboard())
     
     elif call.data == "m1":
-        txt = "👮 **أوامر الإدارة**\n\n/حظر @الرد\n/طرد @الرد\n/كتم @الرد 5د\n/الغاء_الكتم @الرد"
-        bot.edit_message_text(txt, cid, mid, reply_markup=back_button())
+        txt = "👮 **أوامر الإدارة**\n\n/حظر @الرد\n/طرد @الرد\n/كتم @الرد\n/الغاء_الكتم @الرد"
+        bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
     elif call.data == "m2":
         txt = "⚙️ **أوامر الإعدادات**\n\n/وضع_الرابط\n/الترحيب رسالتك"
-        bot.edit_message_text(txt, cid, mid, reply_markup=back_button())
+        bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
     elif call.data == "m3":
         txt = "🔒 **أوامر القفل**\n\n/قفل_الصور\n/قفل_الروابط\n/قفل_الملصقات\n/فتح_الكل"
-        bot.edit_message_text(txt, cid, mid, reply_markup=back_button())
+        bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
     elif call.data == "m4":
         if call.from_user.id == DEVELOPER_ID:
             txt = "💻 **لوحة المطور**\n\n/اذاعة رسالتك\n/احصائيات\n/حظر_عام @id"
-            bot.edit_message_text(txt, cid, mid, reply_markup=back_button())
+            bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
         else:
-            bot.answer_callback_query(call.id, "❌ هذا الأمر للمطور فقط")
+            bot.answer_callback_query(call.id, "❌ هذا الأمر للمطور فقط", show_alert=True)
     elif call.data == "m5":
         txt = "🎯 **أوامر التسلية**\n\n/نكتة\n/توقع\n/لعبة"
-        bot.edit_message_text(txt, cid, mid, reply_markup=back_button())
+        bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
     elif call.data == "m6":
         txt = "🛠️ **الأوامر الخدمية**\n\n/ايدي\n/معلومات\n/القناة"
-        bot.edit_message_text(txt, cid, mid, reply_markup=back_button())
+        bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
 
 # ===== م1: اوامر الادارة =====
 @bot.message_handler(commands=['حظر'])
@@ -148,6 +161,14 @@ def lock_link(message):
     save()
     bot.reply_to(message, "✅ تم قفل الروابط")
 
+@bot.message_handler(commands=['قفل_الملصقات'])
+def lock_sticker(message):
+    if not is_admin(message.from_user.id, message.chat.id): return
+    data["locks"][str(message.chat.id)] = data["locks"].get(str(message.chat.id), {})
+    data["locks"][str(message.chat.id)]["sticker"] = True
+    save()
+    bot.reply_to(message, "✅ تم قفل الملصقات")
+
 @bot.message_handler(commands=['فتح_الكل'])
 def unlock_all(message):
     if not is_admin(message.from_user.id, message.chat.id): return
@@ -161,7 +182,7 @@ def check_locks(message):
     if chat_id in data["locks"]:
         if message.content_type == 'photo' and data["locks"][chat_id].get("photo"):
             bot.delete_message(chat_id, message.message_id)
-        if message.content_type == 'text' and 'http' in message.text and data["locks"][chat_id].get("link"):
+        if message.content_type == 'text' and message.text and 'http' in message.text and data["locks"][chat_id].get("link"):
             bot.delete_message(chat_id, message.message_id)
         if message.content_type == 'sticker' and data["locks"][chat_id].get("sticker"):
             bot.delete_message(chat_id, message.message_id)
@@ -170,11 +191,14 @@ def check_locks(message):
 @bot.message_handler(commands=['اذاعة'])
 def broadcast(message):
     if message.from_user.id != DEVELOPER_ID: return
-    msg = message.text.replace('/اذاعة ', '')
+    msg = message.text.replace('/اذاعة ', '', 1)
+    count = 0
     for gid in data["active_groups"]:
-        try: bot.send_message(gid, f"📢 اذاعة من المطور:\n\n{msg}")
+        try: 
+            bot.send_message(gid, f"📢 اذاعة من المطور:\n\n{msg}")
+            count += 1
         except: pass
-    bot.reply_to(message, "✅ تمت الاذاعة")
+    bot.reply_to(message, f"✅ تمت الاذاعة لـ {count} مجموعة")
 
 @bot.message_handler(commands=['احصائيات'])
 def stats(message):
@@ -193,4 +217,10 @@ def my_id(message):
     bot.reply_to(message, f"🆔 ايديك: {message.from_user.id}\nايدي القروب: {message.chat.id}")
 
 print("Tia شغال للمطور", DEVELOPER_ID)
-bot.polling(none_stop=True)
+# تشغيل مستقر للـ Railway
+while True:
+    try:
+        bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    except Exception as e:
+        print(f"Error: {e}")
+        time.sleep(5)
