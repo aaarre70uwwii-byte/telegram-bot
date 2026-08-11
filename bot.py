@@ -1,177 +1,137 @@
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatPermissions
-import json
-import os
-import random
-import time
+import json, os, random, time, re
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-if BOT_TOKEN is None:
-    print("ERROR: BOT_TOKEN not found in Variables!")
-    exit()
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 
-bot = telebot.TeleBot(BOT_TOKEN)
-
-DEVELOPER_ID = 7488375443
-CHANNEL_ID = -1003712880955
+DEVELOPER_ID = 7488375443 # ايديك
 CHANNEL_LINK = "https://t.me/eeecxu"
-
 DATA_FILE = "data.json"
 
-def save(): # <- لازم تكون قبل ما نستخدمها
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-# انشاء الملف لو مش موجود
+# تحميل البيانات
 try:
-    with open(DATA_FILE, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-except FileNotFoundError:
-    data = {"devs": [DEVELOPER_ID], "owners": {}, "active_groups": [], "locks": {}}
-    save() # الحين save موجوده
+    with open(DATA_FILE, 'r', encoding='utf-8') as f: data = json.load(f)
+except:
+    data = {"owners": {}, "active_groups": [], "locks": {}, "whispers": {}, "banned_words": {}}
+
+def save():
+    with open(DATA_FILE, 'w', encoding='utf-8') as f: json.dump(data, f, ensure_ascii=False, indent=4)
 
 def is_admin(user_id, chat_id):
     if user_id == DEVELOPER_ID: return True
     if str(chat_id) in data["owners"] and user_id == data["owners"][str(chat_id)]: return True
-    try:
-        member = bot.get_chat_member(chat_id, user_id)
-        return member.status in ['administrator', 'creator']
+    try: return bot.get_chat_member(chat_id, user_id).status in ['administrator', 'creator']
     except: return False
 
-# ===== الكيبورد =====
-def main_menu_keyboard():
+def main_menu():
     markup = InlineKeyboardMarkup()
-    markup.row(InlineKeyboardButton("👮 أوامر الإدارة (م1)", callback_data="m1"),
-               InlineKeyboardButton("⚙️ أوامر الإعدادات (م2)", callback_data="m2"))
-    markup.row(InlineKeyboardButton("🔒 أوامر القفل (m3)", callback_data="m3"),
-               InlineKeyboardButton("💻 أوامر المطور (m4)", callback_data="m4"))
-    markup.row(InlineKeyboardButton("🎯 أوامر التسلية (m5)", callback_data="m5"),
-               InlineKeyboardButton("🛠️ الأوامر الخدمية (m6)", callback_data="m6"))
-    markup.row(InlineKeyboardButton("📢 قناة التحديثات", url=CHANNEL_LINK))
+    markup.row(InlineKeyboardButton("👮 الادارة", callback_data="m1"), InlineKeyboardButton("⚙️ الاعدادات", callback_data="m2"))
+    markup.row(InlineKeyboardButton("🔒 القفل", callback_data="m3"), InlineKeyboardButton("💻 المطور", callback_data="m4"))
+    markup.row(InlineKeyboardButton("📢 القناة", url=CHANNEL_LINK))
     return markup
 
-def back_button():
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="main_menu"))
-    return markup
-
-# ===== اوامر البداية =====
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.send_message(message.chat.id, "أهلاً بك في بوت Tia 🤖\nاختر القسم اللي تريده:", reply_markup=main_menu_keyboard())
-
-@bot.message_handler(commands=['channel', 'قناه'])
-def send_channel(message):
-    bot.send_message(message.chat.id, f"📢 قناة تحديثات البوت:\n{CHANNEL_LINK}")
-
-@bot.message_handler(content_types=['new_chat_members'])
-def welcome(message):
-    chat_id = message.chat.id
-    if str(chat_id) not in data["owners"]:
-        data["owners"][str(chat_id)] = message.from_user.id
-    if chat_id not in data["active_groups"]:
-        data["active_groups"].append(chat_id)
-        save()
-        bot.send_message(chat_id, f"تم تعيين {message.from_user.first_name} كمالك للمجموعة ✅")
-
-# ===== ازرار القائمة =====
-@bot.callback_query_handler(func=lambda call: True)
-def callback(call):
-    bot.answer_callback_query(call.id)
-    if not call.message: return
-    cid = call.message.chat.id
-    mid = call.message_id
-    
-    if call.data == "main_menu":
-        bot.edit_message_text("أهلاً بك في Tia 🤖\nاختر القسم:", cid, mid, reply_markup=main_menu_keyboard())
-    elif call.data == "m1":
-        txt = "👮 **أوامر الإدارة**\n\n`/حظر` بالرد\n`/طرد` بالرد\n`/كتم` بالرد\n`/الغاء_الكتم` بالرد"
-        bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
-    elif call.data == "m3":
-        txt = "🔒 **أوامر القفل**\n\n`/قفل_الصور`\n`/قفل_الروابط`\n`/قفل_الملصقات`\n`/فتح_الكل`"
-        bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
-    elif call.data == "m4":
-        if call.from_user.id == DEVELOPER_ID:
-            txt = "💻 **لوحة المطور**\n\n`/اذاعة` رسالتك\n`/احصائيات`"
-            bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
+# ===== اوامر التفعيل =====
+@bot.message_handler(commands=['تفعيل', 'activate'])
+def activate(message):
+    if message.chat.type in ['group','supergroup']:
+        if message.chat.id not in data["active_groups"]:
+            data["active_groups"].append(message.chat.id)
+            data["owners"][str(message.chat.id)] = message.from_user.id # صاحب القروب
+            save()
+            bot.reply_to(message, "✅ تم التفعيل بنجاح\nانا Tia تحت امركم")
         else:
-            bot.answer_callback_query(call.id, "❌ هذا الأمر للمطور فقط", show_alert=True)
-    elif call.data == "m5":
-        txt = "🎯 **أوامر التسلية**\n\n`/نكتة`"
-        bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
-    elif call.data == "m6":
-        txt = "🛠️ **الأوامر الخدمية**\n\n`/ايدي`\n`/القناة`"
-        bot.edit_message_text(txt, cid, mid, reply_markup=back_button(), parse_mode="Markdown")
+            bot.reply_to(message, "⚠️ البوت مفعل من قبل")
 
-# ===== م1: اوامر الادارة =====
-@bot.message_handler(commands=['حظر', 'طرد', 'كتم', 'الغاء_الكتم'])
-def admin_cmd(message):
+@bot.message_handler(commands=['تعطيل', 'deactivate'])
+def deactivate(message):
     if not is_admin(message.from_user.id, message.chat.id): return
+    if message.chat.id in data["active_groups"]:
+        data["active_groups"].remove(message.chat.id)
+        if str(message.chat.id) in data["owners"]: del data["owners"][str(message.chat.id)]
+        save()
+    bot.reply_to(message, "❌ تم تعطيل البوت من هذه المجموعة")
+
+# ===== امر المغادرة للمطور =====
+@bot.message_handler(commands=['غادر', 'leave'])
+def leave(message):
+    if message.from_user.id!= DEVELOPER_ID: return
+    if message.chat.type in ['group','supergroup']:
+        bot.reply_to(message, "غادرت بامر من المطور 👋")
+        time.sleep(1)
+        bot.leave_chat(message.chat.id)
+        if message.chat.id in data["active_groups"]: data["active_groups"].remove(message.chat.id); save()
+
+# ===== اوامر الرفع والايدي بالصورة للمطور =====
+@bot.message_handler(commands=['رفع', 'promote'])
+def promote_dev(message):
+    if message.from_user.id!= DEVELOPER_ID: return bot.reply_to(message, "❌ للمطور فقط")
     if not message.reply_to_message: return bot.reply_to(message, "رد على العضو")
     uid = message.reply_to_message.from_user.id
-    cmd = message.text.replace('/', '')
+    data["owners"][str(message.chat.id)] = uid; save()
+    bot.reply_to(message, f"✅ تم رفع {message.reply_to_message.from_user.first_name} مالك للمجموعة")
+
+@bot.message_handler(commands=['ايدي', 'id'])
+def id_photo(message):
+    user = message.reply_to_message.from_user if message.reply_to_message else message.from_user
+    photo_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/photos/placeholder.jpg" # صورة افتراضية
     try:
-        if cmd == 'حظر': bot.ban_chat_member(message.chat.id, uid); bot.reply_to(message, "✅ تم الحظر")
-        elif cmd == 'طرد': bot.ban_chat_member(message.chat.id, uid); bot.unban_chat_member(message.chat.id, uid); bot.reply_to(message, "✅ تم الطرد")
-        elif cmd == 'كتم': bot.restrict_chat_member(message.chat.id, uid, ChatPermissions(can_send_messages=False)); bot.reply_to(message, "✅ تم الكتم")
-        elif cmd == 'الغاء_الكتم': bot.restrict_chat_member(message.chat.id, uid, ChatPermissions(can_send_messages=True)); bot.reply_to(message, "✅ تم فك الكتم")
-    except: bot.reply_to(message, "❌ ما اقدر. تأكد اني ادمن")
+        user_photos = bot.get_user_profile_photos(user.id, limit=1)
+        if user_photos.total_count > 0:
+            file_id = user_photos.photos[0][0].file_id
+            caption = f"👤 الاسم: {user.first_name}\n🆔 الايدي: `{user.id}`\n@username: @{user.username or 'لا يوجد'}"
+            bot.send_photo(message.chat.id, file_id, caption=caption)
+        else:
+            bot.reply_to(message, f"👤 الاسم: {user.first_name}\n🆔 الايدي: `{user.id}`\n@username: @{user.username or 'لا يوجد'}")
+    except:
+        bot.reply_to(message, f"👤 الاسم: {user.first_name}\n🆔 الايدي: `{user.id}`")
 
-# ===== م3: اوامر القفل =====
-@bot.message_handler(commands=['قفل_الصور', 'قفل_الروابط', 'قفل_الملصقات', 'فتح_الكل'])
-def lock_cmd(message):
-    if not is_admin(message.from_user.id, message.chat.id): return
-    cmd = message.text.replace('/', '')
-    if cmd == 'فتح_الكل':
-        data["locks"][str(message.chat.id)] = {}
-    else:
-        lock_type = cmd.replace('قفل_', '')
-        data["locks"][str(message.chat.id)] = data["locks"].get(str(message.chat.id), {})
-        data["locks"][str(message.chat.id)][lock_type] = True
-    save()
-    bot.reply_to(message, f"✅ تم {cmd}")
+# ===== باقي الاوامر =====
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.send_message(message.chat.id, "مرحبا بك في بوت *Tia* 🤖\nاستخدم /تفعيل في القروب", reply_markup=main_menu())
 
-@bot.message_handler(content_types=['photo', 'text', 'sticker'])
-def check_locks(message):
-    chat_id = str(message.chat.id)
-    if chat_id in data["locks"]:
-        try:
-            if message.content_type == 'photo' and data["locks"][chat_id].get("photo"): bot.delete_message(chat_id, message.message_id)
-            if message.content_type == 'text' and message.text and 'http' in message.text and data["locks"][chat_id].get("link"): bot.delete_message(chat_id, message.message_id)
-            if message.content_type == 'sticker' and data["locks"][chat_id].get("sticker"): bot.delete_message(chat_id, message.message_id)
-        except: pass
-
-# ===== م4: اوامر المطور =====
-@bot.message_handler(commands=['اذاعة'])
-def broadcast(message):
-    if message.from_user.id!= DEVELOPER_ID: return
-    msg = message.text.replace('/اذاعة ', '', 1)
-    count = 0
-    for gid in data["active_groups"]:
-        try: bot.send_message(gid, f"📢 اذاعة من المطور:\n\n{msg}"); count += 1
-        except: pass
-    bot.reply_to(message, f"✅ تمت الاذاعة لـ {count} مجموعة")
-
-@bot.message_handler(commands=['احصائيات'])
-def stats(message):
-    if message.from_user.id!= DEVELOPER_ID: return
-    bot.reply_to(message, f"📊 الاحصائيات:\nالمجموعات: {len(data['active_groups'])}\nالمطورين: {len(data['devs'])}")
-
-# ===== م5: اوامر التسلية =====
-jokes = ["واحد محش دخل الامتحان...","مرة واحد بخيل اتصل بالاسعاف..."]
-@bot.message_handler(commands=['نكتة'])
-def joke(message):
-    bot.reply_to(message, random.choice(jokes))
-
-# ===== م6: اوامر خدمية =====
-@bot.message_handler(commands=['ايدي'])
-def my_id(message):
-    bot.reply_to(message, f"🆔 ايديك: `{message.from_user.id}`\nايدي القروب: `{message.chat.id}`", parse_mode="Markdown")
-
-print("Tia شغال للمطور", DEVELOPER_ID)
-while True:
+@bot.message_handler(commands=['ban', 'kick', 'mute', 'unmute'])
+def admin_cmds(message):
+    if not is_admin(message.from_user.id, message.chat.id): return bot.reply_to(message, "❌ انت مش ادمن")
+    if not message.reply_to_message: return bot.reply_to(message, "رد على العضو")
+    uid = message.reply_to_message.from_user.id
+    cmd = message.text.split()[0].replace('/', '')
     try:
-        bot.infinity_polling(timeout=10, long_polling_timeout=5)
-    except Exception as e:
-        print(f"Error: {e}")
-        time.sleep(5)
+        if cmd == 'ban': bot.ban_chat_member(message.chat.id, uid); bot.reply_to(message, "✅ تم الحظر")
+        elif cmd == 'kick': bot.ban_chat_member(message.chat.id, uid); bot.unban_chat_member(message.chat.id, uid); bot.reply_to(message, "✅ تم الطرد")
+        elif cmd == 'mute': bot.restrict_chat_member(message.chat.id, uid, ChatPermissions()); bot.reply_to(message, "✅ تم الكتم")
+        elif cmd == 'unmute': bot.restrict_chat_member(message.chat.id, uid, ChatPermissions(can_send_messages=True)); bot.reply_to(message, "✅ تم فك الكتم")
+    except: bot.reply_to(message, "❌ فشلت. تأكد اني ادمن")
+
+@bot.message_handler(commands=['همسه'])
+def whisper(message):
+    try:
+        _, target, *msg = message.text.split()
+        data["whispers"][target] = " ".join(msg); save()
+        bot.reply_to(message, f"✅ تم ارسال همسة الى {target}. قله يرسل /قرا")
+    except: bot.reply_to(message, "الاستخدام: /همسه @اليوزر النص")
+
+@bot.message_handler(commands=['قرا'])
+def read_whisper(message):
+    user = f"@{message.from_user.username}"
+    if user in data["whispers"]:
+        bot.reply_to(message, f"📩 همستك: {data['whispers'][user]}")
+        del data["whispers"][user]; save()
+    else: bot.reply_to(message, "ماعندك همسات")
+
+@bot.message_handler(commands=['stats', 'broadcast'])
+def dev(message):
+    if message.from_user.id!= DEVELOPER_ID: return
+    if message.text.startswith('/broadcast'):
+        msg = message.text.replace('/broadcast ', '', 1)
+        count = 0
+        for gid in data["active_groups"]:
+            try: bot.send_message(gid, f"📢 *اذاعة من المطور*\n\n{msg}"); count += 1; time.sleep(0.1)
+            except: pass
+        bot.reply_to(message, f"✅ تمت الاذاعة لـ {count} مجموعة")
+    elif message.text == '/stats':
+        bot.reply_to(message, f"📊 *احصائيات Tia:*\nالمجموعات: `{len(data['active_groups'])}`")
+
+print(f"Tia v3.0 اشتغل. المطور: {DEVELOPER_ID}")
+bot.infinity_polling()
