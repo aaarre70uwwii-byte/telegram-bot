@@ -135,3 +135,21 @@ def dev(message):
 
 print(f"Tia v3.0 اشتغل. المطور: {DEVELOPER_ID}")
 bot.infinity_polling()
+@bot.message_handler(commands=['حضر'])
+def ban(m):
+    if not m.reply_to_message: return bot.reply_to(m, "رد على الشخص اللي تريد تحضره")
+    bot.ban_chat_member(m.chat.id, m.reply_to_message.from_user.id)
+    bot.reply_to(m, f"🚫 تم حظر {m.reply_to_message.from_user.first_name}")
+
+@bot.message_handler(commands=['طرد'])
+def kick(m):
+    if not m.reply_to_message: return bot.reply_to(m, "رد على الشخص اللي تريد تطرده")
+    bot.ban_chat_member(m.chat.id, m.reply_to_message.from_user.id)
+    bot.unban_chat_member(m.chat.id, m.reply_to_message.from_user.id)
+    bot.reply_to(m, f"👢 تم طرد {m.reply_to_message.from_user.first_name}")
+
+@bot.message_handler(commands=['كتم'])
+def mute(m):
+    if not m.reply_to_message: return bot.reply_to(m, "رد على الشخص اللي تريد تكتمه")
+    bot.restrict_chat_member(m.chat.id, m.reply_to_message.from_user.id, can_send_messages=False)
+    bot.reply_to(m, f"🔇 تم كتم {m.reply_to_message.from_user.first_name}")
