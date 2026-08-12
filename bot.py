@@ -1,23 +1,19 @@
-import telebot, os, json, time
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import telebot, os, json, time, sys, random
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatPermissions
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    print("ERROR: BOT_TOKEN not found")
-    exit()
-
 bot = telebot.TeleBot(BOT_TOKEN)
 DEVELOPER_ID = 7488375443
 DB_FILE = "data.json"
+votes = {}
 
-# ======== قاعدة بيانات بحفظ تلقائي ========
 def load_data():
     global data
     try:
         with open(DB_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
     except:
-        data = {"groups": {}, "locks": {}, "settings": {}}
+        data = {"groups": {}, "locks": {}, "settings": {}, "gban": [], "gmuted": [], "devs": [DEVELOPER_ID], "fun": {}, "marry": {}}
 
 def save_data():
     with open(DB_FILE, "w", encoding="utf-8") as f:
@@ -27,221 +23,128 @@ load_data()
 
 def get_group(gid):
     gid = str(gid)
-    if gid not in data["groups"]:
-        data["groups"][gid] = {"owners":[], "admins":[], "mods":[], "banned":[], "muted":[]}
-        save_data()
+    if gid not in data["groups"]: data["groups"][gid] = {"owners":[], "admins":[], "mods":[], "creators":[], "vip":[]}
+    if gid not in data["settings"]: data["settings"][gid] = {"link":"", "welcome":"", "rules":"", "channel":"", "download":False, "fun_on":True}
+    if gid not in data["locks"]: data["locks"][gid] = {}
+    if gid not in data["fun"]: data["fun"][gid] = {}
     return data["groups"][gid]
+
+def get_settings(gid): return data["settings"].setdefault(str(gid), {"fun_on":True})
+def get_locks(gid): return data["locks"].setdefault(str(gid), {})
+def get_fun(gid): return data["fun"].setdefault(str(gid), {})
 
 def is_admin(m):
     g = get_group(m.chat.id)
     uid = m.from_user.id
-    if uid == DEVELOPER_ID: return True
-    if uid in g["owners"] or uid in g["admins"] or uid in g["mods"]: return True
+    if uid == DEVELOPER_ID or uid in data["devs"]: return True
+    if uid in g["owners"] or uid in g["admins"] or uid in g["mods"] or uid in g["creators"]: return True
     try:
-        member = bot.get_chat_member(m.chat.id, uid)
-        if member.status in ["creator", "administrator"]: return True
+        if bot.get_chat_member(m.chat.id, uid).status in ["creator", "administrator"]: return True
     except: pass
     return False
 
-# ======== الازرار ========
-def get_buttons():
-    keyboard = InlineKeyboardMarkup()
-    keyboard.row(InlineKeyboardButton("م1 الادمنية", callback_data="m1"))
-    keyboard.row(InlineKeyboardButton("م2 الاعدادات", callback_data="m2"))
-    keyboard.row(InlineKeyboardButton("م3 القفل", callback_data="m3"))
-    keyboard.row(InlineKeyboardButton("م4 المطور", callback_data="m4"))
-    keyboard.row(InlineKeyboardButton("م5 التسليه", callback_data="m5"))
-    keyboard.row(InlineKeyboardButton("❌ الغاء", callback_data="cancel"))
-    return keyboard
+def is_dev(m): return m.from_user.id == DEVELOPER_ID or m.from_user.id in data["devs"]
+def get_user_name(user): return f"[{user.first_name}](tg://user?id={user.id})"
+
+def main_panel():
+    k = InlineKeyboardMarkup(row_width=3)
+    k.row(InlineKeyboardButton("①", callback_data="m1"), InlineKeyboardButton("②", callback_data="m2"), InlineKeyboardButton("③", callback_data="m3"))
+    k.row(InlineKeyboardButton("Dev اوامر", callback_data="m4"), InlineKeyboardButton("اوامر التسليه", callback_data="m5"))
+    k.row(InlineKeyboardButton("⭐ اوامر خدميه", callback_data="m6"))
+    k.row(InlineKeyboardButton("👑 الادمن", callback_data="admins_list"))
+    return k
 
 def get_back_button():
-    keyboard = InlineKeyboardMarkup()
-    keyboard.row(InlineKeyboardButton("🔙 الرجوع", callback_data="back"))
-    return keyboard
+    k = InlineKeyboardMarkup()
+    k.row(InlineKeyboardButton("🔙 الرجوع", callback_data="back"))
+    return k
 
-# ======== اوامر اساسية =========
-@bot.message_handler(commands=['start'])
-def start(m): bot.reply_to(m, "🤖 بوت تيا v3.1 شغال\nاكتب /تفعيل")
+def show_menu(chat_id):
+    text = "**AISED**\n\n- أهلاً بك عزي في قائمة الاوامر :\n━━━━━━━━━━━━━━━\n◀️ م1 : اوامر الادمنيه\n◀️ م2 : اوامر الاعدادات\n◀️ م3 : اوامر القفل - الفتح\n◀️ م4 : اوامر التسليه\n◀️ م5 : Dev اوامر\n◀️ م6 : الاوامر الخدميه\n━━━━━━━━━━━━━━━"
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=main_panel())
 
-@bot.message_handler(commands=['تفعيل'])
-def activate(m):
-    if m.chat.type not in ["group", "supergroup"]: return bot.reply_to(m, "هذا الامر للمجموعات فقط")
-    if not is_admin(m): return bot.reply_to(m, "❌ هذا الامر للادمنية فقط")
-    get_group(m.chat.id)
-    text = f"""**تم تفعيل المجموعة ✅**
+# فلتر الرسائل
+@bot.message_handler(content_types=['text','photo','video','sticker','animation','forward'], func=lambda m: True)
+def filter_messages(m):
+    if m.chat.type not in ["group","supergroup"] or is_admin(m): return
+    locks = get_locks(m.chat.id)
+    if locks.get("links") and m.entities:
+        if any(e.type in ["url","text_link"] for e in m.entities): bot.delete_message(m.chat.id, m.message_id)
+    if locks.get("photo") and m.content_type == "photo": bot.delete_message(m.chat.id, m.message_id)
 
-**الاسم**: {m.chat.title}
-**الايدي**: `{m.chat.id}`
+# الاوامر
+@bot.message_handler(func=lambda m: True)
+def catch_word(m):
+    if not m.text: return
+    text = m.text.strip()
+    if m.chat.type in ["group","supergroup"]:
+        g = get_group(m.chat.id); s = get_settings(m.chat.id); locks = get_locks(m.chat.id); fun = get_fun(m.chat.id)
+    target = m.reply_to_message; uid = target.from_user.id if target else None
 
-اختر من القائمة:"""
-    bot.send_message(m.chat.id, text, parse_mode="Markdown", reply_markup=get_buttons())
+    if text in ["الاوامر","القائمة","menu"]: show_menu(m.chat.id); return
 
-# ======== م1 الادمنية =========
-@bot.message_handler(regexp="^(رفع|تنزيل) (مالك|ادمن|مشرف|مميز)$")
-def rank_cmd(m):
-    if not is_admin(m): return bot.reply_to(m, "❌ انت لست ادمن")
-    if not m.reply_to_message: return bot.reply_to(m, "رد على الشخص")
-    act, rank = m.text.split()[0], m.text.split()[1]
-    uid = m.reply_to_message.from_user.id
-    g = get_group(m.chat.id)
-    key = "admins" if rank == "ادمن" else "mods" if rank == "مشرف" else "owners" if rank == "مالك" else rank
+    # م1
+    if is_admin(m):
+        if text == "رفع ادمن" and target:
+            if uid not in g["admins"]: g["admins"].append(uid); save_data()
+            bot.reply_to(m, f"✅ تم رفع {get_user_name(target.from_user)} ادمن", parse_mode="Markdown")
+        elif text == "حظر" and target: bot.ban_chat_member(m.chat.id, uid); bot.reply_to(m, "🚫 تم الحظر")
+        elif text.startswith("مسح "):
+            try:
+                for i in range(int(text.split()[1])+1): bot.delete_message(m.chat.id, m.message_id-i)
+            except: pass
 
-    if act == "رفع":
-        if uid not in g[key]: g[key].append(uid)
-        bot.reply_to(m, f"✅ تم رفع {m.reply_to_message.from_user.first_name} {rank}")
-    else:
-        if uid in g[key]: g[key].remove(uid)
-        bot.reply_to(m, f"❌ تم تنزيل {m.reply_to_message.from_user.first_name} من {rank}")
-    save_data()
+    # م2
+    if is_admin(m):
+        if text == "الرابط": bot.reply_to(m, f"🔗 {s['link']}" if s["link"] else "❌ لا يوجد رابط")
+        elif text.startswith("ضع رابط "): s["link"] = text[9:]; save_data(); bot.reply_to(m, "✅ تم حفظ الرابط")
 
-@bot.message_handler(commands=['تنزيل_الكل'])
-def del_all_ranks(m):
-    if not is_admin(m): return
-    g = get_group(m.chat.id)
-    g["owners"] = []; g["admins"] = []; g["mods"] = []
-    save_data()
-    bot.reply_to(m, "✅ تم تنزيل الكل")
+    # م3
+    if is_admin(m):
+        if text == "قفل الروابط": locks["links"]=True; save_data(); bot.reply_to(m, "🔒 تم قفل الروابط")
+        elif text == "فتح الروابط": locks["links"]=False; save_data(); bot.reply_to(m, "🔓 تم فتح الروابط")
 
-@bot.message_handler(regexp="^(حظر|طرد|كتم|تقييد)$")
-def punish(m):
-    if not is_admin(m): return bot.reply_to(m, "❌ انت لست ادمن")
-    if not m.reply_to_message: return bot.reply_to(m, "رد على الشخص")
-    uid = m.reply_to_message.from_user.id
-    cmd = m.text
-    try:
-        if cmd == "حظر": bot.ban_chat_member(m.chat.id, uid)
-        if cmd == "طرد": bot.ban_chat_member(m.chat.id, uid); bot.unban_chat_member(m.chat.id, uid)
-        if cmd == "كتم": bot.restrict_chat_member(m.chat.id, uid, can_send_messages=False, can_send_media_messages=False, can_send_other_messages=False)
-        if cmd == "تقييد": bot.restrict_chat_member(m.chat.id, uid, can_send_messages=False, can_send_media_messages=False, can_send_other_messages=False)
-        bot.reply_to(m, f"✅ تم {cmd} {m.reply_to_message.from_user.first_name}")
-    except Exception as e: bot.reply_to(m, f"❌ خطأ: {e}")
+    # م4
+    if is_dev(m):
+        if text == "رفع Dev" and target:
+            if uid not in data["devs"]: data["devs"].append(uid); save_data()
+            bot.reply_to(m, "👑 تم رفع مطور ثانوي", parse_mode="Markdown")
+        elif text == "حظر عام" and target:
+            if uid not in data["gban"]: data["gban"].append(uid); save_data()
+            bot.reply_to(m, "🚫 تم الحظر العام")
+        elif text.startswith("ذيع "):
+            for gid in data["groups"]:
+                try: bot.send_message(int(gid), f"📢 {text[4:]}")
+                except: pass
+            bot.reply_to(m, "✅ تمت الاذاعة")
+        elif text == "اعاده تشغيل": bot.reply_to(m, "🔄"); os.execv(sys.executable, ['python'] + sys.argv)
 
-@bot.message_handler(regexp="^(الغاء الحظر|الغاء الكتم|فك التقييد)$")
-def unpunish(m):
-    if not is_admin(m): return
-    if not m.reply_to_message: return
-    uid = m.reply_to_message.from_user.id
-    bot.unban_chat_member(m.chat.id, uid)
-    bot.restrict_chat_member(m.chat.id, uid, can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True)
-    bot.reply_to(m, "✅ تم فك العقوبة")
+    # م5
+    if s.get("fun_on", True):
+        RANK = {"هطف":"الهطوف","حمار":"الحمير","كلب":"الكلاب"}
+        for r,p in RANK.items():
+            if text == f"رفع {r}" and target:
+                fun.setdefault(r,[]);
+                if uid not in fun[r]: fun[r].append(uid); save_data()
+                bot.reply_to(m, f"✅ تم رفع {get_user_name(target.from_user)} {p}", parse_mode="Markdown")
+        if text == "رتب التسليه":
+            txt = "**رتب التسليه:**\n"+"\n".join([f"{p}: {len(fun.get(r,[]))}" for r,p in RANK.items()])
+            bot.reply_to(m, txt, parse_mode="Markdown")
+        if text == "تتزوجني" and target:
+            if m.from_user.id not in data["marry"] and target.from_user.id not in data["marry"]:
+                data["marry"][m.from_user.id]=target.from_user.id; data["marry"][target.from_user.id]=m.from_user.id; save_data()
+                bot.reply_to(m, "💍 مبروك تم الزواج", parse_mode="Markdown")
 
-@bot.message_handler(commands=['مسح'])
-def delete_msg(m):
-    if not is_admin(m): return
-    if m.reply_to_message: bot.delete_message(m.chat.id, m.reply_to_message.message_id)
-
-# ======== م2 الاعدادات =========
-@bot.message_handler(commands=['الرابط'])
-def link(m):
-    if not is_admin(m): return
-    try:
-        link = bot.export_chat_invite_link(m.chat.id)
-        bot.reply_to(m, f"🔗 رابط المجموعة:\n{link}")
-    except: bot.reply_to(m, "❌ ماعندي صلاحية جلب الرابط")
-
-@bot.message_handler(commands=['القوانين'])
-def rules(m):
-    rules = data["settings"].get(str(m.chat.id),{}).get("rules","لا توجد قوانين")
-    bot.reply_to(m, f"📜 القوانين:\n{rules}")
-
-@bot.message_handler(commands=['ضع_قوانين'])
-def set_rules(m):
-    if not is_admin(m): return
-    rules = m.text.replace("/ضع_قوانين ","")
-    data["settings"].setdefault(str(m.chat.id),{})["rules"] = rules
-    save_data()
-    bot.reply_to(m, "✅ تم وضع القوانين")
-
-# ======== م3 القفل =========
-@bot.message_handler(regexp="^(قفل|فتح) (الروابط|الصور|الفيديو|الملصقات|الدردشه|الكل)$")
-def lock(m):
-    if not is_admin(m): return
-    lock_type = m.text.split()[1]
-    state = "قفل" in m.text
-    data["locks"].setdefault(str(m.chat.id),{})[lock_type] = state
-    save_data()
-    bot.reply_to(m, f"✅ تم {'قفل' if state else 'فتح'} {lock_type}")
-
-# ======== م4 المطور =========
-@bot.message_handler(commands=['اذاعه'])
-def broadcast(m):
-    if m.from_user.id!= DEVELOPER_ID: return
-    msg = m.text.replace("/اذاعه ","")
-    for gid in data["groups"]:
-        try: bot.send_message(gid, f"📢 اذاعة:\n{msg}")
-        except: pass
-    bot.reply_to(m, "✅ تمت الاذاعة")
-
-@bot.message_handler(commands=['غادر'])
-def leave(m):
-    if m.from_user.id!= DEVELOPER_ID: return
-    bot.leave_chat(m.chat.id)
-
-# ======== م5 التسليه =========
-@bot.message_handler(regexp="^(رفع|تنزيل) (هطف|بثر|حمار|كلب|خروف|خفيف)$")
-def tsalya_cmd(m):
-    act, rank = m.text.split()[0], m.text.split()[1]
-    if not m.reply_to_message: return bot.reply_to(m, "رد على الشخص")
-    bot.reply_to(m, f"✅ تم {act} {m.reply_to_message.from_user.first_name} {rank} 😂")
-
-@bot.message_handler(commands=['زواج'])
-def marriage(m):
-    if not m.reply_to_message: return bot.reply_to(m, "رد على الشخص")
-    bot.reply_to(m, f"💍 {m.from_user.first_name} طلب الزواج من {m.reply_to_message.from_user.first_name}")
-
-# ======== ازرار القائمة ========
+# الازرار
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
-    chat_id = call.message.chat.id
-    msg_id = call.message_id # <-- هنا كان الخطأ
-
-    if call.data == "m1":
-        text = """**📜 م1 - اوامر الادمنية**
-`رفع ادمن` `رفع مشرف` `رفع مالك` - بالرد
-`تنزيل ادمن` - بالرد
-`حظر` `طرد` `كتم` `تقييد` - بالرد
-`الغاء الحظر` - بالرد
-`مسح` - بالرد
-`/تنزيل_الكل`"""
-        bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-    elif call.data == "m2":
-        text = """**⚙️ م2 - الاعدادات**
-`/الرابط` - جلب رابط المجموعة
-`/القوانين` - عرض القوانين
-`/ضع_قوانين` - لوضع قوانين"""
-        bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-    elif call.data == "m3":
-        text = """**🔒 م3 - القفل والفتح**
-`قفل الروابط` / `فتح الروابط`
-`قفل الصور` / `فتح الصور`
-`قفل الفيديو` / `فتح الفيديو`
-`قفل الملصقات` / `فتح الملصقات`
-`قفل الدردشه` / `فتح الدردشه`
-`قفل الكل` / `فتح الكل`"""
-        bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-    elif call.data == "m4":
-        text = """**👑 م4 - اوامر المطور**
-`/اذاعه` - رسالة لكل المجموعات
-`/غادر` - خروج البوت"""
-        bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-    elif call.data == "m5":
-        text = """**😂 م5 - التسليه**
-`رفع هطف` `رفع بثر` - بالرد
-`تنزيل هطف` - بالرد
-`/زواج` - بالرد"""
-        bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-    elif call.data == "back":
-        text = "**القائمة الرئيسية**\nاختر من الاسفل"
-        bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_buttons())
-
-    elif call.data == "cancel":
-        bot.delete_message(chat_id, msg_id)
+    if call.data == "back": show_menu(call.message.chat.id)
+    elif call.data == "m1": bot.edit_message_text("**م1 - الادمنية**\nرفع ادمن - حظر - مسح", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
+    elif call.data == "m2": bot.edit_message_text("**م2 - الاعدادات**\nالرابط - ضع رابط", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
+    elif call.data == "m3": bot.edit_message_text("**م3 - القفل**\nقفل الروابط", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
+    elif call.data == "m4": bot.edit_message_text("**م4 - Dev**\nرفع Dev - حظر عام - ذيع", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
+    elif call.data == "m5": bot.edit_message_text("**م5 - التسليه**\nرفع هطف - رتب التسليه - تزوج", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
     bot.answer_callback_query(call.id)
 
-print("Tia v3.1 اشتغل")
+print("Tia Panel v11.0 كامل اشتغل")
 bot.infinity_polling()
