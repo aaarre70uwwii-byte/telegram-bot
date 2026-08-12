@@ -1,44 +1,31 @@
 import os
 from pyrogram import Client, filters
-from pyrogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from pyrogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InputMediaPhoto
 
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = 7488375443 # ايديك
+OWNER_ID = 7488375443
 
 app = Client("TiaBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# قاعدة بيانات وهمية
 db = {
-    "contact": True,
-    "service": True,
-    "force": False,
-    "force_channel": "",
-    "welcome_pic": None,
-    "banned": [],
-    "devs": [7488375443]
+    "contact": True, "service": True, "force": False, "force_channel": "",
+    "welcome_pic": None, "welcome_text": "مرحبا بك في 𝐓𝐢𝐚 🌹",
+    "banned": [], "devs": [7488375443], "waiting": {}
 }
 
 def dev_keyboard():
     keyboard = [
         [KeyboardButton("الاحصائيات")],
-        [KeyboardButton("تغيير اسم البوت"), KeyboardButton("مسح اسم البوت")],
         [KeyboardButton("تفعيل التواصل"), KeyboardButton("تعطيل التواصل")],
         [KeyboardButton("تفعيل البوت الخدمي"), KeyboardButton("تعطيل البوت الخدمي")],
         [KeyboardButton("تفعيل الاشتراك الاجباري"), KeyboardButton("تعطيل الاشتراك الاجباري")],
-        [KeyboardButton("الاشتراك الاجباري"), KeyboardButton("تغيير الاشتراك الاجباري")],
-        [KeyboardButton("تغيير كليشة الاشتراك"), KeyboardButton("مسح كليشة الاشتراك")],
-        [KeyboardButton("جلب كليشة الاشتراك")],
-        [KeyboardButton("تفعيل الاشتراك العام"), KeyboardButton("تعطيل الاشتراك العام")],
+        [KeyboardButton("تغيير كليشة الاشتراك"), KeyboardButton("جلب كليشة الاشتراك")],
         [KeyboardButton("اذاعه للمجموعات"), KeyboardButton("اذاعه خاص")],
-        [KeyboardButton("اذاعه بالتوجيه"), KeyboardButton("اذاعه بالتوجيه خاص")],
-        [KeyboardButton("اذاعه بالتثبيت")],
-        [KeyboardButton("قائمه العام"), KeyboardButton("المطورين"), KeyboardButton("المطورين الثانويين")],
-        [KeyboardButton("مسح قائمه العام"), KeyboardButton("مسح المطورين"), KeyboardButton("مسح المطورين الثانويين")],
-        [KeyboardButton("تغيير المطور الاساسي")],
-        [KeyboardButton("اشتراك البوت"), KeyboardButton("ضع تاريخ الاشتراك")],
+        [KeyboardButton("قائمه العام"), KeyboardButton("المطورين")],
         [KeyboardButton("ضع صوره للترحيب")],
+        [KeyboardButton("رد المطور"), KeyboardButton("مسح رد المطور")], # الزر الجديد
         [KeyboardButton("اخفاء اللوحة")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -57,57 +44,62 @@ async def hide_panel(client, message: Message):
 @app.on_message(filters.private & filters.user(OWNER_ID))
 async def dev_buttons(client, message: Message):
     text = message.text
+    user_id = message.from_user.id
 
-    # 1. الاحصائيات
+    # لو منتظر صورة
+    if db["waiting"].get(user_id) == "photo":
+        if message.photo:
+            file_id = message.photo.file_id
+            db["welcome_pic"] = file_id
+            db["waiting"][user_id] = None
+            await message.reply("✅ تم حفظ صورة الترحيب")
+        return
+
+    # الازرار
     if text == "الاحصائيات":
-        await message.reply(f"📊 **احصائيات 𝐓𝐢𝐚**\nالمطور: {OWNER_ID}\nالبوت الخدمي: {'مفعل' if db['service'] else 'معطل'}")
+        await message.reply(f"📊 **احصائيات 𝐓𝐢𝐚**\nالبوت الخدمي: {'مفعل' if db['service'] else 'معطل'}\nالاشتراك: {'مفعل' if db['force'] else 'معطل'}")
 
-    # 2. التواصل
     elif text == "تفعيل التواصل": db["contact"] = True; await message.reply("✅ تم تفعيل التواصل")
     elif text == "تعطيل التواصل": db["contact"] = False; await message.reply("❌ تم تعطيل التواصل")
-
-    # 3. البوت الخدمي
     elif text == "تفعيل البوت الخدمي": db["service"] = True; await message.reply("✅ تم تفعيل البوت الخدمي")
     elif text == "تعطيل البوت الخدمي": db["service"] = False; await message.reply("❌ تم تعطيل البوت الخدمي")
 
-    # 4. الاشتراك الاجباري
     elif text == "تفعيل الاشتراك الاجباري": db["force"] = True; await message.reply("✅ تم تفعيل الاشتراك الاجباري")
     elif text == "تعطيل الاشتراك الاجباري": db["force"] = False; await message.reply("❌ تم تعطيل الاشتراك الاجباري")
-    elif text == "الاشتراك الاجباري": await message.reply(f"📢 قناة الاشتراك: `{db['force_channel'] or 'غير مضبوطه'}`")
-    elif text == "تغيير الاشتراك الاجباري": await message.reply("ارسل يوزر القناة: @channel")
 
-    # 5. الاذاعة
+    elif text == "تغيير كليشة الاشتراك":
+        db["waiting"][user_id] = "text"
+        await message.reply("ارسل كليشة الاشتراك الجديدة")
+    elif text == "جلب كليشة الاشتراك":
+        await message.reply(f"الكليشة الحالية:\n{db['welcome_text']}")
+
     elif text == "اذاعه للمجموعات": await message.reply("📢 ارسل الرسالة للاذاعة في المجموعات")
     elif text == "اذاعه خاص": await message.reply("📢 ارسل الرسالة للاذاعة في الخاص")
-    elif text == "اذاعه بالتوجيه": await message.reply("📢 ارسل الرسالة للتوجيه في المجموعات")
-    elif text == "اذاعه بالتوجيه خاص": await message.reply("📢 ارسل الرسالة للتوجيه في الخاص")
-    elif text == "اذاعه بالتثبيت": await message.reply("📢 ارسل الرسالة للاذاعة مع التثبيت")
 
-    # 6. القوائم
     elif text == "قائمه العام": await message.reply(f"📝 المحظورين عام: {len(db['banned'])}")
-    elif text == "المطورين": await message.reply(f"👑 المطورين:\n" + "\n".join([f"`{i}`" for i in db["devs"]]))
-    elif text == "المطورين الثانويين": await message.reply("👑 المطورين الثانويين: لا يوجد")
-    elif text == "مسح قائمه العام": db["banned"] = []; await message.reply("✅ تم مسح قائمة العام")
-    elif text == "مسح المطورين": db["devs"] = [OWNER_ID]; await message.reply("✅ تم مسح المطورين وبقيت انت فقط")
-    elif text == "مسح المطورين الثانويين": await message.reply("✅ تم مسح المطورين الثانويين")
+    elif text == "المطورين": await message.reply(f"👑 المطور الاساسي:\n`{OWNER_ID}`")
 
-    # 7. الباقي
-    elif text == "اشتراك البوت": await message.reply("📅 اشتراك البوت: مدى الحياة")
-    elif text == "تغيير اسم البوت": await message.reply("ارسل الاسم الجديد للبوت")
-    elif text == "مسح اسم البوت": await message.reply("تم ارجاع اسم البوت الافتراضي")
-    elif text == "تغيير المطور الاساسي": await message.reply("ارسل ايدي المطور الجديد")
-    elif text == "ضع صوره للترحيب": await message.reply("ارسل الصورة الان")
-    elif text == "تفعيل الاشتراك العام": await message.reply("✅ تم تفعيل الاشتراك العام")
-    elif text == "تعطيل الاشتراك العام": await message.reply("❌ تم تعطيل الاشتراك العام")
-    elif text == "تغيير كليشة الاشتراك": await message.reply("ارسل كليشة الاشتراك الجديدة")
-    elif text == "مسح كليشة الاشتراك": await message.reply("✅ تم مسح كليشة الاشتراك")
-    elif text == "جلب كليشة الاشتراك": await message.reply("كليشة الاشتراك: مرحبا بك اشترك بالقناة")
-    elif text == "ضع تاريخ الاشتراك": await message.reply("ارسل تاريخ انتهاء الاشتراك")
+    elif text == "ضع صوره للترحيب":
+        db["waiting"][user_id] = "photo"
+        await message.reply("ارسل الصورة الان وسيتم حفظها كصورة ترحيب للمطور")
+
+    elif text == "رد المطور": # <-- رد المطور بصورة
+        if db["welcome_pic"]:
+            await message.reply_photo(photo=db["welcome_pic"], caption=db["welcome_text"])
+        else:
+            await message.reply("❌ لم يتم وضع صورة ترحيب بعد. اضغط 'ضع صوره للترحيب'")
+
+    elif text == "مسح رد المطور":
+        db["welcome_pic"] = None
+        await message.reply("✅ تم مسح رد المطور")
 
 @app.on_message(filters.command("start"))
 async def start(client, message: Message):
     if message.from_user.id == OWNER_ID:
-        await message.reply("انا 𝐓𝐢𝐚 🌹\nارسل /المطور لفتح لوحة التحكم")
+        if db["welcome_pic"]:
+            await message.reply_photo(photo=db["welcome_pic"], caption=f"انا 𝐓𝐢𝐚 🌹\n{db['welcome_text']}\nارسل /المطور")
+        else:
+            await message.reply(f"انا 𝐓𝐢𝐚 🌹\n{db['welcome_text']}\nارسل /المطور")
     else:
         if db["force"] and db["force_channel"]:
             await message.reply(f"❌ لازم تشترك في القناة اول\n{db['force_channel']}")
