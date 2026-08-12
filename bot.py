@@ -4,7 +4,8 @@ import asyncio
 import random
 from pyrogram import Client, filters
 from pyrogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.enums import ChatMemberStatus, ChatPermissions
+from pyrogram.enums import ChatMemberStatus
+from pyrogram.types import ChatPermissions # عدلت السطر هذا
 
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
@@ -214,4 +215,148 @@ async def public_buttons(client, message: Message):
             [KeyboardButton("رفع مالك اساسي"), KeyboardButton("تنزيل مالك اساسي")],
             [KeyboardButton("الرئيسية")]
         ], resize_keyboard=True)
-        await message
+        await message.reply("**اوامر الادمنية**", reply_markup=kb)
+    elif text == "اوامر القفل":
+        kb = ReplyKeyboardMarkup([[KeyboardButton("قفل الروابط"), KeyboardButton("فتح الروابط")],[KeyboardButton("قفل الصور"), KeyboardButton("فتح الصور")],[KeyboardButton("الرئيسية")]], resize_keyboard=True)
+        await message.reply("**اوامر القفل**", reply_markup=kb)
+    elif text == "اوامر التسليه":
+        kb = ReplyKeyboardMarkup([[KeyboardButton("نكتة"), KeyboardButton("سؤال")],[KeyboardButton("الرئيسية")]], resize_keyboard=True)
+        await message.reply("**اوامر التسليه**", reply_markup=kb)
+    elif text == "الرئيسية":
+        await start(client, message)
+
+    # الادمنية
+    elif text in ["حظر عضو","فك الحظر","كتم عضو","فك الكتم","طرد عضو"]:
+        if not is_admin:
+            return await message.reply("❌ انت مش ادمن")
+        if not message.reply_to_message:
+            return await message.reply("❌ رد على العضو")
+        target = message.reply_to_message.from_user.id
+        if text == "حظر عضو":
+            set_setting(f"ban_{target}","1"); await message.reply("✅ تم حظر العضو")
+        elif text == "فك الحظر":
+            cursor.execute("DELETE FROM settings WHERE key=?", (f"ban_{target}",)); conn.commit(); await message.reply("✅ تم فك الحظر")
+        elif text == "كتم عضو":
+            await app.restrict_chat_member(chat_id, target, ChatPermissions(can_send_messages=False)); await message.reply("🔇 تم كتم العضو")
+        elif text == "فك الكتم":
+            await app.restrict_chat_member(chat_id, target, ChatPermissions(can_send_messages=True)); await message.reply("🔊 تم فك الكتم")
+        elif text == "طرد عضو":
+            await app.ban_chat_member(chat_id, target); await app.unban_chat_member(chat_id, target); await message.reply("👢 تم طرد العضو")
+
+    # الرفع والتنزيل
+    elif text in ["رفع ادمن","رفع مدير","رفع مالك","رفع مالك اساسي","تنزيل ادمن","تنزيل مدير","تنزيل مالك","تنزيل مالك اساسي"]:
+        if not is_admin:
+            return await message.reply("❌ انت مش ادمن")
+        if not message.reply_to_message:
+            return await message.reply("❌ رد على العضو")
+        my_rank = get_rank(chat_id, uid)
+        target_id = message.reply_to_message.from_user.id
+        target_rank = get_rank(chat_id, target_id)
+        rank_name = text.replace("رفع ","").replace("تنزيل ","")
+        if "رفع" in text:
+            if not can_promote(my_rank, target_rank):
+                return await message.reply("❌ رتبتك لا تسمح برفع هذا الشخص")
+            set_rank(chat_id, target_id, rank_name)
+            await message.reply(f"✅ تم رفع العضو الى {rank_name}")
+        elif "تنزيل" in text:
+            if not can_promote(my_rank, target_rank):
+                return await message.reply("❌ رتبتك لا تسمح بتنزيل هذا الشخص")
+            set_rank(chat_id, target_id, "عضو")
+            await message.reply(f"✅ تم تنزيل العضو من {rank_name}")
+
+    # القفل
+    elif text in ["قفل الروابط","فتح الروابط","قفل الصور","فتح الصور"]:
+        if not is_admin:
+            return
+        key = "link" if "الروابط" in text else "photo"
+        val = "1" if "قفل" in text else "0"
+        set_setting(f"lock_{key}_{chat_id}", val)
+        await message.reply(f"✅ تم {'قفل' if val=='1' else 'فتح'}")
+
+    # التسليه
+    elif text == "نكتة":
+        await message.reply(random.choice(nokat))
+    elif text == "سؤال":
+        await message.reply(random.choice(questions))
+
+# ========== ازرار المطور ==========
+@app.on_message(filters.private & filters.user(OWNER_ID))
+async def dev_buttons(client, message: Message):
+    global waiting
+    text, uid = message.text, message.from_user.id
+    if not is_dev(uid):
+        return
+
+    if waiting.get(uid) == "broadcast_group":
+        cursor.execute("SELECT id FROM groups"); groups = cursor.fetchall(); count=0
+        for g in groups:
+            try:
+                await app.send_message(g[0], text); count+=1; await asyncio.sleep(0.1)
+            except:
+                pass
+        waiting[uid] = None
+        return await message.reply(f"✅ تمت الاذاعة لـ {count} مجموعة")
+    if waiting.get(uid) == "broadcast_user":
+        cursor.execute("SELECT id FROM users"); users = cursor.fetchall(); count=0
+        for u in users:
+            try:
+                await app.send_message(u[0], text); count+=1; await asyncio.sleep(0.1)
+            except:
+                pass
+        waiting[uid] = None
+        return await message.reply(f"✅ تمت الاذاعة لـ {count} عضو")
+    if waiting.get(uid) == "ban":
+        set_setting(f"ban_{text}","1"); waiting[uid] = None; return await message.reply(f"✅ تم حظر: {text}")
+    if waiting.get(uid) == "unban":
+        cursor.execute("DELETE FROM settings WHERE key=?", (f"ban_{text}",)); conn.commit(); waiting[uid] = None; return await message.reply(f"✅ تم فك الحظر: {text}")
+    if waiting.get(uid) == "dev":
+        try:
+            cursor.execute("INSERT OR IGNORE INTO devs (id) VALUES (?)", (int(text),)); conn.commit(); waiting[uid] = None; return await message.reply(f"✅ تم اضافة: {text}")
+        except:
+            return await message.reply("❌ ارسل ايدي رقمي صحيح")
+    if waiting.get(uid) == "photo" and message.photo:
+        set_setting("welcome_pic", message.photo.file_id); waiting[uid] = None; return await message.reply("✅ تم حفظ صورة الترحيب")
+
+    if text == "الاحصائيات":
+        cursor.execute("SELECT COUNT(*) FROM users"); u = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM groups"); g = cursor.fetchone()[0]
+        await message.reply(f"📊 الاعضاء: {u}\nالمجموعات: {g}")
+    elif text == "اذاعة للمجموعات":
+        waiting[uid] = "broadcast_group"; await message.reply("📢 ارسل الرسالة")
+    elif text == "اذاعة للخاص":
+        waiting[uid] = "broadcast_user"; await message.reply("📢 ارسل الرسالة")
+    elif text == "قائمة المحظورين":
+        cursor.execute("SELECT key FROM settings WHERE key LIKE 'ban_%'"); banned = [x[0].replace("ban_","") for x in cursor.fetchall()]
+        await message.reply("المحظورين: " + str(banned) if banned else "القائمة فاضية")
+    elif text == "مسح المحظورين":
+        cursor.execute("DELETE FROM settings WHERE key LIKE 'ban_%'"); conn.commit(); await message.reply("✅ تم مسح القائمة")
+    elif text == "المطورين":
+        cursor.execute("SELECT id FROM devs"); devs = [str(x[0]) for x in cursor.fetchall()]; await message.reply("👑 المطورين:\n" + "\n".join(devs))
+    elif text == "اضافة مطور":
+        waiting[uid] = "dev"; await message.reply("ارسل ايدي المطور")
+    elif text == "حظر عضو":
+        waiting[uid] = "ban"; await message.reply("ارسل ايدي العضو")
+    elif text == "فك الحظر":
+        waiting[uid] = "unban"; await message.reply("ارسل ايدي العضو")
+    elif text == "وضع صورة ترحيب":
+        waiting[uid] = "photo"; await message.reply("ارسل الصورة")
+    elif text == "عرض صورة الترحيب":
+        pic = get_setting("welcome_pic", None)
+        if pic:
+            await message.reply_photo(photo=pic, caption="صورة الترحيب")
+        else:
+            await message.reply("❌ لم تضع صورة")
+    elif text == "اخفاء اللوحة":
+        await message.reply("✅ تم اخفاء اللوحة", reply_markup=ReplyKeyboardMarkup([]))
+
+# ========== معالج المنع ==========
+@app.on_message(filters.group)
+async def handler(client, message: Message):
+    chat_id = message.chat.id
+    if get_setting(f"lock_link_{chat_id}") == "1" and message.text and "http" in message.text:
+        await message.delete()
+    if get_setting(f"lock_photo_{chat_id}") == "1" and message.photo:
+        await message.delete()
+
+print("TiaBot is running...")
+app.run()
