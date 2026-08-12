@@ -30,4 +30,12 @@ async def unmute(client, message: Message):
     if message.from_user.id != OWNER_ID:
         return await message.reply("❌ هذا الامر للمالك فقط")
     if message.reply_to_message:
-        await client.restrict_chat_member(message.chat.id, message.reply_to
+        await client.restrict_chat_member(message.chat.id, message.reply_to_message.from_user.id, permissions=types.ChatPermissions(can_send_messages=True, can_send_media_messages=True))
+        await message.reply(f"🔊 تم فك الكتم عن {message.reply_to_message.from_user.first_name}")
+
+@app.on_message(filters.command("start"))
+async def start(client, message: Message):
+    await message.reply("انا RoseBot 🌹 جاهزة لحماية القروب\nالاوامر:\nرد على رسالة العضو + /حظر\nرد على رسالة العضو + /كتم\nرد على رسالة العضو + /الغاء_كتم")
+
+print("RoseBot is running...")
+app.run()
