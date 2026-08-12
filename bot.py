@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import threading
+import time
 from flask import Flask
 from pyrogram import Client, filters
 from pyrogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
@@ -10,7 +11,7 @@ API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = 7488375443
 
-# سيرفر عشان Railway ما يطفي البوت
+# سيرفر عشان Railway ما يطفي
 app_flask = Flask(__name__)
 @app_flask.route('/')
 def home():
@@ -18,14 +19,15 @@ def home():
 def run_flask():
     app_flask.run(host='0.0.0.0', port=8080)
 
-app = Client("TiaBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# غيرت اسم الجلسة عشان نحذف الكاش القديم
+app = Client("TiaBotV2", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 conn = sqlite3.connect("tia.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY)")
 cursor.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
 cursor.execute("CREATE TABLE IF NOT EXISTS devs (id INTEGER PRIMARY KEY)")
-cursor.execute("INSERT OR IGNORE INTO devs (id) VALUES (7488375443)")
+cursor.execute("INSERT OR IGNORE INTO devs (id) VALUES (?)", (OWNER_ID,))
 conn.commit()
 
 def get_setting(key, default="1"):
@@ -40,6 +42,10 @@ def set_setting(key, value):
 def is_dev(user_id):
     cursor.execute("SELECT id FROM devs WHERE id=?", (user_id,))
     return cursor.fetchone() is not None or user_id == OWNER_ID
+
+def is_banned(user_id):
+    cursor.execute("SELECT value FROM settings WHERE key=?", (f"ban_{user_id}",))
+    return cursor.fetchone() is not None
 
 def dev_keyboard():
     keyboard = [
@@ -57,17 +63,27 @@ def dev_keyboard():
 
 waiting = {}
 
+@app.on_message(filters.command("start") & filters.private)
+async def start(client, message: Message):
+    if is_banned(message.from_user.id):
+        return
+    # حفظ العضو
+    cursor.execute("INSERT OR IGNORE INTO users (id) VALUES (?)", (message.from_user.id,))
+    conn.commit()
+
+    if is_dev(message.from_user.id):
+        pic = get_setting("welcome_pic", None)
+        text = "مرحبا بك في Tia\nارسل /المطور لفتح اللوحه"
+        if pic: await message.reply_photo(photo=pic, caption=text, reply_markup=dev_keyboard())
+        else: await message.reply(text, reply_markup=dev_keyboard())
+    else:
+        await message.reply("انا Tia جاهزه 🌹 ارسل اي رسالة")
+
 @app.on_message(filters.command("المطور") & filters.private)
 async def show_panel(client, message: Message):
     if not is_dev(message.from_user.id):
         return await message.reply("❌ هذا الامر للمطورين فقط")
     await message.reply("👨‍💻 اهلا بك يا مطور Tia", reply_markup=dev_keyboard())
-
-@app.on_message(filters.private)
-async def save_user(client, message: Message):
-    if not is_dev(message.from_user.id):
-        cursor.execute("INSERT OR IGNORE INTO users (id) VALUES (?)", (message.from_user.id,))
-        conn.commit()
 
 @app.on_message(filters.text & filters.private)
 async def dev_buttons(client, message: Message):
@@ -75,22 +91,22 @@ async def dev_buttons(client, message: Message):
     text = message.text.strip()
     uid = message.from_user.id
 
-    if not is_dev(uid):
-        return
+    if is_banned(uid): return
+    if not is_dev(uid): return # فقط المطور يشوف الازار
 
+    # حالات الانتظار
     if waiting.get(uid) == "broadcast":
         cursor.execute("SELECT id FROM users")
         users = cursor.fetchall()
         count = 0
         for u in users:
-            try: await app.send_message(u[0], text); count += 1
+            try: await app.send_message(u[0], text); count += 1; time.sleep(0.1)
             except: pass
         waiting[uid] = None
         return await message.reply(f"✅ تمت الاذاعة لـ {count} عضو")
 
     if waiting.get(uid) == "ban":
-        cursor.execute("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)", (f"ban_{text}","1"))
-        conn.commit(); waiting[uid] = None
+        set_setting(f"ban_{text}","1"); waiting[uid] = None
         return await message.reply(f"✅ تم حظر: {text}")
 
     if waiting.get(uid) == "unban":
@@ -109,6 +125,7 @@ async def dev_buttons(client, message: Message):
         set_setting("welcome_pic", message.photo.file_id); waiting[uid] = None
         return await message.reply("✅ تم حفظ صورة الترحيب")
 
+    # الازار
     if text == "الاحصائيات":
         cursor.execute("SELECT COUNT(*) FROM users")
         c = cursor.fetchone()[0]
@@ -148,19 +165,10 @@ async def dev_buttons(client, message: Message):
     elif text == "اخفاء اللوحه":
         await message.reply("✅ تم اخفاء اللوحه", reply_markup=ReplyKeyboardMarkup([[]], resize_keyboard=True))
 
-@app.on_message(filters.command("start"))
-async def start(client, message: Message):
-    cursor.execute("SELECT value FROM settings WHERE key=?", (f"ban_{message.from_user.id}",))
-    if cursor.fetchone(): return
-    if is_dev(message.from_user.id):
-        pic = get_setting("welcome_pic", None)
-        if pic: await message.reply_photo(photo=pic, caption="مرحبا بك في Tia\nارسل /المطور")
-        else: await message.reply("مرحبا بك في Tia\nارسل /المطور", reply_markup=dev_keyboard())
-    else:
-        await message.reply("انا Tia جاهزه 🌹")
+print("Bot started for ID:", OWNER_ID)
 
 if __name__ == "__main__":
-    t = threading.Thread(target=run_flask) # شغل السيرفر
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
     t.start()
-    print("TiaBot is running...")
     app.run()
