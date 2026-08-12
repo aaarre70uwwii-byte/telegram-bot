@@ -73,34 +73,30 @@ async def dev_buttons(client, message: Message):
         users = cursor.fetchall()
         count = 0
         for u in users:
-            try:
-                await app.send_message(u[0], text)
-                count += 1
+            try: await app.send_message(u[0], text); count += 1
             except: pass
         waiting[uid] = None
         return await message.reply(f"✅ تمت الاذاعة لـ {count} عضو")
 
     if waiting.get(uid) == "ban":
         cursor.execute("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)", (f"ban_{text}","1"))
-        conn.commit()
-        waiting[uid] = None
+        conn.commit(); waiting[uid] = None
         return await message.reply(f"✅ تم حظر: {text}")
 
     if waiting.get(uid) == "unban":
         cursor.execute("DELETE FROM settings WHERE key=?", (f"ban_{text}",))
-        conn.commit()
-        waiting[uid] = None
+        conn.commit(); waiting[uid] = None
         return await message.reply(f"✅ تم فك الحظر: {text}")
 
     if waiting.get(uid) == "dev":
-        cursor.execute("INSERT OR IGNORE INTO devs (id) VALUES (?)", (int(text),))
-        conn.commit()
-        waiting[uid] = None
-        return await message.reply(f"✅ تم اضافة المطور: {text}")
+        try:
+            cursor.execute("INSERT OR IGNORE INTO devs (id) VALUES (?)", (int(text),))
+            conn.commit(); waiting[uid] = None
+            return await message.reply(f"✅ تم اضافة المطور: {text}")
+        except: return await message.reply("❌ ارسل ايدي رقمي صحيح")
 
     if waiting.get(uid) == "photo" and message.photo:
-        set_setting("welcome_pic", message.photo.file_id)
-        waiting[uid] = None
+        set_setting("welcome_pic", message.photo.file_id); waiting[uid] = None
         return await message.reply("✅ تم حفظ صورة الترحيب")
 
     if text == "الاحصائيات":
@@ -108,42 +104,39 @@ async def dev_buttons(client, message: Message):
         c = cursor.fetchone()[0]
         await message.reply(f"📊 احصائيات Tia\nالاعضاء: {c}\nالبوت الخدمي: {'مفعل' if get_setting('service')=='1' else 'معطل'}")
 
-    if text == "تفعيل التواصل": set_setting("contact","1"); await message.reply("✅ تم تفعيل التواصل")
-    if text == "تعطيل التواصل": set_setting("contact","0"); await message.reply("❌ تم تعطيل التواصل") # صلحت هذا السطر
-    if text == "تفعيل البوت الخدمي": set_setting("service","1"); await message.reply("✅ تم تفعيل البوت الخدمي")
-    if text == "تعطيل البوت الخدمي": set_setting("service","0"); await message.reply("❌ تم تعطيل البوت الخدمي")
+    elif text == "تفعيل التواصل": set_setting("contact","1"); await message.reply("✅ تم تفعيل التواصل")
+    elif text == "تعطيل التواصل": set_setting("contact","0"); await message.reply("❌ تم تعطيل التواصل")
+    elif text == "تفعيل البوت الخدمي": set_setting("service","1"); await message.reply("✅ تم تفعيل البوت الخدمي")
+    elif text == "تعطيل البوت الخدمي": set_setting("service","0"); await message.reply("❌ تم تعطيل البوت الخدمي")
 
-    if text == "اذاعه للمجموعات" or text == "اذاعه للخاص":
-        waiting[uid] = "broadcast"
-        await message.reply("📢 ارسل الرسالة الان للاذاعة")
+    elif text == "اذاعه للمجموعات" or text == "اذاعه للخاص":
+        waiting[uid] = "broadcast"; await message.reply("📢 ارسل الرسالة الان للاذاعة")
 
-    if text == "قائمه العام":
+    elif text == "قائمه العام":
         cursor.execute("SELECT key FROM settings WHERE key LIKE 'ban_%'")
         banned = [x[0].replace("ban_","") for x in cursor.fetchall()]
-        await message.reply("المحظورين: " + str(banned) if banned else "قائمه العام فاضيه")
-    if text == "مسح قائمه العام":
-        cursor.execute("DELETE FROM settings WHERE key LIKE 'ban_%'")
-        conn.commit(); await message.reply("✅ تم مسح قائمه العام")
+        await message.reply("المحظورين:\n" + "\n".join(banned) if banned else "قائمه العام فاضيه")
+    elif text == "مسح قائمه العام":
+        cursor.execute("DELETE FROM settings WHERE key LIKE 'ban_%'"); conn.commit(); await message.reply("✅ تم مسح قائمه العام")
 
-    if text == "المطورين":
-        cursor.execute("SELECT id FROM devs")
-        devs = [str(x[0]) for x in cursor.fetchall()]
+    elif text == "المطورين":
+        cursor.execute("SELECT id FROM devs"); devs = [str(x[0]) for x in cursor.fetchall()]
         await message.reply("👑 المطورين:\n" + "\n".join(devs))
-    if text == "اضافه مطور":
+    elif text == "اضافه مطور":
         waiting[uid] = "dev"; await message.reply("ارسل ايدي المطور الجديد")
 
-    if text == "حظر": waiting[uid] = "ban"; await message.reply("ارسل ايدي العضو للحظر")
-    if text == "الغاء الحظر": waiting[uid] = "unban"; await message.reply("ارسل ايدي العضو لفك الحظر")
+    elif text == "حظر": waiting[uid] = "ban"; await message.reply("ارسل ايدي العضو للحظر")
+    elif text == "الغاء الحظر": waiting[uid] = "unban"; await message.reply("ارسل ايدي العضو لفك الحظر")
 
-    if text == "ضع صوره ترحيب":
+    elif text == "ضع صوره ترحيب":
         waiting[uid] = "photo"; await message.reply("ارسل الصورة الان")
-    if text == "رد المطور":
+    elif text == "رد المطور":
         pic = get_setting("welcome_pic", None)
         if pic: await message.reply_photo(photo=pic, caption="رد المطور")
         else: await message.reply("❌ لم تضع صورة ترحيب بعد")
 
-    if text == "اخفاء اللوحه":
-        await message.reply("✅ تم اخفاء اللوحه", reply_markup=ReplyKeyboardMarkup([[]], resize_keyboard=True))
+    elif text == "اخفاء اللوحه":
+        await message.reply("✅ تم اخفاء اللوحه", reply_markup=ReplyKeyboardMarkup([[]], resize_keyboard=True)) # صلحت القوس هنا
 
 @app.on_message(filters.command("start"))
 async def start(client, message: Message):
