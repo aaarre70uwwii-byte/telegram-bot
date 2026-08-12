@@ -43,7 +43,7 @@ def dev_keyboard():
         [KeyboardButton("ضع صوره ترحيب"), KeyboardButton("رد المطور")],
         [KeyboardButton("اخفاء اللوحه")]
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 waiting = {}
 
@@ -62,7 +62,7 @@ async def save_user(client, message: Message):
 @app.on_message(filters.text & filters.private)
 async def dev_buttons(client, message: Message):
     global waiting
-    text = message.text.strip() # ضفت strip
+    text = message.text.strip()
     uid = message.from_user.id
 
     if not is_dev(uid):
@@ -103,14 +103,13 @@ async def dev_buttons(client, message: Message):
         waiting[uid] = None
         return await message.reply("✅ تم حفظ صورة الترحيب")
 
-    # برمجة الازرار - خليتها if منفصلة
     if text == "الاحصائيات":
         cursor.execute("SELECT COUNT(*) FROM users")
         c = cursor.fetchone()[0]
         await message.reply(f"📊 احصائيات Tia\nالاعضاء: {c}\nالبوت الخدمي: {'مفعل' if get_setting('service')=='1' else 'معطل'}")
 
     if text == "تفعيل التواصل": set_setting("contact","1"); await message.reply("✅ تم تفعيل التواصل")
-    if text == "تعطيل التواصل": set_setting("contact","0"); await message.reply("❌ تم تعطيل التواصل")
+    if text == "تعطيل التواصل": set_setting("contact","0"); await message.reply("❌ تم تعطيل التواصل") # صلحت هذا السطر
     if text == "تفعيل البوت الخدمي": set_setting("service","1"); await message.reply("✅ تم تفعيل البوت الخدمي")
     if text == "تعطيل البوت الخدمي": set_setting("service","0"); await message.reply("❌ تم تعطيل البوت الخدمي")
 
@@ -148,4 +147,14 @@ async def dev_buttons(client, message: Message):
 
 @app.on_message(filters.command("start"))
 async def start(client, message: Message):
-    cursor.execute("SELECT value FROM settings WHERE
+    cursor.execute("SELECT value FROM settings WHERE key=?", (f"ban_{message.from_user.id}",))
+    if cursor.fetchone(): return
+    if is_dev(message.from_user.id):
+        pic = get_setting("welcome_pic", None)
+        if pic: await message.reply_photo(photo=pic, caption="مرحبا بك في Tia\nارسل /المطور")
+        else: await message.reply("مرحبا بك في Tia\nارسل /المطور", reply_markup=dev_keyboard())
+    else:
+        await message.reply("انا Tia جاهزه 🌹")
+
+print("TiaBot is running...")
+app.run()
