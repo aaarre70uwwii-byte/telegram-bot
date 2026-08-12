@@ -60,17 +60,22 @@ def get_back_button():
     return k
 
 def show_menu(chat_id):
-    text = "**AISED**\n\n- أهلاً بك عزي في قائمة الاوامر :\n━━━━━━━━━━━━━━━\n◀️ م1 : اوامر الادمنيه\n◀️ م2 : اوامر الاعدادات\n◀️ م3 : اوامر القفل - الفتح\n◀️ م4 : اوامر التسليه\n◀️ م5 : Dev اوامر\n◀️ م6 : الاوامر الخدميه\n━━━━━━━━━━━━━━━"
+    text = "**AISED**\n\n- أهلاً بك عزيزي في قائمة الاوامر :\n━━━━━━━━━━━━━━━\n◀️ م1 : اوامر الادمنيه\n◀️ م2 : اوامر الاعدادات\n◀️ م3 : اوامر القفل - الفتح\n◀️ م4 : اوامر التسليه\n◀️ م5 : Dev اوامر\n◀️ م6 : الاوامر الخدميه\n━━━━━━━━━━━━━━━"
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=main_panel())
 
-# فلتر الرسائل
+# فلتر الرسائل + الحظر العام
 @bot.message_handler(content_types=['text','photo','video','sticker','animation','forward'], func=lambda m: True)
 def filter_messages(m):
+    if m.from_user.id in data["gban"]:
+        try: bot.ban_chat_member(m.chat.id, m.from_user.id)
+        except: pass
+        return
     if m.chat.type not in ["group","supergroup"] or is_admin(m): return
     locks = get_locks(m.chat.id)
     if locks.get("links") and m.entities:
         if any(e.type in ["url","text_link"] for e in m.entities): bot.delete_message(m.chat.id, m.message_id)
     if locks.get("photo") and m.content_type == "photo": bot.delete_message(m.chat.id, m.message_id)
+    if locks.get("video") and m.content_type == "video": bot.delete_message(m.chat.id, m.message_id)
 
 # الاوامر
 @bot.message_handler(func=lambda m: True)
@@ -83,28 +88,40 @@ def catch_word(m):
 
     if text in ["الاوامر","القائمة","menu"]: show_menu(m.chat.id); return
 
-    # م1
+    # م1 الادمنية
     if is_admin(m):
         if text == "رفع ادمن" and target:
             if uid not in g["admins"]: g["admins"].append(uid); save_data()
             bot.reply_to(m, f"✅ تم رفع {get_user_name(target.from_user)} ادمن", parse_mode="Markdown")
+        elif text == "تنزيل ادمن" and target:
+            if uid in g["admins"]: g["admins"].remove(uid); save_data()
+            bot.reply_to(m, f"❌ تم تنزيل {get_user_name(target.from_user)}", parse_mode="Markdown")
         elif text == "حظر" and target: bot.ban_chat_member(m.chat.id, uid); bot.reply_to(m, "🚫 تم الحظر")
+        elif text == "طرد" and target: bot.ban_chat_member(m.chat.id, uid); bot.unban_chat_member(m.chat.id, uid); bot.reply_to(m, "👢 تم الطرد")
+        elif text == "كتم" and target: bot.restrict_chat_member(m.chat.id, uid, ChatPermissions()); bot.reply_to(m, "🔇 تم الكتم")
+        elif text == "الغاء الكتم" and target: bot.restrict_chat_member(m.chat.id, uid, ChatPermissions(can_send_messages=True)); bot.reply_to(m, "🔊 تم الغاء الكتم")
         elif text.startswith("مسح "):
             try:
                 for i in range(int(text.split()[1])+1): bot.delete_message(m.chat.id, m.message_id-i)
             except: pass
 
-    # م2
+    # م2 الاعدادات
     if is_admin(m):
         if text == "الرابط": bot.reply_to(m, f"🔗 {s['link']}" if s["link"] else "❌ لا يوجد رابط")
         elif text.startswith("ضع رابط "): s["link"] = text[9:]; save_data(); bot.reply_to(m, "✅ تم حفظ الرابط")
+        elif text == "القوانين": bot.reply_to(m, f"📜 {s['rules']}" if s["rules"] else "❌ لا توجد قوانين")
+        elif text.startswith("ضع قوانين "): s["rules"] = text[11:]; save_data(); bot.reply_to(m, "✅ تم حفظ القوانين")
 
-    # م3
+    # م3 القفل
     if is_admin(m):
         if text == "قفل الروابط": locks["links"]=True; save_data(); bot.reply_to(m, "🔒 تم قفل الروابط")
         elif text == "فتح الروابط": locks["links"]=False; save_data(); bot.reply_to(m, "🔓 تم فتح الروابط")
+        elif text == "قفل الصور": locks["photo"]=True; save_data(); bot.reply_to(m, "🔒 تم قفل الصور")
+        elif text == "فتح الصور": locks["photo"]=False; save_data(); bot.reply_to(m, "🔓 تم فتح الصور")
+        elif text == "قفل الفيديو": locks["video"]=True; save_data(); bot.reply_to(m, "🔒 تم قفل الفيديو")
+        elif text == "فتح الفيديو": locks["video"]=False; save_data(); bot.reply_to(m, "🔓 تم فتح الفيديو")
 
-    # م4
+    # م4 Dev
     if is_dev(m):
         if text == "رفع Dev" and target:
             if uid not in data["devs"]: data["devs"].append(uid); save_data()
@@ -112,39 +129,55 @@ def catch_word(m):
         elif text == "حظر عام" and target:
             if uid not in data["gban"]: data["gban"].append(uid); save_data()
             bot.reply_to(m, "🚫 تم الحظر العام")
+        elif text == "الغاء العام" and target:
+            if uid in data["gban"]: data["gban"].remove(uid); save_data()
+            bot.reply_to(m, "✅ تم الغاء الحظر العام")
         elif text.startswith("ذيع "):
+            count=0
             for gid in data["groups"]:
-                try: bot.send_message(int(gid), f"📢 {text[4:]}")
+                try: bot.send_message(int(gid), f"📢 {text[4:]}"); count+=1
                 except: pass
-            bot.reply_to(m, "✅ تمت الاذاعة")
-        elif text == "اعاده تشغيل": bot.reply_to(m, "🔄"); os.execv(sys.executable, ['python'] + sys.argv)
+            bot.reply_to(m, f"✅ تمت الاذاعة لـ {count} مجموعة")
+        elif text == "اعاده تشغيل": bot.reply_to(m, "🔄 جاري اعادة التشغيل..."); time.sleep(1); os.execv(sys.executable, ['python'] + sys.argv)
 
-    # م5
+    # م5 التسليه
     if s.get("fun_on", True):
-        RANK = {"هطف":"الهطوف","حمار":"الحمير","كلب":"الكلاب"}
+        RANK = {"هطف":"الهطوف","حمار":"الحمير","كلب":"الكلاب","غبي":"الاغبياء"}
         for r,p in RANK.items():
             if text == f"رفع {r}" and target:
                 fun.setdefault(r,[]);
                 if uid not in fun[r]: fun[r].append(uid); save_data()
                 bot.reply_to(m, f"✅ تم رفع {get_user_name(target.from_user)} {p}", parse_mode="Markdown")
+            elif text == f"تنزيل {r}" and target:
+                if uid in fun.get(r,[]): fun[r].remove(uid); save_data()
+                bot.reply_to(m, f"❌ تم تنزيل {get_user_name(target.from_user)}", parse_mode="Markdown")
         if text == "رتب التسليه":
             txt = "**رتب التسليه:**\n"+"\n".join([f"{p}: {len(fun.get(r,[]))}" for r,p in RANK.items()])
             bot.reply_to(m, txt, parse_mode="Markdown")
         if text == "تتزوجني" and target:
             if m.from_user.id not in data["marry"] and target.from_user.id not in data["marry"]:
                 data["marry"][m.from_user.id]=target.from_user.id; data["marry"][target.from_user.id]=m.from_user.id; save_data()
-                bot.reply_to(m, "💍 مبروك تم الزواج", parse_mode="Markdown")
+                bot.reply_to(m, f"💍 مبروك تم زواج {get_user_name(m.from_user)} و {get_user_name(target.from_user)}", parse_mode="Markdown")
+        elif text == "طلاق" and target:
+            if m.from_user.id in data["marry"] and data["marry"][m.from_user.id]==target.from_user.id:
+                del data["marry"][m.from_user.id]; del data["marry"][target.from_user.id]; save_data()
+                bot.reply_to(m, "💔 تم الطلاق")
 
 # الازرار
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     if call.data == "back": show_menu(call.message.chat.id)
-    elif call.data == "m1": bot.edit_message_text("**م1 - الادمنية**\nرفع ادمن - حظر - مسح", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
-    elif call.data == "m2": bot.edit_message_text("**م2 - الاعدادات**\nالرابط - ضع رابط", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
-    elif call.data == "m3": bot.edit_message_text("**م3 - القفل**\nقفل الروابط", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
-    elif call.data == "m4": bot.edit_message_text("**م4 - Dev**\nرفع Dev - حظر عام - ذيع", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
-    elif call.data == "m5": bot.edit_message_text("**م5 - التسليه**\nرفع هطف - رتب التسليه - تزوج", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
+    elif call.data == "m1": bot.edit_message_text("**م1 - الادمنية**\nرفع ادمن - تنزيل ادمن - حظر - طرد - كتم - مسح", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
+    elif call.data == "m2": bot.edit_message_text("**م2 - الاعدادات**\nالرابط - ضع رابط - القوانين - ضع قوانين", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
+    elif call.data == "m3": bot.edit_message_text("**م3 - القفل**\nقفل الروابط - قفل الصور - قفل الفيديو", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
+    elif call.data == "m4": bot.edit_message_text("**م4 - Dev**\nرفع Dev - حظر عام - الغاء العام - ذيع - اعاده تشغيل", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
+    elif call.data == "m5": bot.edit_message_text("**م5 - التسليه**\nرفع هطف - رفع حمار - رتب التسليه - تزوج - طلاق", call.message.chat.id, call.message_id, parse_mode="Markdown", reply_markup=get_back_button())
     bot.answer_callback_query(call.id)
 
-print("Tia Panel v11.0 كامل اشتغل")
-bot.infinity_polling()
+# امر تجربة
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, "البوت شغال ✅\nارسل 'الاوامر' لعرض القائمة")
+
+print("Tia Panel v11.1 كامل اشتغل")
+bot.infinity_polling(drop_pending_updates=True)
