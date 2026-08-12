@@ -60,7 +60,7 @@ def get_back_button():
     return k
 
 def show_menu(chat_id):
-    text = "**AISED**\n\n- أهلاً بك عزيزي في قائمة الاوامر :\n━━━━━━━━━━━━━━━\n◀️ م1 : اوامر الادمنيه\n◀️ م2 : اوامر الاعدادات\n◀️ م3 : اوامر القفل - الفتح\n◀️ م4 : اوامر التسليه\n◀️ م5 : Dev اوامر\n◀️ م6 : الاوامر الخدميه\n━━━━━━━━━━━━━━━"
+    text = "**AISED**\n\n- أهلاً بك عزي في قائمة الاوامر :\n━━━━━━━━━━━━━━━\n◀️ م1 : اوامر الادمنيه\n◀️ م2 : اوامر الاعدادات\n◀️ م3 : اوامر القفل - الفتح\n◀️ م4 : اوامر التسليه\n◀️ م5 : Dev اوامر\n◀️ م6 : الاوامر الخدميه\n━━━━━━━━━━━━━━━"
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=main_panel())
 
 # فلتر الرسائل + الحظر العام
@@ -84,6 +84,8 @@ def catch_word(m):
     text = m.text.strip()
     if m.chat.type in ["group","supergroup"]:
         g = get_group(m.chat.id); s = get_settings(m.chat.id); locks = get_locks(m.chat.id); fun = get_fun(m.chat.id)
+    else:
+        return
     target = m.reply_to_message; uid = target.from_user.id if target else None
 
     if text in ["الاوامر","القائمة","menu"]: show_menu(m.chat.id); return
@@ -179,5 +181,6 @@ def callback(call):
 def send_welcome(message):
     bot.reply_to(message, "البوت شغال ✅\nارسل 'الاوامر' لعرض القائمة")
 
-print("Tia Panel v11.1 كامل اشتغل")
-bot.infinity_polling(drop_pending_updates=True)
+# التشغيل
+print("Tia Panel v11.2 كامل اشتغل")
+bot.polling(non_stop=True, interval=0)
