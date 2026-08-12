@@ -1,5 +1,7 @@
 import os
 import sqlite3
+import threading
+from flask import Flask
 from pyrogram import Client, filters
 from pyrogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
@@ -7,6 +9,14 @@ API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = 7488375443
+
+# سيرفر عشان Railway ما يطفي البوت
+app_flask = Flask(__name__)
+@app_flask.route('/')
+def home():
+    return "TiaBot is alive!"
+def run_flask():
+    app_flask.run(host='0.0.0.0', port=8080)
 
 app = Client("TiaBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -136,7 +146,7 @@ async def dev_buttons(client, message: Message):
         else: await message.reply("❌ لم تضع صورة ترحيب بعد")
 
     elif text == "اخفاء اللوحه":
-        await message.reply("✅ تم اخفاء اللوحه", reply_markup=ReplyKeyboardMarkup([[]], resize_keyboard=True)) # صلحت القوس هنا
+        await message.reply("✅ تم اخفاء اللوحه", reply_markup=ReplyKeyboardMarkup([[]], resize_keyboard=True))
 
 @app.on_message(filters.command("start"))
 async def start(client, message: Message):
@@ -149,5 +159,8 @@ async def start(client, message: Message):
     else:
         await message.reply("انا Tia جاهزه 🌹")
 
-print("TiaBot is running...")
-app.run()
+if __name__ == "__main__":
+    t = threading.Thread(target=run_flask) # شغل السيرفر
+    t.start()
+    print("TiaBot is running...")
+    app.run()
