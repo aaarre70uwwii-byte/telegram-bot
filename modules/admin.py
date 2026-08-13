@@ -1,53 +1,110 @@
-from pyrogram import filters, Client
-from pyrogram.types import Message
-from pyrogram.enums import ChatPermissions
-from database import is_dev, conn, cursor
-from modules.utils import admin_keyboard, is_admin
-import time
+from pyrogram import filters
+from pyrogram.types import Message, ChatPermissions
+from bot import app
+from modules.utils import get_rank, set_rank, has_permission, can_action, rank_names
+import asyncio
 
-def setup(app: Client):
-    @app.on_message(filters.text & filters.private)
-    async def private_admin(_, message: Message):
-        if not is_dev(message.from_user.id): return
-        if message.text == "👮 الادمنية":
-            await message.reply("استخدم الازرار في المجموعة بالرد", reply_markup=admin_keyboard())
-        elif message.text == "رجوع":
-            from modules.utils import dev_keyboard
-            await message.reply("رجعنا", reply_markup=dev_keyboard())
+# فلتر يمسك كل الاوامر بالرد
+@app.on_message(filters.group & filters.text & filters.reply)
+async def admin_commands(_, m: Message):
+    text = m.text.strip()
+    chat_id = m.chat.id
+    user_id = m.from_user.id
+    target = m.reply_to_message.from_user
+    target_id = target.id
 
-    @app.on_message(filters.group & filters.text)
-    async def group_commands(_, message: Message):
-        text = message.text; chat_id = message.chat.id; user_id = message.from_user.id
+    if target_id == (await app.get_me()).id: return
 
-        if text in ["ايدي", "/id", "🆔 ايدي"]:
-            await message.reply(f"🆔 ايديك: `{user_id}`\n👤 {message.from_user.first_name}")
+    # ========== اوامر الرفع والتنزيل ==========
+    if text.startswith("رفع "):
+        rank_name = text.split("رفع ")[1]
+        rank_map = {"مالك": "owner", "منشئ": "owner", "مدير": "mod", "ادمن": "mod", "مشرف": "mod", "مميز": "special"}
+        if rank_name not in rank_map: return
 
-        if text.startswith("همسه") or text.startswith(".همسه"):
-            parts = text.split(" ", 2)
-            if len(parts) < 3: return await message.reply("الاستخدام: `همسه @username النص`")
-            try:
-                to_user = await app.get_users(parts[1].replace("@",""))
-                cursor.execute("INSERT INTO whispers (to_id, from_id, text) VALUES (?,?,?)", (to_user.id, user_id, parts[2]))
-                conn.commit()
-                await message.reply(f"✅ تم ارسال همسة سرية لـ {to_user.first_name}")
-            except: await message.reply("❌ المستخدم غير موجود")
-            return
+        if not await has_permission(app, chat_id, user_id, "owner"):
+            return await m.reply("❌ هذا الامر للمالك فقط")
+        if not await can_action(app, chat_id, user_id, target_id):
+            return await m.reply("❌ ما تقدر على شخص رتبته اعلى منك")
 
-        if not message.reply_to_message: return
-        if not await is_admin(app, chat_id, user_id) and not is_dev(user_id): return
-        target = message.reply_to_message.from_user.id
+        set_rank(chat_id, target_id, rank_map[rank_name])
+        await m.reply(f"✅ تم رفع {target.first_name} {rank_name}")
 
-        if text in ["حظر", "🚫 حظر"]: await app.ban_chat_member(chat_id, target); await message.reply("✅ تم الحظر")
-        elif text in ["الغاء الحظر", "✅ فك حظر"]: await app.unban_chat_member(chat_id, target); await message.reply("✅ تم فك الحظر")
-        elif text in ["كتم", "🔇 كتم"]: await app.restrict_chat_member(chat_id, target, ChatPermissions()); await message.reply("✅ تم الكتم")
-        elif text in ["الغاء الكتم", "🔊 فك كتم"]: await app.restrict_chat_member(chat_id, target, ChatPermissions(can_send_messages=True)); await message.reply("✅ تم فك الكتم")
-        elif text in ["طرد", "👢 طرد"]: await app.ban_chat_member(chat_id, target); await app.unban_chat_member(chat_id, target); await message.reply("✅ تم الطرد")
+    elif text == "تنزيل":
+        if not await has_permission(app, chat_id, user_id, "owner"):
+            return await m.reply("❌ هذا الامر للمالك فقط")
+        if not await can_action(app, chat_id, user_id, target_id):
+            return await m.reply("❌ ما تقدر على شخص رتبته اعلى منك")
 
-    @app.on_message(filters.command("همستي") & filters.private)
-    async def my_whisper(_, message: Message):
-        r = cursor.execute("SELECT text, from_id FROM whispers WHERE to_id=? ORDER BY id DESC LIMIT 1", (message.from_user.id,)).fetchone()
-        if r:
-            from_user = await app.get_users(r[1])
-            await message.reply(f"📩 همسة من {from_user.first_name}:\n`{r[0]}`")
-            cursor.execute("DELETE FROM whispers WHERE to_id=?", (message.from_user.id,)); conn.commit()
-        else: await message.reply("❌ لا توجد همسات")
+        set_rank(chat_id, target_id, "member")
+        await m.reply(f"✅ تم تنزيل {target.first_name}")
+
+    elif text == "تنزيل الكل":
+        if not await has_permission(app, chat_id, user_id, "owner"):
+            return await m.reply("❌ هذا الامر للمالك فقط")
+        cursor.execute("DELETE FROM admins WHERE chat_id=?", (chat_id,)); conn.commit()
+        await m.reply("✅ تم تنزيل جميع الرتب")
+
+    # ========== اوامر الحظر والطرد والكتم ==========
+    elif text == "حظر":
+        if not await has_permission(app, chat_id, user_id, "mod"):
+            return await m.reply("❌ هذا الامر للمدير فما فوق")
+        if not await can_action(app, chat_id, user_id, target_id):
+            return await m.reply("❌ ما تقدر على شخص رتبته اعلى منك")
+        await app.ban_chat_member(chat_id, target_id)
+        await m.reply(f"🚫 تم حظر {target.first_name}")
+
+    elif text == "الغاء الحظر":
+        if not await has_permission(app, chat_id, user_id, "mod"):
+            return await m.reply("❌ هذا الامر للمدير فما فوق")
+        await app.unban_chat_member(chat_id, target_id)
+        await m.reply(f"✅ تم فك حظر {target.first_name}")
+
+    elif text == "طرد":
+        if not await has_permission(app, chat_id, user_id, "mod"):
+            return await m.reply("❌ هذا الامر للمدير فما فوق")
+        if not await can_action(app, chat_id, user_id, target_id):
+            return await m.reply("❌ ما تقدر على شخص رتبته اعلى منك")
+        await app.ban_chat_member(chat_id, target_id)
+        await app.unban_chat_member(chat_id, target_id)
+        await m.reply(f"👢 تم طرد {target.first_name}")
+
+    elif text == "كتم":
+        if not await has_permission(app, chat_id, user_id, "mod"):
+            return await m.reply("❌ هذا الامر للمدير فما فوق")
+        if not await can_action(app, chat_id, user_id, target_id):
+            return await m.reply("❌ ما تقدر على شخص رتبته اعلى منك")
+        await app.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions())
+        await m.reply(f"🔇 تم كتم {target.first_name}")
+
+    elif text == "الغاء الكتم":
+        if not await has_permission(app, chat_id, user_id, "mod"):
+            return await m.reply("❌ هذا الامر للمدير فما فوق")
+        await app.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(
+            can_send_messages=True, can_send_media_messages=True, can_send_polls=True))
+        await m.reply(f"🔊 تم فك كتم {target.first_name}")
+
+    elif text.startswith("تقييد "):
+        if not await has_permission(app, chat_id, user_id, "mod"):
+            return await m.reply("❌ هذا الامر للمدير فما فوق")
+        time = int(text.split(" ")[1])
+        await app.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(), until_date=time)
+        await m.reply(f"⛓️ تم تقييد {target.first_name} لمدة {time} ثانية")
+
+    elif text == "رفع القيود":
+        if not await has_permission(app, chat_id, user_id, "mod"):
+            return await m.reply("❌ هذا الامر للمدير فما فوق")
+        await app.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(
+            can_send_messages=True, can_send_media_messages=True, can_send_polls=True))
+        await m.reply(f"✅ تم فك التقييد عن {target.first_name}")
+
+# امر عرض الرتب بدون رد
+@app.on_message(filters.group & filters.text & filters.regex(r"^عرض الرتب$"))
+async def show_ranks(_, m: Message):
+    if not await has_permission(app, m.chat.id, m.from_user.id, "mod"): return
+    cursor.execute("SELECT user_id, rank FROM admins WHERE chat_id=?", (m.chat.id,))
+    admins = cursor.fetchall()
+    if not admins: return await m.reply("لا يوجد رتب")
+    txt = "📋 قائمة الرتب:\n"
+    for uid, rank in admins:
+        txt += f"- {rank_names.get(rank, rank)} : `{uid}`\n"
+    await m.reply(txt)
