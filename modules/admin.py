@@ -1,5 +1,5 @@
 from pyrogram import filters
-from pyrogram.types import Message, ChatPermissions
+from pyrogram.types import Message, ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton
 from bot import app
 from modules.utils import get_rank, set_rank, has_permission, can_action
 from database import cursor, conn
@@ -85,24 +85,22 @@ async def id_cmd(client, message):
     user = message.from_user
     await message.reply(f"**👤 اسمك:** {user.first_name}\n**🆔 ايديك:** `{user.id}`")
 
+# لوحة التحكم المدمجة
 @app.on_message(filters.command("الاوامر"))
-async def help_cmd(client, message):
+async def control_panel(client, message):
     text = """
-**📜 اوامر الادارة - كلها بالرد على الشخص:**
-`حظر` - حظر العضو
-`الغاء الحظر` - فك الحظر
-`كتم` - كتم العضو
-`الغاء الكتم` - فك الكتم
+**📜 لوحة تحكم المطور Tia**
 
-**👑 اوامر الرتب - بالرد:**
-`رفع مالك`
-`رفع منشئ`
-`رفع ادمن`
-`تنزيل`
-`تنزيل الكل`
+**كل الاوامر بالرد على الشخص:**
+`حظر` `الغاء الحظر` `كتم` `الغاء الكتم`
+`رفع مالك` `رفع منشئ` `رفع ادمن` `تنزيل`
 
-**اوامر عامة:**
-`/id` - اظهار ايديك
-`/الاوامر` - هذه القائمة
+اضغط على الازرار تحت للمساعدة:
 """
-    await message.reply(text)
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("👑 الرتب", callback_data="ranks"),
+         InlineKeyboardButton("🛡️ الحظر", callback_data="ban")],
+        [InlineKeyboardButton("🔇 الكتم", callback_data="mute"),
+         InlineKeyboardButton("ℹ️ معلومات", callback_data="info")]
+    ])
+    await message.reply(text, reply_markup=keyboard)
