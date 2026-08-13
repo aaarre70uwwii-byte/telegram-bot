@@ -2,7 +2,8 @@ from pyrogram import filters
 from pyrogram.types import Message, ChatPermissions
 from bot import app
 from modules.utils import get_rank, set_rank, has_permission, can_action, rank_names
-import asyncio
+from database import cursor, conn # <-- ضفت هذا السطر المهم
+import asyncio, time
 
 # فلتر يمسك كل الاوامر بالرد
 @app.on_message(filters.group & filters.text & filters.reply)
@@ -19,7 +20,7 @@ async def admin_commands(_, m: Message):
     if text.startswith("رفع "):
         rank_name = text.split("رفع ")[1]
         rank_map = {"مالك": "owner", "منشئ": "owner", "مدير": "mod", "ادمن": "mod", "مشرف": "mod", "مميز": "special"}
-        if rank_name not in rank_map: return
+        if rank_name not in rank_map: return await m.reply("❌ رتبة غير موجودة")
 
         if not await has_permission(app, chat_id, user_id, "owner"):
             return await m.reply("❌ هذا الامر للمالك فقط")
@@ -80,21 +81,24 @@ async def admin_commands(_, m: Message):
         if not await has_permission(app, chat_id, user_id, "mod"):
             return await m.reply("❌ هذا الامر للمدير فما فوق")
         await app.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(
-            can_send_messages=True, can_send_media_messages=True, can_send_polls=True))
+            can_send_messages=True, can_send_media_messages=True, can_send_polls=True, can_send_other_messages=True))
         await m.reply(f"🔊 تم فك كتم {target.first_name}")
 
     elif text.startswith("تقييد "):
         if not await has_permission(app, chat_id, user_id, "mod"):
             return await m.reply("❌ هذا الامر للمدير فما فوق")
-        time = int(text.split(" ")[1])
-        await app.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(), until_date=time)
-        await m.reply(f"⛓️ تم تقييد {target.first_name} لمدة {time} ثانية")
+        try:
+            seconds = int(text.split(" ")[1])
+            until = int(time.time()) + seconds
+            await app.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(), until_date=until)
+            await m.reply(f"⛓️ تم تقييد {target.first_name} لمدة {seconds} ثانية")
+        except: await m.reply("❌ استخدم: تقييد 60")
 
     elif text == "رفع القيود":
         if not await has_permission(app, chat_id, user_id, "mod"):
             return await m.reply("❌ هذا الامر للمدير فما فوق")
         await app.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(
-            can_send_messages=True, can_send_media_messages=True, can_send_polls=True))
+            can_send_messages=True, can_send_media_messages=True, can_send_polls=True, can_send_other_messages=True))
         await m.reply(f"✅ تم فك التقييد عن {target.first_name}")
 
 # امر عرض الرتب بدون رد
@@ -108,3 +112,61 @@ async def show_ranks(_, m: Message):
     for uid, rank in admins:
         txt += f"- {rank_names.get(rank, rank)} : `{uid}`\n"
     await m.reply(txt)
+
+# ========== اوامر المسح ==========
+@app.on_message(filters.group & filters.text)
+async def delete_commands(_, m: Message):
+    chat_id = m.chat.id
+    user_id = m.from_user.id
+    text = m.text.strip()
+
+    if not await has_permission(app, chat_id, user_id, "mod"): return
+
+    # مسح بالعدد
+    if text.startswith("مسح ") and text.split(" ")[1].isdigit():
+        count = int(text.split(" ")[1])
+        if count > 100: count = 100
+        msgs = [i.id for i in await app.get_chat_history(chat_id, limit=count+1)]
+        await app.delete_messages(chat_id, msgs)
+        msg = await m.reply(f"✅ تم مسح {count} رسالة")
+        await asyncio.sleep(3); await msg.delete()
+
+    # مسح بالرد
+    elif text == "مسح بالرد" and m.reply_to_message:
+        await app.delete_messages(chat_id, m.reply_to_message.id)
+        await m.delete()
+
+    # مسح الكل - اخر 100 رسالة
+    elif text == "مسح الكل":
+        msgs = [i.id for i in await app.get_chat_history(chat_id, limit=100)]
+        await app.delete_messages(chat_id, msgs)
+        msg = await m.reply("✅ تم مسح اخر 100 رسالة")
+        await asyncio.sleep(3); await msg.delete()
+
+    # مسح الرابط
+    elif text == "مسح الرابط":
+        if not await has_permission(app, chat_id, user_id, "owner"): return
+        from modules.settings import save_setting
+        save_setting(chat_id, "link", "")
+        await m.reply("✅ تم مسح الرابط")
+
+    # مسح الترحيب
+    elif text == "مسح الترحيب":
+        if not await has_permission(app, chat_id, user_id, "owner"): return
+        from modules.settings import save_setting
+        save_setting(chat_id, "welcome_text", "")
+        save_setting(chat_id, "welcome_photo", "")
+        await m.reply("✅ تم مسح الترحيب")
+
+    # مسح الايدي
+    elif text == "مسح الايدي":
+        if not await has_permission(app, chat_id, user_id, "owner"): return
+        from modules.settings import save_setting
+        save_setting(chat_id, "id_template", "")
+        await m.reply("✅ تم مسح الايدي")
+
+    # مسح الردود
+    elif text == "مسح الردود":
+        if not await has_permission(app, chat_id, user_id, "owner"): return
+        cursor.execute("DELETE FROM replies WHERE chat_id=?", (chat_id,)); conn.commit()
+        await m.reply("✅ تم مسح جميع الردود")
