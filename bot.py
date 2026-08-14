@@ -1,4 +1,4 @@
-import os
+from bot import app
 from pyrogram import Client
 
 app = Client(
