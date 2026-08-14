@@ -1,4 +1,4 @@
-from bot import app
+import os
 from pyrogram import Client
 
 app = Client(
@@ -8,11 +8,10 @@ app = Client(
     bot_token=os.getenv("BOT_TOKEN")
 )
 
-# استدعاء كل الموديولات
+# نستدعي كل الموديولات عشان يشتغلوا
 import modules.start
 import modules.admin
 import modules.locks
-import modules.fun
 
 if __name__ == "__main__":
     print("• البوت شغال بنجاح ✅")
