@@ -1,31 +1,21 @@
-import os
-from pyrogram import Client, filters
+from pyrogram import Client
 
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH") 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+# إعداد البوت الأساسي
+app = Client(
+    "ProtectionBot",
+    api_id=7488375443,
+    api_hash="d37b2de52c76a51442c1ba82609cf9bb",
+    bot_token="8985250187:AAHSZfDHuxy1A7PpDZt7k0QdEWAsaTt5aTU"
+)
 
-app = Client("tia_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# استدعاء كل الملفات عشان تتفعل
+import modules.database
+import modules.locks
+import modules.protection
+import modules.settings
+import modules.services
+import modules.games
+import modules.dev
 
-@app.on_message(filters.command("start") & filters.private)
-async def start_cmd(client, message):
-    await message.reply("✅ البوت شغال")
-
-@app.on_message(filters.command("الاوامر"))
-async def help_cmd(client, message):
-    await message.reply("**الاوامر:**\n/ban - حظر\n/mute - كتم\n/id - ايديك")
-
-@app.on_message(filters.command("ban") & filters.group)
-async def ban_cmd(client, message):
-    if not message.reply_to_message: return
-    await client.ban_chat_member(message.chat.id, message.reply_to_message.from_user.id)
-    await message.reply("✅ تم الحظر")
-
-@app.on_message(filters.command("mute") & filters.group)
-async def mute_cmd(client, message):
-    if not message.reply_to_message: return
-    await client.restrict_chat_member(message.chat.id, message.reply_to_message.from_user.id)
-    await message.reply("🔇 تم الكتم")
-
-print("Tia Bot Started ✅")
+print("• البوت شغال بنجاح ✅")
 app.run()
