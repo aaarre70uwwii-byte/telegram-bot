@@ -1,30 +1,21 @@
-from pyrogram import filters
-from pyrogram.enums import ChatMemberStatus
-from bot import app
-from modules.database import set_lock, get_lock
+from pyrogram import Client
+from pyrogram.types import Message
+from pyrogram.enums import ChatPermissions
 
-# دالة التحقق من الادمن
-async def is_admin(client, message):
-    if message.chat.type == "private": return True
-    member = await client.get_chat_member(message.chat.id, message.from_user.id)
-    return member.status in [ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR]
+app = Client.get_client("ProtectionBot")
 
-@app.on_message(filters.command(["قفل", "فتح"]) & filters.group)
-async def handle_locks(client, message):
-    if not await is_admin(client, message):
-        return await message.reply("❌ هذا الأمر للإداريين فقط.")
+@app.on_message(commands=["قفل"])
+async def lock_cmd(client, message: Message):
+    await message.reply("تم قفل الدردشة 🔒")
+    await app.set_chat_permissions(
+        message.chat.id,
+        ChatPermissions(can_send_messages=False)
+    )
 
-    action = message.command[0]
-    target = " ".join(message.command[1:])
-    chat_id = message.chat.id
-
-    # الاشياء اللي نقدر نقفلها
-    allowed_locks = ["روابط", "توجيه", "صور", "فيديو", "ملصقات"]
-    if target not in allowed_locks:
-        return await message.reply(f"⚠️ استخدم: `قفل روابط` او `قفل توجيه` او `قفل صور`\nالمتاح: {', '.join(allowed_locks)}")
-
-    status = "قفله" if action == "قفل" else "فتحه"
-    set_lock(chat_id, target, status)
-
-    icon = "🔒" if status == "قفله" else "🔓"
-    await message.reply(f"• تم {action} {target} {icon}")
+@app.on_message(commands=["فتح"])
+async def unlock_cmd(client, message: Message):
+    await message.reply("تم فتح الدردشة 🔓")
+    await app.set_chat_permissions(
+        message.chat.id,
+        ChatPermissions(can_send_messages=True)
+    )
