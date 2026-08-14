@@ -1,14 +1,14 @@
+import os
 from pyrogram import Client
 
-# إعداد البوت الأساسي
+# يقرأ من متغيرات Railway
 app = Client(
     "ProtectionBot",
-    api_id=7488375443,
-    api_hash="d37b2de52c76a51442c1ba82609cf9bb",
-    bot_token="8985250187:AAHSZfDHuxy1A7PpDZt7k0QdEWAsaTt5aTU"
+    api_id=int(os.getenv("API_ID")),
+    api_hash=os.getenv("API_HASH"),
+    bot_token=os.getenv("BOT_TOKEN")
 )
 
-# استدعاء كل الملفات عشان تتفعل
 import modules.database
 import modules.locks
 import modules.protection
