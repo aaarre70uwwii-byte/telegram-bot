@@ -1,18 +1,8 @@
-import os
-from pyrogram import Client
+from pyrogram import Client, filters
+from pyrogram.types import Message
+from main import app
 
-app = Client(
-    "ProtectionBot",
-    api_id=int(os.getenv("API_ID")),
-    api_hash=os.getenv("API_HASH"),
-    bot_token=os.getenv("BOT_TOKEN")
-)
-
-# نستدعي كل الموديولات عشان يشتغلوا
-import modules.start
-import modules.admin
-import modules.locks
-
-if __name__ == "__main__":
-    print("• البوت شغال بنجاح ✅")
-    app.run()
+@app.on_message(filters.group & filters.text)
+async def echo(client, message: Message):
+    if message.text == "بوت":
+        await message.reply("ايوة انا هنا ✅")
