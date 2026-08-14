@@ -1,7 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-
-app = Client.get_client("ProtectionBot")
+from main import app  # مهم جدا نستورد app من main
 
 def main_menu(name):
     text = f"- أهلاً بك عزيزي {name} في قائمة الاوامر :\n"
@@ -39,15 +38,20 @@ async def callback_handler(_, query: CallbackQuery):
 
     if data == "cmd_admin":
         text = "📜 اوامر الادمنيه :\n\n🚫 حظر\n✅ الغاء الحظر\n🔇 كتم\n🔊 الغاء الكتم\n👢 طرد"
-    elif data == "cmd_settings":  # <-- هنا في :
+    
+    elif data == "cmd_settings":
         text = "⚙️ اوامر الاعدادات :\n\nقفل الروابط\nقفل الصور"
-    elif data == "cmd_locks":  # <-- وهنا
+    
+    elif data == "cmd_locks":
         text = "🔒 اوامر القفل - الفتح :\n\n/قفل\n/فتح"
-    elif data == "cmd_fun":  # <-- وهنا
+    
+    elif data == "cmd_fun":
         text = "🎭 اوامر التسليه :\n\n/ping"
-    elif data == "cmd_service":  # <-- وهنا
+    
+    elif data == "cmd_service":
         text = "🛠️ الاوامر الخدميه :\n\n/id"
-    elif data == "back":  # <-- وهنا
+    
+    elif data == "back":
         text, kb = main_menu(name)
         await query.edit_message_text(text, reply_markup=kb)
         await query.answer()
