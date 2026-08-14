@@ -4,7 +4,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 app = Client.get_client("ProtectionBot")
 
 def main_menu(name):
-    text = f"- أهلاً بك عزيزي {name} في قائمة الاوامر :\n"
+    text = f"- أهلاً بك عزي {name} في قائمة الاوامر :\n"
     text += "____________________\n\n"
     text += "1 ◀️ اوامر الادمنيه\n"
     text += "2 ◀️ اوامر الاعدادات\n"
@@ -41,4 +41,18 @@ async def callback_handler(_, query: CallbackQuery):
 
     if data == "cmd_admin":
         text = "📜 اوامر الادمنيه :\n\n"
-        text += "🚫 حظر - بالرد\n✅ فك حظر - بالرد\n🔇 كتم - بالرد
+        text += "🚫 حظر - بالرد\n✅ الغاء الحظر - بالرد\n🔇 كتم - بالرد\n🔊 الغاء الكتم - بالرد\n👢 طرد - بالرد\n⬆️ رفع - بالرد\n⬇️ تنزيل - بالرد"
+        
+    elif data == "cmd_settings":
+        text = "⚙️ اوامر الاعدادات :\n\nقفل الروابط\nقفل الصور\nقفل الملصقات\nقفل الفيديو"
+        
+    elif data == "cmd_locks":
+        text = "🔒 اوامر القفل - الفتح :\n\n/قفل - قفل الدردشة\n/فتح - فتح الدردشة"
+        
+    elif data == "cmd_fun":
+        text = "🎭 اوامر التسليه :\n\n/ping - فحص البوت"
+        
+    elif data == "cmd_service":
+        text = "🛠️ الاوامر الخدميه :\n\n/id - اظهار ايديك"
+        
+    elif data
