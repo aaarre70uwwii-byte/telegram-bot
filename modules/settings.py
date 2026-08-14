@@ -1,48 +1,39 @@
+import sqlite3
 from pyrogram import filters
 from pyrogram.types import Message
-from bot import app
-from modules.utils import has_permission
-from database import cursor, conn
+from bot import app # مهم
 
-def save_setting(chat_id, key, value):
-    cursor.execute("INSERT OR REPLACE INTO settings VALUES (?,?)", (f"{chat_id}_{key}", value)); conn.commit()
+# إعداد قاعدة بيانات للإعدادات
+conn = sqlite3.connect('bot_database.db', check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS settings (
+    chat_id INTEGER PRIMARY KEY,
+    welcome TEXT DEFAULT 'تفعيل',
+    replies TEXT DEFAULT 'تفعيل'
+)''')
+conn.commit()
 
-def get_setting(chat_id, key):
-    cursor.execute("SELECT value FROM settings WHERE key=?", (f"{chat_id}_{key}",))
-    r = cursor.fetchone()
-    return r[0] if r else None
+# دالة مساعدة لتحديث حالة الإعداد
+def update_setting(chat_id, column, value):
+    cursor.execute(f'INSERT INTO settings (chat_id, {column}) VALUES (?,?) ON CONFLICT(chat_id) DO UPDATE SET {column}=?', (chat_id, value, value))
+    conn.commit()
 
-@app.on_message(filters.group & filters.text)
-async def set_settings(_, m: Message):
-    chat_id = m.chat.id
-    user_id = m.from_user.id
-    text = m.text.strip()
-    if not await has_permission(app, chat_id, user_id, "owner"): return
+# أوامر تفعيل وتعطيل الإعدادات
+@app.on_message(filters.command(["تفعيل_الترحيب", "تعطيل_الترحيب", "تفعيل_الردود", "تعطيل_الردود"]) & filters.group)
+async def change_settings(client, message: Message):
+    cmd = message.command[0] # اول كلمة فقط
+    chat_id = message.chat.id
 
-    if text.startswith("ضع الرابط "):
-        link = text.split("ضع الرابط ")[1]
-        save_setting(chat_id, "link", link)
-        await m.reply(f"✅ تم حفظ الرابط:\n{link}")
-    elif text == "انشاء رابط":
-        link = await app.export_chat_invite_link(chat_id)
-        save_setting(chat_id, "link", link)
-        await m.reply(f"✅ تم انشاء الرابط:\n{link}")
-
-@app.on_message(filters.group & filters.text)
-async def get_settings(_, m: Message):
-    chat_id = m.chat.id
-    text = m.text.strip()
-    if text == "الرابط":
-        link = get_setting(chat_id, "link")
-        if link: await m.reply(f"🔗 رابط المجموعه:\n{link}")
-        else: await m.reply("❌ لا يوجد رابط")
-
-@app.on_message(filters.group & filters.new_chat_members)
-async def welcome(_, m: Message):
-    chat_id = m.chat.id
-    welcome_text = get_setting(chat_id, "welcome_text")
-    if not welcome_text: return
-    for user in m.new_chat_members:
-        name = user.first_name
-        msg = welcome_text.replace("{name}", name)
-        await m.reply(msg)
+    if cmd == "تفعيل_الترحيب":
+        update_setting(chat_id, "welcome", "تفعيل")
+        await message.reply("• أهلاً بك، تم تفعيل الترحيب بنجاح ✅")
+    elif cmd == "تعطيل_الترحيب":
+        update_setting(chat_id, "welcome", "تعطيل")
+        await message.reply("• أهلاً بك، تم تعطيل الترحيب بنجاح ✅")
+    elif cmd == "تفعيل_الردود":
+        update_setting(chat_id, "replies", "تفعيل")
+        await message.reply("• أهلاً بك، تم تفعيل الردود بنجاح ✅")
+    elif cmd == "تعطيل_الردود":
+        update_setting(chat_id, "replies", "تعطيل")
+        await message.reply("• أهلاً بك، تم تعطيل الردود بنجاح ✅")
