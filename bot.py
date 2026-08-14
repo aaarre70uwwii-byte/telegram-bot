@@ -8,8 +8,11 @@ app = Client(
     bot_token=os.getenv("BOT_TOKEN")
 )
 
-# استيراد الموديولات
-from modules import locks, admin, start, fun
+# استدعاء كل الموديولات
+import modules.start
+import modules.admin
+import modules.locks
+import modules.fun
 
 if __name__ == "__main__":
     print("• البوت شغال بنجاح ✅")
