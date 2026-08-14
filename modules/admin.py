@@ -1,8 +1,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton
+from main import app # <-- التعديل المهم
 import asyncio, time
-
-app = Client.get_client("ProtectionBot")
 
 # قاعدة بيانات مؤقتة لحد ما نسوي database.py
 admins_db = {}
@@ -36,6 +35,8 @@ async def admin_commands(_, m: Message):
     text = m.text.strip()
     chat_id = m.chat.id
     user_id = m.from_user.id
+    
+    if not m.reply_to_message: return
     target = m.reply_to_message.from_user
     target_id = target.id
 
