@@ -1,5 +1,5 @@
-pyrogram==2.0.107
-pytgcalls==3.0.0.dev2
+pyrogram
+pytgcalls
 yt-dlp
 python-dotenv
 aiohttp
