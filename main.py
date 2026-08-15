@@ -1,31 +1,29 @@
 import asyncio
-from pyrogram import Client, idle
-import config
+from pyrogram import Client
 from plugins.music import init_pytgcalls
+from dotenv import load_dotenv
+import os
 
-bot = Client(
-    "my_bot_session",
-    bot_token=config.BOT_TOKEN,
-    plugins=dict(root="plugins")
+# شحن المتغيرات من ملف الـ .env
+load_dotenv()
+
+# إعداد عميل التليجرام (Pyrogram)
+app = Client(
+    "music_bot",
+    api_id=int(os.getenv("API_ID", 12345)),
+    api_hash=os.getenv("API_HASH", "your_api_hash"),
+    bot_token=os.getenv("BOT_TOKEN", "your_bot_token")
 )
 
-async def main():
-    print("⚡ جاري تشغيل البوت والاتصال بتليجرام...")
-    await bot.start()
-    
-    print("🎵 جاري تهيئة نظام الأغاني والصوتيات...")
-    init_pytgcalls(bot)
-    
-    from plugins.protection import warnings
-    warnings.clear()
-    print("🛡️ نظام الحماية والأغاني يعملان الآن بنجاح!")
-    print(f"✅ البوت شغال: @{(await bot.get_me()).username}")
-    
-    await idle()
-    await bot.stop()
+# ربط وتفعيل مكتبة الصوت مع البوت
+pytgcalls_client = init_pytgcalls(app)
 
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\n🛑 تم إيقاف البوت يدويًا.")
+async def main():
+    print("جاري تشغيل بوت الأغاني...")
+    await app.start()
+    await pytgcalls_client.start()
+    print("البوت يعمل الآن بنجاح وبدون أخطاء!")
+    await asyncio.Event().wait()
+
+if name == "main":
+    asyncio.run(main())
