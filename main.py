@@ -1,44 +1,67 @@
-import os
-import sys
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import asyncio
+from pyrogram import Client, idle
+from pytgcalls import PyTgCalls
+import config
 
-# 1. Define your command handlers
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles the /start command."""
-    await update.message.reply_text("Hello! Your containerized bot is running successfully! 🚀")
+# 1. تهيئة عميل البوت وربطه بمجلد الأوامر تلقائياً
+bot = Client(
+    "my_bot_session",
+    bot_token=config.BOT_TOKEN,
+    plugins=dict(root="plugins")  # يتعرف على ملفات الحماية والأغاني داخل مجلد plugins تلقائياً
+)
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Processes incoming text messages."""
-    text_received = update.message.text
+# 2. تهيئة مشغل المكالمات الصوتية (الأغاني)
+pytgcalls_client = PyTgCalls(bot)
+
+# 3. دالة تهيئة وتشغيل نظام الأغاني والحماية معاً
+async def initialize_all_systems():
+    print("----------------------------------------")
+    print("⚡ جاري الاتصال بخوادم تليجرام وبدء تشغيل البوت...")
+    await bot.start()
     
-    # Simple reply logic
-    if "hello" in text_received.lower():
-        await update.message.reply_text("Hi there! How can I help you today?")
-    else:
-        await update.message.reply_text(f"Echo: {text_received}")
+    # تشغيل نظام الأغاني والمكالمات
+    print("🎵 جاري تفعيل مشغل الأغاني والمكالمات الصوتية...")
+    try:
+        await pytgcalls_client.start()
+        print("✅ تم تفعيل نظام الأغاني (PyTgCalls) بنجاح!")
+    except Exception as e:
+        print(f"❌ فشل تفعيل نظام الأغاني، السبب: {e}")
 
-# 2. Main execution block
-def main():
-    # Best Practice: Get the token from Environment Variables for container security
-    # Fallback to a hardcoded string if you haven't set up environment variables yet
-    TOKEN = os.getenv("TELEGRAM_TOKEN", "YOUR_ACTUAL_BOT_TOKEN_HERE")
-    
-    if TOKEN == "YOUR_ACTUAL_BOT_TOKEN_HERE" or not TOKEN:
-        print("ERROR: Please provide a valid Telegram Token!", file=sys.stderr)
-        sys.exit(1)
+    # تشغيل نظام الحماية
+    print("🛡️ جاري تشغيل جدار الحماية التلقائي للبوت...")
+    try:
+        # استيراد قاموس التحذيرات من ملف الحماية لتصفيره عند الإقلاع
+        from plugins.protection import warnings
+        warnings.clear()
+        print("✅ تم تصفير سجل التحذيرات وجدار الحماية جاهز!")
+    except ImportError:
+        print("⚠️ تنبيه: ملف plugins/protection.py غير موجود أو لم يتم إنشاء قاموس الـ warnings بداخله بعد.")
+    except Exception as e:
+        print(f"⚠️ حدث خطأ أثناء تجهيز نظام الحماية: {e}")
+        
+    print("🚀 البوت والملفات متصلة الآن بالكامل وبانتظار الأوامر...")
+    print("----------------------------------------")
 
-    print("Initializing bot application...")
-    # Build the application locally inside the main block (Prevents circular imports)
-    app = Application.builder().token(TOKEN).build()
+# 4. دالة التشغيل والإغلاق الآمن للسيرفر
+async def main():
+    # استدعاء دالة التهيئة والربط
+    await initialize_all_systems()
     
-    # Register handlers
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # إبقاء البوت مستيقظاً ويعمل دون توقف
+    await idle()
     
-    # Start the bot
-    print("Bot is successfully polling for messages... 🚀")
-    app.run_polling()
+    # إغلاق الأنظمة بشكل آمن عند إيقاف السورس
+    print("\n⚠️ جاري إيقاف البوت والمكالمات الصوتية بأمان...")
+    try:
+        await pytgcalls_client.stop()
+    except Exception:
+        pass
+    await bot.stop()
+    print("🛑 تم إيقاف السيرفر بنجاح.")
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__":  # هنا صلحتها
+    # تشغيل المجلد البرمجي بأكمله
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n🛑 تم إيقاف تشغيل السيرفر يدوياً.")
