@@ -2,16 +2,19 @@ import os
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from yt_dlp import YoutubeDL
-from pytgcalls import PyTgCalls
-from pytgcalls.types import AudioStream  # تم استخدام النوع الحديث لتوافق النسخة
+from pytgcalls import GroupCallFactory  # التحديث الصحيح للجيل الثالث
+from pytgcalls.types.input_stream import InputAudioStream
+from pytgcalls.types.input_stream import AudioPiped
 from pytgcalls.exceptions import NoActiveGroupCall
 
 pytgcalls_client = None
+group_call_factory = None
 
 def init_pytgcalls(client):
-    global pytgcalls_client
-    pytgcalls_client = PyTgCalls(client)
-    # ملاحظة: في الجيل الثالث تبدأ المكتبة تلقائياً مع البوت ولا تحتاج .start() هنا
+    global pytgcalls_client, group_call_factory
+    # استخدام معمل الاتصال الصوتي الحديث للجيل الثالث
+    group_call_factory = GroupCallFactory(client)
+    pytgcalls_client = group_call_factory.get_group_call()
 
 def get_audio_url(query: str):
     ydl_opts = {'format': 'bestaudio/best', 'noplaylist': True, 'quiet': True, 'default_search': 'ytsearch'}
@@ -35,10 +38,19 @@ async def play_music(client: Client, message: Message):
         return await status.edit_text(f"❌ خطأ: {title}")
     try:
         if pytgcalls_client:
-            # استخدام النمط المحدث للجيل الثالث
-            await pytgcalls_client.join_group_call(message.chat.id, AudioStream(url))
+            # طريقة التشغيل المحدثة للجيل الثالث
+            await pytgcalls_client.join_group_call(message.chat.id, AudioPiped(url))
             await status.edit_text(f"🎶 تم التشغيل بنجاح:\n{title}")
     except NoActiveGroupCall:
         await status.edit_text("❌ افتح المكالمة الصوتية في المجموعة أولاً!")
     except Exception as e:
         await status.edit_text(f"❌ خطأ بالاتصال: {e}")
+
+@Client.on_message(filters.command("stop") & filters.group)
+async def stop_music(client: Client, message: Message):
+    try:
+        if pytgcalls_client:
+            await pytgcalls_client.leave_group_call(message.chat.id)
+            await message.reply_text("⏹ تم إيقاف وتشغيل الأغنية ومغادرة المكالمة.")
+    except Exception as e:
+        await message.reply_text(f"❌ خطأ أثناء الإيقاف: {e}")
