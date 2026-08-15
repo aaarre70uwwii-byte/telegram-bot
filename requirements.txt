@@ -1,5 +1,5 @@
 pyrogram==2.0.106
-pytgcalls>=3.0.0
+py-tgcalls==2.3.3
 tgcrypto==1.2.5
 yt-dlp
 python-dotenv
