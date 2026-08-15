@@ -3,7 +3,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 from yt_dlp import YoutubeDL
 from pytgcalls import PyTgCalls
-from pytgcalls.types import AudioPiped
+from pytgcalls.types import AudioStream  # تم استخدام النوع الحديث لتوافق النسخة
 from pytgcalls.exceptions import NoActiveGroupCall
 
 pytgcalls_client = None
@@ -11,7 +11,7 @@ pytgcalls_client = None
 def init_pytgcalls(client):
     global pytgcalls_client
     pytgcalls_client = PyTgCalls(client)
-    pytgcalls_client.start()
+    # ملاحظة: في الجيل الثالث تبدأ المكتبة تلقائياً مع البوت ولا تحتاج .start() هنا
 
 def get_audio_url(query: str):
     ydl_opts = {'format': 'bestaudio/best', 'noplaylist': True, 'quiet': True, 'default_search': 'ytsearch'}
@@ -35,7 +35,8 @@ async def play_music(client: Client, message: Message):
         return await status.edit_text(f"❌ خطأ: {title}")
     try:
         if pytgcalls_client:
-            await pytgcalls_client.join_group_call(message.chat.id, AudioPiped(url))
+            # استخدام النمط المحدث للجيل الثالث
+            await pytgcalls_client.join_group_call(message.chat.id, AudioStream(url))
             await status.edit_text(f"🎶 تم التشغيل بنجاح:\n{title}")
     except NoActiveGroupCall:
         await status.edit_text("❌ افتح المكالمة الصوتية في المجموعة أولاً!")
