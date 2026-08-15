@@ -1,5 +1,6 @@
-pyrogram
-pytgcalls
-yt-dlp
-python-dotenv
-aiohttp
+pyrogram==2.0.106
+pytgcalls==3.1.0
+yt-dlp==2025.8.4
+python-dotenv==1.0.1
+aiohttp==3.9.5
+tgcrypto==1.2.5
