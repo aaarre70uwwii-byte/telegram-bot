@@ -19,11 +19,12 @@ async def main():
     from plugins.protection import warnings
     warnings.clear()
     print("🛡️ نظام الحماية والأغاني يعملان الآن بنجاح!")
+    print(f"✅ البوت شغال: @{(await bot.get_me()).username}")
     
     await idle()
     await bot.stop()
 
-if name == "main":
+if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
