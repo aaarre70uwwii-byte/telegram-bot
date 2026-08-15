@@ -32,41 +32,28 @@ def download_song(query):
 # اوامر الحماية
 @app.on_message(filters.command("ban") & filters.group)
 async def ban(c, m: Message):
-    if m.from_user.id!= OWNER_ID:
-        return await m.reply("للمالك فقط")
-    if not m.reply_to_message:
-        return await m.reply("رد على العضو")
+    if m.from_user.id!= OWNER_ID: return await m.reply("للمالك فقط")
+    if not m.reply_to_message: return await m.reply("رد على العضو")
     await c.ban_chat_member(m.chat.id, m.reply_to_message.from_user.id)
     await m.reply("✅ تم حظر العضو")
 
 @app.on_message(filters.command("mute") & filters.group)
 async def mute(c, m: Message):
-    if m.from_user.id!= OWNER_ID:
-        return await m.reply("للمالك فقط")
-    if not m.reply_to_message:
-        return await m.reply("رد على العضو")
-    await c.restrict_chat_member(m.chat.id, m.reply_to_message.from_user.id, permissions=None)
+    if m.from_user.id!= OWNER_ID: return
+    if not m.reply_to_message: return
+    await c.restrict_chat_member(m.chat.id, m.reply_to_message.from_user.id)
     await m.reply("🔇 تم كتم العضو")
 
 @app.on_message(filters.command("unmute") & filters.group)
 async def unmute(c, m: Message):
-    if m.from_user.id!= OWNER_ID:
-        return
-    if not m.reply_to_message:
-        return
-    await c.restrict_chat_member(
-        m.chat.id,
-        m.reply_to_message.from_user.id,
-        can_send_messages=True,
-        can_send_media_messages=True
-    )
+    if m.from_user.id!= OWNER_ID: return
+    await c.restrict_chat_member(m.chat.id, m.reply_to_message.from_user.id, can_send_messages=True)
     await m.reply("🔊 تم فك الكتم")
 
 # اوامر الاغاني
 @app.on_message(filters.command("play") & filters.group)
 async def play(c, m: Message):
-    if len(m.command) < 2:
-        return await m.reply("ارسل: /play اسم الاغنية")
+    if len(m.command) < 2: return await m.reply("ارسل: /play اسم الاغنية")
     msg = await m.reply("⏳ جاري التحميل...")
     try:
         file, title = download_song(" ".join(m.command[1:]))
