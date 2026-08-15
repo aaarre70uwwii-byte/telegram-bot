@@ -1,19 +1,21 @@
+import os
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from yt_dlp import YoutubeDL
 from pytgcalls import PyTgCalls
-from pytgcalls.types import AudioPiped
+from pytgcalls.types import AudioStream
 from pytgcalls.exceptions import NoActiveGroupCall
 
-pytgcalls_client = None
+# متغير عميل المكالمات
+pytgcalls_client = None 
 
 def init_pytgcalls(client):
     global pytgcalls_client
     pytgcalls_client = PyTgCalls(client)
 
-# دالة مساعدة لتحميل واستخراج رابط الصوت المباشر من يوتيوب
 def get_audio_url(query: str):
+    """دالة مساعدة لجلب الرابط المباشر من يوتيوب عبر yt-dlp"""
     ydl_opts = {
         'format': 'bestaudio/best',
         'noplaylist': True,
@@ -24,7 +26,7 @@ def get_audio_url(query: str):
         try:
             info = ydl.extract_info(query, download=False)
             if 'entries' in info:
-                info = info['entries'][0]
+                info = info['entries']
             return info['url'], info['title']
         except Exception as e:
             return None, str(e)
@@ -33,26 +35,27 @@ def get_audio_url(query: str):
 async def play_music(client: Client, message: Message):
     if len(message.command) < 2:
         return await message.reply_text("❌ يرجى كتابة اسم أو رابط الأغنية بجانب الأمر!\nمثال: /play faded")
-
+    
     query = " ".join(message.command[1:])
     status_msg = await message.reply_text("🔍 جاري البحث عن الأغنية في يوتيوب...")
-
+    
     audio_url, title = get_audio_url(query)
     if not audio_url:
         return await status_msg.edit_text(f"❌ حدث خطأ أثناء البحث: {title}")
-
+    
     chat_id = message.chat.id
-
+    
     try:
         if pytgcalls_client:
+            # استخدام AudioStream بدلاً من النسخ القديمة
             await pytgcalls_client.join_group_call(
                 chat_id,
-                AudioPiped(audio_url)
+                AudioStream(audio_url)
             )
             await status_msg.edit_text(f"🎶 تم بدء التشغيل بنجاح!\n\n📌 الأغنية: {title}")
         else:
-            await status_msg.edit_text("⚠️ نظام المكالمات الصوتية غير مفعّل في الملف الرئيسي.")
-
+            await status_msg.edit_text("⚠️ نظام المكالمات الصوتية غير مهيأ في الملف الرئيسي.")
+    
     except NoActiveGroupCall:
         await status_msg.edit_text("❌ يجب فتح المكالمة الصوتية في المجموعة أولاً!")
     except Exception as e:
