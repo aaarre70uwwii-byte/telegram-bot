@@ -10,9 +10,8 @@ pytgcalls_client = None
 
 def init_pytgcalls(client):
     global pytgcalls_client
-    pytgcalls_client = PyTgCalls(client)
+    pytgcalls_client = PyTgCalls(client) # بس نعرفه هنا
 
-# دالة مساعدة لتحميل واستخراج رابط الصوت المباشر من يوتيوب
 def get_audio_url(query: str):
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -45,18 +44,15 @@ async def play_music(client: Client, message: Message):
 
     try:
         if pytgcalls_client:
-            await pytgcalls_client.join_group_call(
-                chat_id,
-                AudioPiped(audio_url)
-            )
+            await pytgcalls_client.join_group_call(chat_id, AudioPiped(audio_url))
             await status_msg.edit_text(f"🎶 تم بدء التشغيل بنجاح!\n\n📌 الأغنية: {title}")
         else:
-            await status_msg.edit_text("⚠️ نظام المكالمات الصوتية غير مفعّل في الملف الرئيسي.")
+            await status_msg.edit_text("⚠️ نظام المكالمات الصوتية غير مفعّل.")
 
     except NoActiveGroupCall:
         await status_msg.edit_text("❌ يجب فتح المكالمة الصوتية في المجموعة أولاً!")
     except Exception as e:
-        await status_msg.edit_text(f"❌ حدث خطأ أثناء الاتصال الصوتي: {e}")
+        await status_msg.edit_text(f"❌ حدث خطأ: {e}")
 
 @Client.on_message(filters.command("stop") & filters.group)
 async def stop_music(client: Client, message: Message):
@@ -64,7 +60,7 @@ async def stop_music(client: Client, message: Message):
     try:
         if pytgcalls_client:
             await pytgcalls_client.leave_group_call(chat_id)
-            await message.reply_text("⏹ تم إيقاف التشغيل ومغادرة المكالمة الصوتية.")
+            await message.reply_text("⏹ تم إيقاف التشغيل ومغادرة المكالمة.")
         else:
             await message.reply_text("⚠️ النظام غير مهيأ.")
     except Exception as e:
