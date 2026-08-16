@@ -11,6 +11,7 @@ ADMINS = [ADMIN_ID]
 
 # Download Settings
 DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "downloads")
+MAX_SONG_DURATION = int(os.getenv("MAX_SONG_DURATION", 60)) # هذا اللي كان ناقص
 
 # FFMPEG
 FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
