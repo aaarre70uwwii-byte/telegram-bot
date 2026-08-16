@@ -6,13 +6,13 @@ from config import API_ID, API_HASH, BOT_TOKEN, BOT_NAME
 if not os.path.exists("downloads"):
     os.makedirs("downloads")
 
-# نعرف البوت
+# نعرف البوت - غيرنا root الى plugins
 app = Client(
     "proprotectbot",
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
-    plugins=dict(root="modules") # هذا السطر يشغل كل ملفات modules تلقائي
+    plugins=dict(root="plugins") # <-- هنا التعديل
 )
 
 # ===== اوامر عامة =====
@@ -25,7 +25,7 @@ async def start(c, m):
         "`/حظر` - حظر عضو\n"
         "`/كتم 5m` - كتم عضو\n"
         "`/فك_كتم` - فك الكتم\n"
-        "`/حذف 10` - حذف رسائل\n\n"
+        "`/حذف 10` - حذف رسائل\n"
         "**اوامر الموسيقى:**\n"
         "`/اغنية اسم` - تحميل وتشغيل\n"
         "`/ايقاف` - ايقاف"
