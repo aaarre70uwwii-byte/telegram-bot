@@ -21,20 +21,12 @@ app = Client(
 
 @app.on_message(filters.command("start") & filters.private)
 async def start_command(client: Client, message: Message):
-    await message.reply("
-أهلاً 👋
-البوت شغال 100%
-ارسل /help عشان تشوف الأوامر
-")
+    await message.reply("اهلاً 👋\nالبوت شغال 100%\nارسل /help عشان تشوف الأوامر")
 
 
 @app.on_message(filters.command("help") & filters.private)
 async def help_command(client: Client, message: Message):
-    await message.reply("
-**الأوامر المتاحة:**
-/start - تشغيل البوت
-/help - عرض المساعدة
-")
+    await message.reply("**الأوامر المتاحة:**\n/start - تشغيل البوت\n/help - عرض المساعدة")
 
 
 @app.on_message(filters.text & filters.private)
