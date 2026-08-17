@@ -1,39 +1,36 @@
+import os
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from config import API_ID, API_HASH, BOT_TOKEN, ADMIN_ID
 
-# انشاء البوت
+# 1. نجيب المتغيرات من Railway
+API_ID = int(os.environ.get("API_ID", 0))
+API_HASH = os.environ.get("API_HASH", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+ADMIN_ID = int(os.environ.get("ADMIN_ID", 0))
+
+# 2. نشغل البوت
 app = Client(
-    "my_bot",
+    "telegram_bot",
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN
 )
 
-# امر /start
+# 3. امر /start
 @app.on_message(filters.command("start") & filters.private)
-async def start_command(client: Client, message: Message):
-    await message.reply_text(
-        f"مرحبا {message.from_user.first_name} 👋\n"
-        f"البوت شغال 100% على Railway"
-    )
+async def start(client: Client, message: Message):
+    await message.reply("مرحبا! البوت شغال ✅")
 
-# امر /ping للتجربة
-@app.on_message(filters.command("ping"))
-async def ping_command(client: Client, message: Message):
-    await message.reply_text("pong ✅")
+# 4. الدالة الرئيسية
+async def main():
+    await app.start()
+    print("✅ البوت اشتغل")
+    # نرسل لك ان البوت اشتغل
+    if ADMIN_ID != 0:
+        await app.send_message(ADMIN_ID, "✅ تم تشغيل البوت بنجاح")
+    await idle()
 
-# رسالة للادمن لما يشتغل
-@app.on_startup
-async def on_startup(client: Client):
-    print("=================================")
-    print("✅ البوت الاحترافي شغال الان")
-    print("=================================")
-    try:
-        await client.send_message(ADMIN_ID, "✅ البوت اشتغل على Railway")
-    except:
-        pass
-
-# تشغيل البوت
+# 5. نشغل
 if __name__ == "__main__":
-    app.run()
+    from pyrogram import idle
+    app.run(main())
