@@ -10,7 +10,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("CRITICAL ERROR: 'BOT_TOKEN' environment variable is missing!")
 
-bot = telebot.TeleBot(BOT_TOKEN)
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 
 # ==========================================
 # 📊 VOLATILE MEMORY DATABASE STORAGE (MOCK)
@@ -60,7 +60,6 @@ def get_main_dashboard_markup():
     markup.add(InlineKeyboardButton("🦦 تحديثات 𝐓𝐢𝐚 @eeccvu", url="https://t.me"))
     return markup
 
-
 @bot.message_handler(regexp=r"^(الاوامر|أوامر البوت|لوحة التحكم|الاوامر بالازرار)$")
 def send_control_panel(message):
     welcome_text = (
@@ -69,11 +68,10 @@ def send_control_panel(message):
     )
     bot.reply_to(message, welcome_text, reply_markup=get_main_dashboard_markup(), parse_mode="Markdown")
 
-
 @bot.callback_query_handler(func=lambda call: True)
 def handle_menu_navigation(call):
     chat_id = call.message.chat.id
-    message_id = call.message.message_id
+    message_id = call.message.message_id  # <-- تم التعديل هنا فقط
     
     if call.data == "hide_dashboard":
         bot.delete_message(chat_id, message_id)
@@ -155,33 +153,4 @@ def handle_menu_navigation(call):
         
     elif call.data == "menu_6":
         text = (
-            "🛠️ **6️⃣ قسم الأوامر الخدمية والترفيهية وأنظمة التحميل الفوري:**\n━━━━━━━━━━━━\n"
-            "• **مصفوفة الألعاب والتنافس وحساب القيم:**\n"
-            "  `نسبه الحب` | `نسبه الغباء (بالرد)` | `تحبه (بالرد)` | `نسبه انوثتها (بالرد)` | `نسبه رجولته (بالرد)` | `شبيهي` | `شبيهتي` | `البوت السحري` | `شرايك في افتاري` | `من ضافني`\n"
-            "• **صيغ الاستخراج والفحص اللحظي بالرد:**\n"
-            "  `افتاره بالرد` | `البايو بالرد` | `اهديه بالرد` | `اهديه + يوزر الشخص`\n"
-            "• **نظام البريد والمراسلة والرد المخصص:**\n"
-            "  `ارسل` [الكلام] [اليوزر] `زاجل` | `صيح` | `صيح + اليوزر` | `اضف رد المالك` | `اضف رد انلاين` | `اضف رد متعدد` | `نادي المطور` | `تفعيل كليشة المطور : الافتار والبايو`\n"
-            "• **محركات البحث الفورية ومعاجم المصادر:**\n"
-            "  `قوقل` [البحث] | `تطبيق` [الاسم] | `تحميل لعبه` [الاسم] | `معنى` [الاسم] | `العمر` [العمر] | `زخرف` [الاسم] | `ترجم عربي / انقليزي` [الكلام]\n"
-            "• **خلاصات البث ومحتوى الميديا المستمر:**\n"
-            "  [قران | اذكار | شعر ، قصائد | اقتباسات | ثريد | قصص ، كتب | اطربني | اغاني | هيدرات | جداريات | ميمز | ايدت]\n"
-            "  `قيفات` [اطفال | رومنسيه | كوكسال | كيبوب | عيال | بنات]\n"
-            "  `افتارات` [بنات | عيال | فنانين | تطقيم | كيبوب | انمي]\n"
-            "• **بوابات التحميل وتحويل الصيغ الرقمية المتكاملة:**\n"
-            "  `ساوند` [الرابط] | `تيك` [الرابط] | `تويتر` [الرابط]\n"
-            "  `تحويل صيغ بالرد على الفيديو:` [صوت | تحويل | متحركه | بصمه]"
-        )
-        bot.edit_message_text(text, chat_id, message_id, reply_markup=back_button, parse_mode="Markdown")
-
-    bot.answer_callback_query(call.id)
-
-
-# ==========================================
-# 🛠️ UTILITY & DOWNLOADER CODE ROUTINES (6)
-# ==========================================
-
-@bot.message_handler(regexp=r"^(نسبه الحب|شبيهي|شبيهتي|البوت السحري)$")
-def handle_fun_percentages(message):
-    percentage = random.randint(1, 100)
-    cmd = message.text
+            "🛠️
