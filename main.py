@@ -77,10 +77,15 @@ def dev_panel(m):
     elif m.text == "⊱ اضف رد": msg=bot.send_message(ADMIN_ID,"⊱ ارسل الرد الجديد"); bot.register_next_step_handler(msg,set_reply)
 
 def set_reply(m): global REPLY_TEXT; REPLY_TEXT=m.text; save_data(); bot.send_message(ADMIN_ID,"⊱ ✅ تم الحفظ",reply_markup=dev_keyboard())
-def broadcast(m): c=0;
+
+def broadcast(m):
+    c=0
     for u in users:
-        try: bot.send_photo(u,WELCOME_PHOTO,caption=f"⊱ 📢 {BOT_NAME}\n⊱ {m.text}"); c+=1
-        except: pass
+        try:
+            bot.send_photo(u,WELCOME_PHOTO,caption=f"⊱ 📢 {BOT_NAME}\n⊱ {m.text}")
+            c+=1
+        except:
+            pass
     bot.send_message(ADMIN_ID,f"⊱ ✅ تم الارسال لـ {c}",reply_markup=dev_keyboard())
 
 @bot.message_handler(func=lambda m: m.text=="الاوامر" and m.chat.type in ['group','supergroup'])
@@ -104,7 +109,7 @@ def call(c):
        "m9":"⊱ M9 البنك\nانشاء حساب - راتب - فلوسي - تحويل",
        "m10":"⊱ M10 القفل\nقفل الروابط الصور الفيديو الملصقات الدردشه المتحركه",
        "m11":"⊱ M11 التفعيل\nتفعيل الرابط - تعطيل الترحيب - تفعيل الردود"}
-    bot.edit_message_text(f"{d[c.data]}",c.message.chat.id,c.message_id,reply_markup=main_inline())
+    bot.edit_message_text(f"{d[c.data]}",c.message.chat.id,c.message.message_id,reply_markup=main_inline())
 
 # ===== M1 الادارة =====
 @bot.message_handler(func=lambda m: m.chat.id in active_groups and m.text in ["رفع ادمن","تنزيل ادمن"] and is_admin(m))
