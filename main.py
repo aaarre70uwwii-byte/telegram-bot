@@ -15,49 +15,34 @@ bot = telebot.TeleBot(API_TOKEN)
 DATA_FILE = "data.json"
 
 def load_data():
-    global users, blocked_users, required_channels
+    global users, blocked_users
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
             users = set(data.get("users", []))
             blocked_users = set(data.get("blocked_users", []))
-            required_channels = data.get("required_channels", [MY_CHANNEL])
     else:
         users = set()
         blocked_users = set()
-        required_channels = [MY_CHANNEL]
 
 def save_data():
     with open(DATA_FILE, 'w', encoding='utf-8') as f:
         json.dump({
             "users": list(users),
-            "blocked_users": list(blocked_users),
-            "required_channels": required_channels
+            "blocked_users": list(blocked_users)
         }, f, ensure_ascii=False, indent=2)
 
 load_data()
-
-def normalize_channel(text):
-    if not text: return None
-    text = text.strip()
-    if text.startswith("https://t.me/"): text = text.split("https://t.me/")[-1].strip("/")
-    if text.startswith("http://t.me/"): text = text.split("http://t.me/")[-1].strip("/")
-    text = text.lstrip("@")
-    text = re.sub(r'[^A-Za-z0-9_]', '', text)
-    return text if text else None
 
 def admin_keyboard():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     markup.add(types.KeyboardButton("⊱ 👥 قائمة المستخدمين"), types.KeyboardButton("⊱ 🚫 حظر عضو"))
     markup.add(types.KeyboardButton("⊱ 📢 إذاعة للكل"), types.KeyboardButton("⊱ 🔓 فك حظر"))
-    markup.add(types.KeyboardButton("⊱ ➕ إضافة قناة"), types.KeyboardButton("⊱ ➖ حذف قناة"))
     return markup
 
 def user_msg_btns(user_id):
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("⊱ 🟩 الدخول للمطور", url=f"tg://user?id={ADMIN_ID}"))
-    for i, ch in enumerate(required_channels):
-        markup.add(types.InlineKeyboardButton(f"⊱ 🔗 قناة {i+1}", url=f"https://t.me/{ch}"))
     markup.add(types.InlineKeyboardButton("⊱ 🟩 الرد", callback_data=f"reply_{user_id}"), types.InlineKeyboardButton("⊱ 🔴 رجوع", callback_data="back_to_menu"))
     return markup
 
@@ -70,19 +55,6 @@ def start(message):
         return
     if user_id not in users:
         users.add(user_id); save_data()
-
-    if required_channels:
-        ok = True
-        for ch in required_channels:
-            try:
-                if bot.get_chat_member(f"@{ch}", user_id).status not in ['creator', 'administrator', 'member']:
-                    ok = False; break
-            except: ok = False; break
-        if not ok:
-            kb = types.InlineKeyboardMarkup()
-            for ch in required_channels: kb.add(types.InlineKeyboardButton(f"⊱ دخول @{ch}", url=f"https://t.me/{ch}"))
-            kb.add(types.InlineKeyboardButton("⊱ ✅ تحقّق الاشتراك", callback_data=f"check_subs_{user_id}"))
-            bot.send_message(user_id, f"⊱ مرحباً: {name}\n⊱ الرجاء الاشتراك في القنوات المطلوبة", reply_markup=kb); return
 
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("⊱ 🟩 الدخول للمطور", url=f"tg://user?id={ADMIN_ID}"))
@@ -105,12 +77,6 @@ def handle_admin_commands(message):
     elif text == "⊱ 🚫 حظر عضو": msg = bot.send_message(ADMIN_ID, "⊱ ارسل ايدي الشخص:", reply_markup=admin_keyboard()); bot.register_next_step_handler(msg, process_block)
     elif text == "⊱ 🔓 فك حظر": msg = bot.send_message(ADMIN_ID, "⊱ ارسل ايدي الشخص:", reply_markup=admin_keyboard()); bot.register_next_step_handler(msg, process_unblock)
     elif text == "⊱ 📢 إذاعة للكل": msg = bot.send_message(ADMIN_ID, "⊱ ارسل نص الإذاعة:", reply_markup=admin_keyboard()); bot.register_next_step_handler(msg, process_broadcast)
-    elif text == "⊱ ➕ إضافة قناة": msg = bot.send_message(ADMIN_ID, "⊱ ارسل اسم القناة:", reply_markup=admin_keyboard()); bot.register_next_step_handler(msg, process_add_channel)
-    elif text == "⊱ ➖ حذف قناة":
-        if not required_channels: bot.send_message(ADMIN_ID, "⊱ لا توجد قنوات.", reply_markup=admin_keyboard()); return
-        markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-        for ch in required_channels: markup.add(types.KeyboardButton(f"⊱ حذف {ch}"))
-        markup.add(types.KeyboardButton("⊱ إلغاء")); msg = bot.send_message(ADMIN_ID, "⊱ اختار قناة للحذف:", reply_markup=markup); bot.register_next_step_handler(msg, process_remove_channel_choice)
 
 def process_block(m):
     try: blocked_users.add(int(m.text)); save_data(); bot.send_message(ADMIN_ID, f"⊱ ✅ تم الحظر", reply_markup=admin_keyboard())
@@ -124,15 +90,6 @@ def process_broadcast(m):
         try: bot.send_message(user, f"⊱ 📢 رسالة عامة\n⊱ {m.text}"); count+=1
         except: continue
     bot.send_message(ADMIN_ID, f"⊱ ✅ تم الارسال لـ {count}", reply_markup=admin_keyboard())
-def process_add_channel(m):
-    ch = normalize_channel(m.text)
-    if not ch or ch in required_channels: bot.send_message(ADMIN_ID, "⊱ ❌ خطأ او مضافة", reply_markup=admin_keyboard()); return
-    required_channels.append(ch); save_data(); bot.send_message(ADMIN_ID, f"⊱ ✅ تم إضافة @{ch}", reply_markup=admin_keyboard())
-def process_remove_channel_choice(m):
-    if m.text == "⊱ إلغاء": bot.send_message(ADMIN_ID, "⊱ تم الإلغاء.", reply_markup=admin_keyboard()); return
-    ch = normalize_channel(m.text.replace("⊱ حذف ", ""))
-    if ch in required_channels: required_channels.remove(ch); save_data(); bot.send_message(ADMIN_ID, f"⊱ ✅ تم حذف @{ch}", reply_markup=admin_keyboard())
-    else: bot.send_message(ADMIN_ID, "⊱ غير موجودة", reply_markup=admin_keyboard())
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
@@ -140,14 +97,6 @@ def callback_query(call):
     if call.data.startswith("reply_"):
         uid = int(call.data.split("_")[1]); msg = bot.send_message(ADMIN_ID, "⊱ ارسل ردك:"); bot.register_next_step_handler(msg, send_reply_to_user, uid)
     elif call.data == "back_to_menu": bot.send_message(ADMIN_ID, "⊱ 🏠 القائمة", reply_markup=admin_keyboard())
-    elif call.data.startswith("check_subs_"):
-        uid = int(call.data.split("_")[2]); ok=True
-        for ch in required_channels:
-            try:
-                if bot.get_chat_member(f"@{ch}", uid).status not in ['creator', 'administrator', 'member']: ok=False
-            except: ok=False
-        if ok: bot.send_message(uid, "⊱ ✅ تم التحقق"); start(call.message)
-        else: bot.send_message(uid, "⊱ ❌ لم تشترك بعد")
 
 def prefix_lines(text): return "\n".join("⊱ " + line for line in text.splitlines()) if text else "⊱ None"
 def send_reply_to_user(message, user_id):
