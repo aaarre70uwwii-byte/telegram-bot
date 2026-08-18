@@ -5,8 +5,6 @@ from telebot import types
 API_TOKEN = os.environ.get('BOT_TOKEN')
 ADMIN_ID = 7488375443
 BOT_NAME = "𝐓𝐢𝐚"
-WELCOME_PHOTO = "https://t.me/eeccvu/2"
-DEV_PHOTO = "https://t.me/eeccvu/2"
 
 bot = telebot.TeleBot(API_TOKEN, parse_mode="Markdown")
 DATA_FILE = "tia_data.json"
@@ -65,9 +63,9 @@ def start(message):
     welcome_text = f"⊱ مرحبا {name} في {BOT_NAME}\n⊱ {REPLY_TEXT}\n⊱ ارسل رسالتك الان"
     
     if is_dev(user_id):
-        bot.send_photo(user_id, WELCOME_PHOTO, caption=welcome_text, reply_markup=dev_keyboard())
+        bot.send_message(user_id, welcome_text, reply_markup=dev_keyboard())
     else:
-        bot.send_photo(user_id, WELCOME_PHOTO, caption=welcome_text)
+        bot.send_message(user_id, welcome_text)
 
 @bot.message_handler(func=lambda m: is_dev(m.from_user.id) and m.chat.type == 'private')
 def dev_panel(message):
@@ -120,7 +118,7 @@ def add_admin(m):
 def do_broadcast(m):
     count=0
     for u in users:
-        try: bot.send_photo(u, WELCOME_PHOTO, caption=f"⊱ 📢 {BOT_NAME}\n⊱ {m.text}"); count+=1
+        try: bot.send_message(u, f"⊱ 📢 {BOT_NAME}\n⊱ {m.text}"); count+=1
         except: pass
     bot.send_message(ADMIN_ID, f"⊱ ✅ تم الارسال لـ {count}", reply_markup=dev_keyboard())
 
@@ -150,8 +148,7 @@ def group_commands(message):
 
     if text in ["المطور", "مطور البوت"]:
         caption = f"--━━━━━━━━━━━━━━━\n⚡ 𝐁𝐎𝐓 {BOT_NAME} ⚡\n🤖 المطور الرسمي 🤖\n--━━━━━━━━━━━━━━━\n👑 الاسم : 𝐀𝐃𝐌𝐈𝐍\n🆔 الايدي : `{ADMIN_ID}`\n🔗 اليوزر : @rrrrxe\n📢 القناة : https://t.me/eeccvu\n--━━━━━━━━━━━━━━━"
-        try: bot.send_photo(chat_id, DEV_PHOTO, caption=caption)
-        except: bot.reply_to(message, caption); return
+        bot.reply_to(message, caption); return
 
     # M1
     if text == "رفع ادمن" and is_admin(message): bot.reply_to(message, "✅ تم رفع ادمن")
