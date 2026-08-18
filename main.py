@@ -71,7 +71,7 @@ def send_control_panel(message):
 @bot.callback_query_handler(func=lambda call: True)
 def handle_menu_navigation(call):
     chat_id = call.message.chat.id
-    message_id = call.message.message_id  # <-- تم التعديل هنا فقط
+    message_id = call.message_id  # <-- 1. تم التعديل هنا
     
     if call.data == "hide_dashboard":
         bot.delete_message(chat_id, message_id)
@@ -152,5 +152,13 @@ def handle_menu_navigation(call):
         bot.edit_message_text(text, chat_id, message_id, reply_markup=back_button, parse_mode="Markdown")
         
     elif call.data == "menu_6":
-        text = (
-            "🛠️
+        text = ( # <-- 2. كملت النص وقفلته
+            "🛠️ **6️⃣ قسم الأوامر الخدمية والترفيهية وأنظمة التحميل الفوري:**\n━━━━━━━━━━━━\n"
+            "• **مصفوفة الألعاب والتنافس وحساب القيم:**\n"
+            "  `نسبه الحب` | `نسبه الغباء (بالرد)` | `تحبه (بالرد)` | `نسبه انوثتها (بالرد)` | `نسبه رجولته (بالرد)` | `شبيهي` | `شبيهتي` | `البوت السحري` | `شرايك في افتاري` | `من ضافني`\n"
+            "• **صيغ الاستخراج والفحص اللحظي بالرد:**\n"
+            "  `افتاره بالرد` | `البايو بالرد` | `اهديه بالرد` | `اهديه + يوزر الشخص`\n"
+            "• **نظام البريد والمراسلة والرد المخصص:**\n"
+            "  `ارسل` [الكلام] [اليوزر] `زاجل` | `صيح` | `صيح + اليوزر` | `اضف رد المالك` | `اضف رد انلاين` | `اضف رد متعدد` | `نادي المطور` | `تفعيل كليشة المطور : الافتار والبايو`\n"
+            "• **محركات البحث الفورية ومعاجم المصادر:**\n"
+            "  `قوقل` [البحث] | `
