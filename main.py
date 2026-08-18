@@ -209,18 +209,29 @@ def gban(m):
 def marry(m): bot.reply_to(m,"💍 تم الزواج")
 @bot.message_handler(func=lambda m: m.chat.id in active_groups and m.text=="طلاق")
 def div(m): bot.reply_to(m,"💔 تم الطلاق")
-
 # ===== M9 البنك =====
 @bot.message_handler(func=lambda m: m.chat.id in active_groups and m.text=="انشاء حساب")
-def acc(m): uid=str(m.from_user.id);
-    if uid in bank: return bot.reply_to(m,"❌ عندك حساب")
-    bank[uid]=500; save_data(); bot.reply_to(m,"💳 تم انشاء حساب 500$")
+def acc(m):
+    uid=str(m.from_user.id)
+    if uid in bank: 
+        return bot.reply_to(m,"❌ عندك حساب")
+    bank[uid]=500
+    save_data()
+    bot.reply_to(m,"💳 تم انشاء حساب 500$")
+
 @bot.message_handler(func=lambda m: m.chat.id in active_groups and m.text=="راتب")
-def sal(m): uid=str(m.from_user.id);
-    if uid not in bank: return bot.reply_to(m,"❌ سوي حساب")
-    bank[uid]+=500; save_data(); bot.reply_to(m,"💸 +500$")
+def sal(m):
+    uid=str(m.from_user.id)
+    if uid not in bank: 
+        return bot.reply_to(m,"❌ سوي حساب")
+    bank[uid]+=500
+    save_data()
+    bot.reply_to(m,"💸 +500$")
+
 @bot.message_handler(func=lambda m: m.chat.id in active_groups and m.text=="فلوسي")
-def money(m): uid=str(m.from_user.id); bot.reply_to(m,f"💰 رصيدك: {bank.get(uid,0)}$")
+def money(m):
+    uid=str(m.from_user.id)
+    bot.reply_to(m,f"💰 رصيدك: {bank.get(uid,0)}$")
 
 # ===== M11 التفعيل =====
 @bot.message_handler(func=lambda m: m.chat.id in active_groups and m.text.startswith("تفعيل ") and is_admin(m))
