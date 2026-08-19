@@ -1,2 +1,1 @@
-pip install pytelegrambotapi python-dotenv
-python bot.py
+python main.py
