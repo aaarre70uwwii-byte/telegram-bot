@@ -11,6 +11,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandObject
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatPermissions
+from aiogram.client.default import DefaultBotProperties # 1. ضفنا هذا
 import asyncio
 
 # Initialize system loggers
@@ -28,7 +29,8 @@ MAIN_TEXT = os.getenv("MAIN_MENU_TEXT", "↤اهلا فيك بعد عمري في
 if not BOT_TOKEN:
     raise ValueError("CRITICAL CONFIGURATION ERROR: 'BOT_TOKEN' is absent from the production environment.")
 
-bot = Bot(token=BOT_TOKEN, parse_mode="HTML") # غيرت ل HTML عشان العربي
+# 2. التعديل هنا
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 
 # Memory database framework for managing restrictions and settings
@@ -195,7 +197,7 @@ async def boundary_restriction_engine(message: types.Message):
         await message.reply(f"❌ تم تعطيل {target} من المجموعة.")
 
 # ==========================================
-# 🎯 MODULE م4: INTERACTIVE SIMULATIONS - كملته لك
+# 🎯 MODULE م4: INTERACTIVE SIMULATIONS
 # ==========================================
 
 @dp.message(F.text.in_({"رفع حمار", "تتزوجني", "زوجتي", "زوجي", "طلاق"}))
