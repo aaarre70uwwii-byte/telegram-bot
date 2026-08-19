@@ -1,130 +1,365 @@
-import os
-import re
-import random
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import sqlite3
+import random
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise ValueError("CRITICAL ERROR: 'BOT_TOKEN' environment variable is missing!")
+# ==========================================
+# ⚙️ قسم المتغيرات والإعدادات (تعديل هنا بسهولة)
+# ==========================================
+BOT_TOKEN = "YOUR_BOT_TOKEN"          # ضع توكن بوتك الحقيقي هنا
+CHANNEL_URL = "https://t.me/eeccvu"    # رابط قناة التحديثات الخاص بك
+
+# نصوص واجهات الأزرار والرسائل الأساسية مأخوذة من تصاميمك بالظبط
+MAIN_MENU_TEXT = """↤اهلا فيك بعد عمري في قائمه اوامر : ✓ 𝐓𝐢𝐚 :
+━━━━━━━━━━━━
+◂ م1 : اوامر الادمنيه
+◂ م2 : اوامر الاعدادات
+◂ م3 : اوامر القفل - الفتح
+◂ م4 : اوامر التسليه
+◂ م5 : اوامر Dev
+◂ م6 : الاوامر الخدميه 
+━━━━━━━━━━━━
+                  1.             2.             3.
+                  4.             5.              6"""
+
+M1_TEXT = """↢ أهلاً فيك يا حلو ♡
+• قائمة اوامر الادمنيه
+
+⚙️ اوامر الرفع والتنزيل:
+• رفع - تنزيل مالك اساسي
+↢ رفع - تنزيل مالك
+↢ رفع - تنزيل مشرف
+↢ رفع - تنزيل منشئ
+↢ رفع - تنزيل مدير
+↢ رفع - تنزيل ادمن
+↢ رفع - تنزيل مميز
+↢ تنزيل الكل - لازاله جميع الرتب اعلاه
+
+🗑️ اوامر المسح :
+• مسح + عدد
+↢ مسح بالرد
+↢ مسح الايدي
+↢ مسح الكل
+↢ مسح المنشئين
+↢ مسح المدراء
+↢ مسح المالكين
+↢ مسح الادمنيه 
+
+🚫 اوامر الطرد والحظر :
+↢ تقييد + الوقت
+↢ حظر 
+↢ طرد 
+↢ كتم
+↢ تقييد 
+↢ الغاء الحظر 
+↢ الغاء الكتم
+↢ فك التقييد 
+↢ رفع القيود"""
+
+M2_TEXT = """حياك الله في قائمة الاعدادات :
+• اكتب في قروبك كذا ↓
+↢ الرابط
+↢ المالكين
+↢ المالكين الاساسين
+↢ المنشئين 
+↢ الادمنيه
+↢ المدراء
+↢ المميزين
+↢ المحظورين
+↢ القوانين
+↢ المكتومين 
+↢ معلوماتي 
+↢ الحمايه  
+↢ الاعدادت
+↢ المجموعه
+
+⚙️ اوامر وضع الاعدادات :
+↢ مسح الرابط
+↢ انشاء رابط
+↢ ضع الترحيب
+↢ ضـع رابط
+↢ اضف امر
+↢ تعيين الايدي"""
+
+M3_TEXT = """- حياك في قائمة القفل - التعطيل :
+
+🔒 اولا : اوامر القفل والفتح :
+↢ قفل - فتح جمثون
+↢ قفل - فتح السب
+↢ قفل - فتح الايرانيه
+↢ قفل - فتح الكتابه
+↢ قفل - فتح التعديل
+↢ قفل - فتح الفيديو
+↢ قفل - فتح الصور
+↢ قفل - فتح الملصقات
+↢ قفل - فتح المتحركه
+↢ قفل - فتح الدردشه
+↢ قفل - فتح الروابط
+↢ قفل - فتح التاك
+↢ قفل - فتح البوتات 
+↢ قفل - فتح المعرفات 
+↢ قفل - البوتات بالطرد 
+↢ قفل - فتح الكلايش 
+↢️ قفل - فتح التكرار 
+↢ قفل - فتح التوجيه 
+↢ قفل - فتح الانلاين 
+↢ قفل - فتح الجهات 
+↢ قفل - فتح الكل
+↢ قفل - فتح الدخول
+↢ قفل - فتح الصوت
+
+⚙️ ثانيا : اوامر التفعيل - التعطيل :
+↢ تفعيل - تعطيل ضافني
+↢ تفعيل - تعطيل الاذكار
+↢ تفعيل - تعطيل الثنائي
+↢ تفعيل - تعطيل افتاري
+↢ تفعيل - تعطيل التسليه
+↢ تفعيل - تعطيل الكت
+↢ تفعيل - تعطيل الترحيب
+↢ تفعيل - تعطيل الردود
+↢ تفعيل - تعطيل الانذار
+↢ تفعيل - تعطيل التحذير
+↢ تفعيل - تعطيل الايدي
+↢ تفعيل - تعطيل الرابط
+↢ تفعيل - تعطيل اطردني
+↢ تفعيل - تعطيل الحظر
+↢ تفعيل - تعطيل الرفع
+↢ تفعيل - تعطيل التنزيل
+↢ تفعيل - تعطيل التحويل
+↢ تفعيل - تعطيل الحمايه
+↢ تفعيل - تعطيل المنشن
+↢ تفعيل - تعطيل وضع الاقتباسات
+↢ تفعيل - تعطيل الخدميه
+↢ تفعيل - تعطيل الايدي بالصوره
+↢ تفعيل - تعطيل التحقق"""
+
+M4_TEXT = """اهلا بك عزيزي
+- اوامر التسليه :
+━━━━━━━━━━━━
+🎯 اوامر تسلية تظهر بالايدي :
+• رفع - تنزيل : حمار : الحمير
+• رفع بقلبي : تنزيل من قلبي
+
+👥 للجروب:
+• رفع + اسم اختياري 
+• مسح رتب التسليه
+• رتب التسليه
+• تعطيل التسليه
+━━━━━━━━━━━━
+🌍 للعام:
+• رفع عام + اسم اختياري
+• رتب التسليه عام
+• مسح رتب التسليه
+━━━━━━━━━━━━
+💍 أوامر أخرى:
+• طلاق - زواج 
+• زوجي - زوجتي
+• تتزوجني
+• اكتموه (تصويت)
+• تعطيل - تفعيل : اكتموه
+• تعطيل - تفعيل : زوجني"""
+
+M5_TEXT = """- اهلا بك عزيزي Dev
+• اضف رد تواصل : حذف رد تواصل : ردود التواصل
+• ترحيب البوت : مسح صوره الترحيب
+• تعطيل : اسم بوتك + غادر
+• تعطيل - تفعيل الزاجل
+• مسح المالكين الاساسيين
+• ذيع + ايدي المجموعه - بالرد
+• فتح - قفل ردود MY
+• رفع - تنزيل Dev = مطور ثانوي
+• فتح - قفل الاحصائيات
+• فتح - قفل حظر العام
+
+🚫 أوامر العام والحظر:
+• حظر - كتم عام
+• حظر - الغاء حظر بالرد للتواصل
+• مسح المحظورين - المحظورين للتواصل
+• قائمه العام : قائمه الرتب العامه
+• الغاء كتم عام - الغاء عام
+• مسح المكتومين عام : مسح المحظورين عام
+• تغير الرتب العام : مسح رتب العام : مسح رتبه عام
+
+💬 أوامر الردود العامة:
+• الردود العامه : الردود المتعدده العامه 
+• مسح الردود العامه : مسح الردود المتعدده العامه
+• اضف رد عام : اضف رد متعدد عام
+• اضف ميزة: (صور،صوت،فيديو،فويسات،متحركه)🎮 أوامر الألعاب والكليشات:
+• اضف لعبه عام (3 العاب كتابيه)
+• مسح - ضع كليشه الالعاب
+• مسح - ضع كليشه (م1، م2، م3، م4، م5، م6)
+• تحديث : اعاده تشغيل - reload"""
+
+M6_TEXT = """• اهلا بك عزيزي
+- اوامر الخدميه :
+━━━━━━━━━━━━
+📊 ألعاب ونسب تفاعلية:
+• نسبه الحب
+• نسبه الغباء - بالرد
+• تحبه - بالرد
+• نسبه انوثتها - بالرد | نسبه رجولته - بالرد
+• شبيهي - شبيهتي
+
+💌 أوامر الهدايا والرسائل:
+• ارسل + الكلام + اليوزر زاجل
+• صيح | صيح + اليوزر يزعجه خاص
+• اهديه بالرد | اهديه + يوزر الشخص
+
+👤 الحساب والصور الشخصية:
+• شرايك في افتاري | افتاره بالرد
+• البايو بالرد
+• من ضافني
+
+🔍 البحث والتحميل:
+• البوت السحري
+• قوقل + كلام البحث
+• تطبيق + اسم التطبيق
+• تحميل لعبه + اسم اللعبه
+• معنى + اسمك | العمر + عمرك | زخرف + اسمك
+• ترجم عربي + الكلام | ترجم انقليزي + الكلام
+
+📖 محتوى ديني وثقافي:
+• قران | اذكار
+• شعر ، قصائد | اقتباسات | ثريد | قصص ، كتب
+
+🎥 الميديا والترفيه:
+• اطربني | اغاني
+• هيدرات | جداريات | ميمز | ايدت
+• قيفات (اطفال ، رومنسيه ، كوكسال ، كيبوب ، عيال ، بنات)
+• افتارات (بنات ، عيال ، فنانين ، تطقيم ، كيبوب ، انمي)
+
+🛠️ أوامر تطوير وإضافات:
+• نادي المطور | تفعيل كليشة المطور : الافتار والبايو
+• اضف رد المالك | اضف رد انلاين | اضف رد متعدد
+• افلام
+
+📥 التحميل وتحويل الصيغ:
+• ساوند + الرابط
+• تيك + الرابط
+• تويتر + الرابط
+• تحويل الصيغ (صوت - تحويل - متحركه - بصمه) بالرد على الفيديو
+━━━━━━━━━━━━"""
+
+# نصوص الأزرار الشفافة
+TEXT_HIDE_BUTTON = "❌ اخفاء الاوامر"
+TEXT_UPDATES_BUTTON = "📢 تحديثات 𝐓𝐢𝐚"
+TEXT_BACK_BUTTON = "⬅️ عودة للقائمة الرئيسية"
+NOTIFICATION_HIDE = "تم إخفاء القائمة"
+
+# ==========================================
+# 🎛️ قسم البناء وقاعدة البيانات والوظائف التنفيذية
+# ==========================================
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 
-FUN_SYSTEM_ENABLED = True
-MUTE_VOTE_ENABLED = True
-MARRIAGE_ENABLED = True
-DEDICATION_SYSTEM_ENABLED = True
+# إنشاء وتجهيز جداول البيانات للحفظ التلقائي واللانهائي للرتب والإعدادات والقفل
+def init_db():
+    conn = sqlite3.connect("tia_database.db")
+    cursor = conn.cursor()
+    # جدول حفظ الرتب المرفوعة بالبوت داخل المجموعات
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS roles (
+            chat_id INTEGER,
+            user_id INTEGER,
+            role TEXT,
+            PRIMARY KEY (chat_id, user_id)
+        )
+    """)
+    # جدول حفظ حالات الأقفال والتعطيل للمجموعات
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS locks (
+            chat_id INTEGER,
+            lock_type TEXT,
+            status INTEGER,
+            PRIMARY KEY (chat_id, lock_type)
+        )
+    """)
+    conn.commit()
+    conn.close()
 
-group_fun_db = {}
-global_fun_db = {}
-marriage_db = {}
+init_db()
 
-FUN_PLURAL_MAP = {
-    "هطف": "الهطوف", "بثر": "البثرين", "حمار": "الحمير", "كلب": "الكلاب",
-    "كلبه": "الكلبات", "عتوي": "العتوين", "عتويه": "العتويات", "لحجي": "اللحوج",
-    "لحجيه": "اللحجيات", "خروف": "الخرفان", "خفيفه": "الخفيفات", "خفيف": "الخفيفين",
-    "بقلبي": "قلب الإدارة"
-}
+# --- دوال التحكم بقاعدة البيانات ---
+def set_user_role(chat_id, user_id, role):
+    conn = sqlite3.connect("tia_database.db")
+    cursor = conn.cursor()
+    if role is None:
+        cursor.execute("DELETE FROM roles WHERE chat_id = ? AND user_id = ?", (chat_id, user_id))
+    else:
+        cursor.execute("INSERT OR REPLACE INTO roles (chat_id, user_id, role) VALUES (?, ?, ?)", (chat_id, user_id, role))
+    conn.commit()
+    conn.close()
 
-QUOTES_POOL = ["لا تيأس، المبرمج العظيم واجه أخطاءً أكثر مما تتخيل.", "النجاح هو الانتقال من فشل إلى فشل دون فقدان الحماس."]
-POEMS_POOL = ["ألا ليت الشباب يعود يوماً... فأخبره بما فعل المشيب", "على قدر أهل العزم تأتي العزائم... وتأتي على قدر الكرام المكارم"]
-STORIES_POOL = ["كتاب: مقدمة ابن خلدون الباب الأول", "رواية ليلى والذئب - الفصل الأول تنزيل كامل."]
-SONGS_POOL = ["🎵 جاري تشغيل شيلة حماسية...", "🎵 جاري عزف مقام بياتي هادئ..."]
+def get_user_role(chat_id, user_id):
+    conn = sqlite3.connect("tia_database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT role FROM roles WHERE chat_id = ? AND user_id = ?", (chat_id, user_id))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else "عضو"
 
-def get_main_dashboard_markup():
-    markup = InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        InlineKeyboardButton("1️⃣ أوامر الرفع والمنع والمسح", callback_data="menu_1"),
-        InlineKeyboardButton("2️⃣ قائمة وعرض الإعدادات", callback_data="menu_2")
-    )
-    markup.add(
-        InlineKeyboardButton("3️⃣ أوامر القفل والفتح والتعطيل", callback_data="menu_3"),
-        InlineKeyboardButton("4️⃣ ميزة الإهداءات الصوتية", callback_data="menu_4")
-    )
-    markup.add(
-        InlineKeyboardButton("5️⃣ أوامر التسلية والارتباط", callback_data="menu_5"),
-        InlineKeyboardButton("6️⃣ الأوامر الخدمية والتحميل", callback_data="menu_6")
-    )
-    markup.add(InlineKeyboardButton("❌ إخفاء اللوحة", callback_data="hide_dashboard"))
-    markup.add(InlineKeyboardButton("🦦 تحديثات 𝐓𝐢𝐚 @eeccvu", url="https://t.me"))
+def set_lock_status(chat_id, lock_type, status):
+    conn = sqlite3.connect("tia_database.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO locks (chat_id, lock_type, status) VALUES (?, ?, ?)", (chat_id, lock_type, status))
+    conn.commit()
+    conn.close()
+
+def is_lock_active(chat_id, lock_type):
+    conn = sqlite3.connect("tia_database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT status FROM locks WHERE chat_id = ? AND lock_type = ?", (chat_id, lock_type))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] == 1 if row else False
+
+def is_user_admin(chat_id, user_id):
+    if chat_id == user_id:  # في المحادثة الخاصة
+        return True
+    try:
+        member = bot.get_chat_member(chat_id, user_id)
+        return member.status in ['creator', 'administrator']
+    except Exception:
+        return False# --- بناء واجهات لوحة التحكم (Keyboards) ---
+def main_menu_keyboard():
+    markup = InlineKeyboardMarkup()
+    row1 = [InlineKeyboardButton("1️⃣", callback_data="cmd_1"),
+            InlineKeyboardButton("2️⃣", callback_data="cmd_2"),
+            InlineKeyboardButton("3️⃣", callback_data="cmd_3")]
+    row2 = [InlineKeyboardButton("4️⃣", callback_data="cmd_4"),
+            InlineKeyboardButton("5️⃣", callback_data="cmd_5"),
+            InlineKeyboardButton("6️⃣", callback_data="cmd_6")]
+    markup.row(*row1)
+    markup.row(*row2)
+    markup.row(InlineKeyboardButton(TEXT_HIDE_BUTTON, callback_data="hide_menu"))
+    markup.row(InlineKeyboardButton(TEXT_UPDATES_BUTTON, url=CHANNEL_URL))
     return markup
 
-@bot.message_handler(regexp=r"^(الاوامر|أوامر البوت|لوحة التحكم|الاوامر بالازرار)$")
-def send_control_panel(message):
-    welcome_text = (
-        "👑 **أهلاً بك في لوحة تحكم وإعدادات بوت سديم المتكاملة**\n\n"
-        "الرجاء اختيار أحد الأقسام المرتبة بالتسلسل (1-6) من الأزرار التفاعلية أدناه لمراجعة طريقة كتابة الأوامر المتطابقة:"
-    )
-    bot.reply_to(message, welcome_text, reply_markup=get_main_dashboard_markup(), parse_mode="Markdown")
+def sub_menu_keyboard():
+    markup = InlineKeyboardMarkup()
+    markup.row(InlineKeyboardButton(TEXT_BACK_BUTTON, callback_data="back_to_main"))
+    markup.row(InlineKeyboardButton(TEXT_UPDATES_BUTTON, url=CHANNEL_URL))
+    return markup
 
-@bot.callback_query_handler(func=lambda call: True)
-def handle_menu_navigation(call):
-    chat_id = call.message.chat.id
-    message_id = call.message.message_id  # 1. التعديل هنا
+# --- معالجة واستقبال الأوامر والرسائل النصية والوظائف الحقيقية ---
+
+@bot.message_handler(commands=['start', 'help', 'menu'])
+@bot.message_handler(func=lambda msg: msg.text == "الاوامر")
+def send_menu(message):
+    bot.send_message(message.chat.id, MAIN_MENU_TEXT, reply_markup=main_menu_keyboard())
+
+# 👤 تطبيق وظيفة "الايدي" وسحب الرتب الحقيقية والمحفوظة
+@bot.message_handler(func=lambda msg: msg.text in ["ايدي", "الايدي", "معلوماتي"])
+def get_user_id(message):
+    user = message.from_user
+    chat_member = bot.get_chat_member(message.chat.id, user.id)
     
-    if call.data == "hide_dashboard":
-        bot.delete_message(chat_id, message_id)
-        bot.answer_callback_query(call.id, "📥 تم إخفاء لوحة التحكم بنجاح.")
-        return
+    if chat_member.status == 'creator':
+        role = "المالك الأساسي 👑"
+    elif chat_member.status == 'administrator':
+        role = "مشرف المجموعة 🛡️"
+    else:
+        role = get_user_role(message.chat.id, user.id)
 
-    back_button = InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ العودة للوحة الرئيسية", callback_data="main_menu"))
-    
-    if call.data == "main_menu":
-        welcome_text = "👑 **أهلاً بك في لوحة تحكم وإعدادات بوت سديم المتكاملة**\n\nالرجاء اختيار أحد الأقسام المرتبة بالتسلسل (1-6) من الأزرار التفاعلية أدناه لمراجعة طريقة كتابة الأوامر المتطابقة:"
-        bot.edit_message_text(welcome_text, chat_id, message_id, reply_markup=get_main_dashboard_markup(), parse_mode="Markdown")
-        
-    elif call.data == "menu_1":
-        text = "🔱 **1️⃣ قسم أوامر الرفع والمنع والمسح الإداري:**\n━━━━━━━━━━━━\n• `رفع / تنزيل` [مالك اساسي | منشئ | مالك | مدير | ادمن | مشرف | مميز]\n• `تنزيل الكل` | `طرد المحذوفين`\n• `حظر` | `كتم` | `تقييد` | `طرد` | `الغاء الحظر` | `الغاء الكتم` | `فك التقييد` | `رفع القيود`\n• `منع بالرد` | `الغاء منع بالرد`\n• `تقييد + الوقت` (مثال: تقييد 10 دقائق)\n• `مسح + عدد الرسائل` (مثال: مسح 50)\n• `مسح` [الكل | المنشئين | المالكين | المدراء | الادمنيه | المميزين | المحظورين | المكتومين | قائمه المنع | الردود | الاوامر المضافه | بالرد | الايدي | الترحيب | الرابط]"
-        bot.edit_message_text(text, chat_id, message_id, reply_markup=back_button, parse_mode="Markdown")
-        
-    elif call.data == "menu_2":
-        text = "⚙️ **2️⃣ قسم عرض ووضع إعدادات المجموعة:**\n━━━━━━━━━━━━\n• **أوامر العرض الاستقرائي:**\n  `الرابط` | `المالكين الاساسين` | `المالكين` | `المنشئين` | `المدراء` | `الادمنيه` | `المميزين` | `المحظورين` | `المكتومين` | `القوانين` | `معلوماتي` | `الحمايه` | `الاعدادت` | `المجموعه`\n\n• **أوامر ضبط وتهيئة المتغيرات:**\n  `مسح الرابط` | `انشاء رابط`\n  `ضع الترحيب` [النص] | `ضع قوانين` [النص] | `ضـع رابط` [الرابط] | `اضف امر` [النص] | `تعيين الايدي` [النص]\n  `اضف قناه` [اليوزر أو الايدي] | `حذف قناه` [اليوزر أو الايدي]"
-        bot.edit_message_text(text, chat_id, message_id, reply_markup=back_button, parse_mode="Markdown")
-        
-    elif call.data == "menu_3":
-        text = "🔒 **3️⃣ قسم أوامر القفل والفتح والتعطيل:**\n━━━━━━━━━━━━\n• **صيغ القفل والفتح المتاحة:**\n  `قفل / فتح` [جمثون | السب | الايرانيه | الكتابه | التعديل | الفيديو | الصور | الملصقات | المتحركه | الدردشه | الروابط | التاك | البوتات | المعرفات | الكلايش | التكرار | التوجيه | الانلاين | الجهات | الكل | الدخول | الصوت]\n• `قفل البوتات بالطرد`\n\n• **أنظمة التفعيل والتعطيل التامة:**\n  `تفعيل / تعطيل` [ضافني | الاذكار | الثنائي | افتاري | التسليه | الكت | الترحيب | الردود | الانذار | التحذير | الايدي | الرابط | اطردني | الحظر | الرفع | التنزيل | التحويل | الحمايه | المنشن | وضع الاقتباسات | الخدميه | الايدي بالصوره | التحقق]"
-        bot.edit_message_text(text, chat_id, message_id, reply_markup=back_button, parse_mode="Markdown")
-        
-    elif call.data == "menu_4":
-        text = "🎙️ **4️⃣ قسم ميزة الإهداءات الصوتية المبتكرة لحساب سديم:**\n━━━━━━━━━━━━\n• **طريقة الإهداء:** بالرد على أي مقطع صوتي في المجموعة أو القناة واكتب:\n  `اهداء + معرف الشخص` (مثال: اهداء @un112)\n\n• **التحكم والتحويل في الإرسال وبث الصوت البيني:**\n  `ايقاف` | `وقف` | `سديم وقفي` | `تخطي` | `ايقاف الاهداءات`\n• **التحكم والتعطيل الإداري:**\n  `تعطيل الاهداءات` | `تفعيل الاهداءات`"
-        bot.edit_message_text(text, chat_id, message_id, reply_markup=back_button, parse_mode="Markdown")
-        
-    elif call.data == "menu_5":
-        text = "🎪 **5️⃣ قسم أوامر التسلية والارتباط والتصويت الديمقراطي:**\n━━━━━━━━━━━━\n• **رتب التسلية (بالتوجيه والرد):**\n  `رفع / تنزيل` [هطف | بثر | حمار | كلب | كلبه | عتوي | عتويه | لحجي | لحجيه | خروف | خفيفه | خفيف]\n• `رفع بقلبي` | `تنزيل من قلبي`\n• `رفع + اسم اختياري` | `رفع عام + اسم اختياري`\n• `رتب التسليه` | `رتب التسليه عام` | `مسح رتب التسليه`\n• `تعطيل التسليه`\n\n• **نظام العلاقات والارتباط الزوجي:**\n  `طلاق` | `زواج` | `زوجي` | `زوجتي` | `تتزوجني` | `تفعيل / تعطيل زوجني`\n\n• **محاكي الاقتراع التلقائي:**\n  `اكتموه` (فتح تصويت فوري بالرد) | `تفعيل / تعطيل اكتموه`"
-        bot.edit_message_text(text, chat_id, message_id, reply_markup=back_button, parse_mode="Markdown")
-        
-    elif call.data == "menu_6":
-        text = ("🛠️ **6️⃣ قسم الأوامر الخدمية والترفيهية وأنظمة التحميل الفوري:**\n━━━━━━━━━━━━\n"
-                "• **مصفوفة الألعاب والتنافس وحساب القيم:**\n"
-                "  `نسبه الحب` | `نسبه الغباء (بالرد)` | `تحبه (بالرد)` | `نسبه انوثتها (بالرد)` | `نسبه رجولته (بالرد)` | `شبيهي` | `شبيهتي` | `البوت السحري` | `شرايك في افتاري` | `من ضافني`\n"
-                "• **صيغ الاستخراج والفحص اللحظي بالرد:**\n"
-                "  `افتاره بالرد` | `البايو بالرد` | `اهديه بالرد` | `اهديه + يوزر الشخص`\n"
-                "• **نظام البريد والمراسلة والرد المخصص:**\n"
-                "  `ارسل` [الكلام] [اليوزر] `زاجل` | `صيح` | `صيح + اليوزر` | `اضف رد المالك` | `اضف رد انلاين` | `اضف رد متعدد` | `نادي المطور` | `تفعيل كليشة المطور : الافتار والبايو`\n"
-                "• **محركات البحث الفورية ومعاجم المصادر:**\n"
-                "  `قوقل` [البحث] | `تطبيق` [الاسم] | `تحميل لعبه` [الاسم] | `معنى` [الاسم] | `العمر` [العمر] | `زخرف` [الاسم] | `ترجم عربي / انقليزي` [الكلام]\n" # 2. هنا قفلت النص
-                "• **خلاصات البث ومحتوى الميديا المستمر:**\n"
-                "  [قران | اذكار | شعر ، قصائد | اقتباسات | ثريد | قصص ، كتب | اطربني | اغاني | هيدرات | جداريات | ميمز | ايدت]\n"
-                "  `قيفات` [اطفال | رومنسيه | كوكسال | كيبوب | عيال | بنات]\n"
-                "  `افتارات` [بنات | عيال | فنانين | تطقيم | كيبوب | انمي]\n"
-                "• **بوابات التحميل وتحويل الصيغ الرقمية المتكاملة:**\n"
-                "  `ساوند` [الرابط] | `تيك` [الرابط] | `تويتر` [الرابط]\n"
-                "  `تحويل صيغ بالرد على الفيديو:` [صوت | تحويل | متحركه | بصمه]")
-        bot.edit_message_text(text, chat_id, message_id, reply_markup=back_button, parse_mode="Markdown")
-
-    bot.answer_callback_query(call.id)
-
-@bot.message_handler(regexp=r"^(نسبه الحب|شبيهي|شبيهتي|البوت السحري)$")
-def handle_fun_percentages(message):
-    percentage = random.randint(1, 100)
-    cmd = message.text
-    responses = {
-        "نسبه الحب": f"❤️ نسبة الحب بينكم: {percentage}%",
-        "شبيهي": f"🤡 نسبة الشبه: {percentage}%",
-        "شبيهتي": f"🤡 نسبة الشبه: {percentage}%",
-        "البوت السحري": f"🎱 البوت السحري يقول: {random.choice(['نعم', 'لا', 'ربما'])}"
-    }
-    bot.reply_to(message, responses.get(cmd, "❌"))
-
-print("BOT STARTED...")
-bot.infinity_polling(none_stop=True)
+    reply_text = f"👤 معلوماتك يا حلو:\n\n" \
+                 f"↢ اسمك: {user.first_name}\n" \
