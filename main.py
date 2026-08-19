@@ -2,12 +2,17 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import sqlite3
 import random
+import os
 
 # ==========================================
 # ⚙️ قسم المتغيرات والإعدادات (تعديل هنا بسهولة)
 # ==========================================
-BOT_TOKEN = "YOUR_BOT_TOKEN"          # ضع توكن بوتك الحقيقي هنا
-CHANNEL_URL = "https://t.me/eeccvu"    # رابط قناة التحديثات الخاص بك
+BOT_TOKEN = os.getenv("BOT_TOKEN") # يقرا التوكن من المتغيرات حق Railway
+
+if not BOT_TOKEN:
+    raise ValueError("CRITICAL ERROR: 'BOT_TOKEN' environment variable is missing! ضع التوكن في Variables")
+
+CHANNEL_URL = "https://t.me/eeccvu" # رابط قناة التحديثات الخاص بك
 
 # نصوص واجهات الأزرار والرسائل الأساسية مأخوذة من تصاميمك بالظبط
 MAIN_MENU_TEXT = """↤اهلا فيك بعد عمري في قائمه اوامر : ✓ 𝐓𝐢𝐚 :
@@ -17,10 +22,10 @@ MAIN_MENU_TEXT = """↤اهلا فيك بعد عمري في قائمه اوام�
 ◂ م3 : اوامر القفل - الفتح
 ◂ م4 : اوامر التسليه
 ◂ م5 : اوامر Dev
-◂ م6 : الاوامر الخدميه 
+◂ م6 : الاوامر الخدميه
 ━━━━━━━━━━━━
-                  1.             2.             3.
-                  4.             5.              6"""
+                  1. 2. 3.
+                  4. 5. 6"""
 
 M1_TEXT = """↢ أهلاً فيك يا حلو ♡
 • قائمة اوامر الادمنيه
@@ -43,17 +48,17 @@ M1_TEXT = """↢ أهلاً فيك يا حلو ♡
 ↢ مسح المنشئين
 ↢ مسح المدراء
 ↢ مسح المالكين
-↢ مسح الادمنيه 
+↢ مسح الادمنيه
 
 🚫 اوامر الطرد والحظر :
 ↢ تقييد + الوقت
-↢ حظر 
-↢ طرد 
+↢ حظر
+↢ طرد
 ↢ كتم
-↢ تقييد 
-↢ الغاء الحظر 
+↢ تقييد
+↢ الغاء الحظر
 ↢ الغاء الكتم
-↢ فك التقييد 
+↢ فك التقييد
 ↢ رفع القيود"""
 
 M2_TEXT = """حياك الله في قائمة الاعدادات :
@@ -61,15 +66,15 @@ M2_TEXT = """حياك الله في قائمة الاعدادات :
 ↢ الرابط
 ↢ المالكين
 ↢ المالكين الاساسين
-↢ المنشئين 
+↢ المنشئين
 ↢ الادمنيه
 ↢ المدراء
 ↢ المميزين
 ↢ المحظورين
 ↢ القوانين
-↢ المكتومين 
-↢ معلوماتي 
-↢ الحمايه  
+↢ المكتومين
+↢ معلوماتي
+↢ الحمايه
 ↢ الاعدادت
 ↢ المجموعه
 
@@ -96,14 +101,14 @@ M3_TEXT = """- حياك في قائمة القفل - التعطيل :
 ↢ قفل - فتح الدردشه
 ↢ قفل - فتح الروابط
 ↢ قفل - فتح التاك
-↢ قفل - فتح البوتات 
-↢ قفل - فتح المعرفات 
-↢ قفل - البوتات بالطرد 
-↢ قفل - فتح الكلايش 
-↢️ قفل - فتح التكرار 
-↢ قفل - فتح التوجيه 
-↢ قفل - فتح الانلاين 
-↢ قفل - فتح الجهات 
+↢ قفل - فتح البوتات
+↢ قفل - فتح المعرفات
+↢ قفل - البوتات بالطرد
+↢ قفل - فتح الكلايش
+↢️ قفل - فتح التكرار
+↢ قفل - فتح التوجيه
+↢ قفل - فتح الانلاين
+↢ قفل - فتح الجهات
 ↢ قفل - فتح الكل
 ↢ قفل - فتح الدخول
 ↢ قفل - فتح الصوت
@@ -141,7 +146,7 @@ M4_TEXT = """اهلا بك عزيزي
 • رفع بقلبي : تنزيل من قلبي
 
 👥 للجروب:
-• رفع + اسم اختياري 
+• رفع + اسم اختياري
 • مسح رتب التسليه
 • رتب التسليه
 • تعطيل التسليه
@@ -152,14 +157,14 @@ M4_TEXT = """اهلا بك عزيزي
 • مسح رتب التسليه
 ━━━━━━━━━━━━
 💍 أوامر أخرى:
-• طلاق - زواج 
+• طلاق - زواج
 • زوجي - زوجتي
 • تتزوجني
 • اكتموه (تصويت)
 • تعطيل - تفعيل : اكتموه
 • تعطيل - تفعيل : زوجني"""
 
-M5_TEXT = """- اهلا بك عزيزي Dev
+M5_TEXT = """- اهلا بك عزي Dev
 • اضف رد تواصل : حذف رد تواصل : ردود التواصل
 • ترحيب البوت : مسح صوره الترحيب
 • تعطيل : اسم بوتك + غادر
@@ -181,7 +186,7 @@ M5_TEXT = """- اهلا بك عزيزي Dev
 • تغير الرتب العام : مسح رتب العام : مسح رتبه عام
 
 💬 أوامر الردود العامة:
-• الردود العامه : الردود المتعدده العامه 
+• الردود العامه : الردود المتعدده العامه
 • مسح الردود العامه : مسح الردود المتعدده العامه
 • اضف رد عام : اضف رد متعدد عام
 • اضف ميزة: (صور،صوت،فيديو،فويسات،متحركه)🎮 أوامر الألعاب والكليشات:
@@ -256,7 +261,6 @@ bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 def init_db():
     conn = sqlite3.connect("tia_database.db")
     cursor = conn.cursor()
-    # جدول حفظ الرتب المرفوعة بالبوت داخل المجموعات
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS roles (
             chat_id INTEGER,
@@ -265,7 +269,6 @@ def init_db():
             PRIMARY KEY (chat_id, user_id)
         )
     """)
-    # جدول حفظ حالات الأقفال والتعطيل للمجموعات
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS locks (
             chat_id INTEGER,
@@ -284,16 +287,16 @@ def set_user_role(chat_id, user_id, role):
     conn = sqlite3.connect("tia_database.db")
     cursor = conn.cursor()
     if role is None:
-        cursor.execute("DELETE FROM roles WHERE chat_id = ? AND user_id = ?", (chat_id, user_id))
+        cursor.execute("DELETE FROM roles WHERE chat_id =? AND user_id =?", (chat_id, user_id))
     else:
-        cursor.execute("INSERT OR REPLACE INTO roles (chat_id, user_id, role) VALUES (?, ?, ?)", (chat_id, user_id, role))
+        cursor.execute("INSERT OR REPLACE INTO roles (chat_id, user_id, role) VALUES (?,?,?)", (chat_id, user_id, role))
     conn.commit()
     conn.close()
 
 def get_user_role(chat_id, user_id):
     conn = sqlite3.connect("tia_database.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT role FROM roles WHERE chat_id = ? AND user_id = ?", (chat_id, user_id))
+    cursor.execute("SELECT role FROM roles WHERE chat_id =? AND user_id =?", (chat_id, user_id))
     row = cursor.fetchone()
     conn.close()
     return row[0] if row else "عضو"
@@ -301,26 +304,28 @@ def get_user_role(chat_id, user_id):
 def set_lock_status(chat_id, lock_type, status):
     conn = sqlite3.connect("tia_database.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO locks (chat_id, lock_type, status) VALUES (?, ?, ?)", (chat_id, lock_type, status))
+    cursor.execute("INSERT OR REPLACE INTO locks (chat_id, lock_type, status) VALUES (?,?,?)", (chat_id, lock_type, status))
     conn.commit()
     conn.close()
 
 def is_lock_active(chat_id, lock_type):
     conn = sqlite3.connect("tia_database.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT status FROM locks WHERE chat_id = ? AND lock_type = ?", (chat_id, lock_type))
+    cursor.execute("SELECT status FROM locks WHERE chat_id =? AND lock_type =?", (chat_id, lock_type))
     row = cursor.fetchone()
     conn.close()
     return row[0] == 1 if row else False
 
 def is_user_admin(chat_id, user_id):
-    if chat_id == user_id:  # في المحادثة الخاصة
+    if chat_id == user_id: # في المحادثة الخاصة
         return True
     try:
         member = bot.get_chat_member(chat_id, user_id)
         return member.status in ['creator', 'administrator']
     except Exception:
-        return False# --- بناء واجهات لوحة التحكم (Keyboards) ---
+        return False
+
+# --- بناء واجهات لوحة التحكم (Keyboards) ---
 def main_menu_keyboard():
     markup = InlineKeyboardMarkup()
     row1 = [InlineKeyboardButton("1️⃣", callback_data="cmd_1"),
@@ -353,7 +358,7 @@ def send_menu(message):
 def get_user_id(message):
     user = message.from_user
     chat_member = bot.get_chat_member(message.chat.id, user.id)
-    
+
     if chat_member.status == 'creator':
         role = "المالك الأساسي 👑"
     elif chat_member.status == 'administrator':
@@ -363,3 +368,46 @@ def get_user_id(message):
 
     reply_text = f"👤 معلوماتك يا حلو:\n\n" \
                  f"↢ اسمك: {user.first_name}\n" \
+                 f"↢ يوزرك: @{user.username if user.username else 'لا يوجد'}\n" \
+                 f"↢ ايديك: `{user.id}`\n" \
+                 f"↢ رتبتك: {role}"
+    bot.reply_to(message, reply_text)
+
+# ==========================================
+# معالج الازرار
+# ==========================================
+@bot.callback_query_handler(func=lambda call: True)
+def handle_menu(call):
+    chat_id = call.message.chat.id
+    message_id = call.message.message_id
+
+    if call.data == "hide_menu":
+        bot.delete_message(chat_id, message_id)
+        bot.answer_callback_query(call.id, NOTIFICATION_HIDE)
+        return
+
+    if call.data == "back_to_main":
+        bot.edit_message_text(MAIN_MENU_TEXT, chat_id, message_id, reply_markup=main_menu_keyboard())
+
+    elif call.data == "cmd_1":
+        bot.edit_message_text(M1_TEXT, chat_id, message_id, reply_markup=sub_menu_keyboard())
+
+    elif call.data == "cmd_2":
+        bot.edit_message_text(M2_TEXT, chat_id, message_id, reply_markup=sub_menu_keyboard())
+
+    elif call.data == "cmd_3":
+        bot.edit_message_text(M3_TEXT, chat_id, message_id, reply_markup=sub_menu_keyboard())
+
+    elif call.data == "cmd_4":
+        bot.edit_message_text(M4_TEXT, chat_id, message_id, reply_markup=sub_menu_keyboard())
+
+    elif call.data == "cmd_5":
+        bot.edit_message_text(M5_TEXT, chat_id, message_id, reply_markup=sub_menu_keyboard())
+
+    elif call.data == "cmd_6":
+        bot.edit_message_text(M6_TEXT, chat_id, message_id, reply_markup=sub_menu_keyboard())
+
+    bot.answer_callback_query(call.id)
+
+print("BOT STARTED...")
+bot.infinity_polling(none_stop=True)
