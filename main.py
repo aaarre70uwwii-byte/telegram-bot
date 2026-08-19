@@ -10,7 +10,8 @@ from yt_dlp import YoutubeDL
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandObject
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatPermissions
+import asyncio
 
 # Initialize system loggers
 logging.basicConfig(level=logging.INFO)
@@ -27,14 +28,14 @@ MAIN_TEXT = os.getenv("MAIN_MENU_TEXT", "↤اهلا فيك بعد عمري في
 if not BOT_TOKEN:
     raise ValueError("CRITICAL CONFIGURATION ERROR: 'BOT_TOKEN' is absent from the production environment.")
 
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML") # غيرت ل HTML عشان العربي
 dp = Dispatcher()
 
 # Memory database framework for managing restrictions and settings
 db = {
-    "locks": {},         # Tracks group lock restrictions (e.g. {'chat_id': {'الصور', 'الروابط'}})
-    "features": {},      # Tracks state parameters (e.g. {'chat_id': {'التسليه'}})
-    "g_rules": {},       # Custom group text rules configurations
+    "locks": {}, # Tracks group lock restrictions (e.g. {'chat_id': {'الصور', 'الروابط'}})
+    "features": {}, # Tracks state parameters (e.g. {'chat_id': {'التسليه'}})
+    "g_rules": {}, # Custom group text rules configurations
     "custom_replies": {},# Custom triggers saved dynamically
     "global_bans": set() # Blocked user identities globally restricted from bot utilities
 }
@@ -44,22 +45,19 @@ db = {
 # ==========================================
 
 def get_main_keyboard() -> InlineKeyboardMarkup:
-    """Generates the primary home menu matrix layout configurations."""
     builder = InlineKeyboardBuilder()
     for idx in range(1, 7):
         builder.button(text=f"م{idx}", callback_data=f"menu_m{idx}")
-    builder.adjust(2, 2, 2)
-    
-    # Custom functional utility buttons navigation schema
+    builder.adjust(3)
+
     builder.row(InlineKeyboardButton(text="التالي ↤", callback_data="menu_next"))
     builder.row(InlineKeyboardButton(text="✖ اخفاء الاوامر", callback_data="menu_hide"))
     builder.row(InlineKeyboardButton(text="تحديثات 𝐓𝐢𝐚", url=CHANNEL_URL))
     return builder.as_markup()
 
 def get_back_keyboard() -> InlineKeyboardMarkup:
-    """Assembles baseline backtracking navigational elements for contextual menus."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔙 عودة للقائمة الرئيسية", callback_data="menu_back_main")
+    builder.button(text="🔙 عودة للقائمة الرئيسية", callback_data="menu_back")
     return builder.as_markup()
 
 # ==========================================
@@ -67,13 +65,12 @@ def get_back_keyboard() -> InlineKeyboardMarkup:
 # ==========================================
 
 async def check_admin(message: types.Message) -> bool:
-    """Verifies user administrative authority inside target Telegram environments."""
     if message.chat.type == "private":
         return True
     if message.from_user.id == SUDO_ID:
         return True
     try:
-        member = await message.chat.get_member(message.from_user.id)
+        member = await bot.get_chat_member(message.chat.id, message.from_user.id)
         return member.status in ["administrator", "creator"]
     except Exception:
         return False
@@ -84,33 +81,29 @@ async def check_admin(message: types.Message) -> bool:
 
 @dp.message(Command("start", "help", "menu"))
 async def cmd_start_router(message: types.Message):
-    """Triggers and formats entry interface templates upon target execution calls."""
     if message.from_user.id in db["global_bans"]:
         return
     await message.reply(MAIN_TEXT, reply_markup=get_main_keyboard())
 
 @dp.callback_query(F.data.startswith("menu_"))
 async def callback_navigation_engine(callback: types.CallbackQuery):
-    """Monitors system signal inputs and switches UI states inside single execution frames."""
     action = callback.data.split("_")
-    
     if len(action) < 2:
         return await callback.answer()
-        
+
     menu_id = action[1]
-    
-    # Load dynamic menu structures safely from settings environment configurations
+
     submenus_texts = {
-        "m1": os.getenv("M1_MENU_TEXT", "⚙️ **أوامر الإدارية والاشراف (م1):**\n━━━━━━━━━━━━\n• بالرد: (حظر، كتم، طرد، تثبيت)\n• بالرد: (الغاء حظر، الغاء كتم، الغاء تثبيت)"),
-        "m2": os.getenv("M2_MENU_TEXT", "⚙️ **قائمة الإعدادات العامة (م2):**\n━━━━━━━━━━━━\n• عرض البيانات: (الرابط، المالكين، الادمنيه، القوانين، المجموعه)\n• تهيئة البيانات: (مسح الرابط، انشاء رابط، ضع القوانين)"),
-        "m3": os.getenv("M3_MENU_TEXT", "🔒 **قائمة التحكم بالقفل والتعطيل (م3):**\n━━━━━━━━━━━━\n• الصيغة: قفل / فتح + (الصور، الروابط، البوتات، السب، الكل)\n• الصيغة: تفعيل / تعطيل + (التسليه، الترحيب، الردود، الايدي)"),
-        "m4": os.getenv("M4_MENU_TEXT", "🎯 **قائمة أوامر التسلية التفاعلية (م4):**\n━━━━━━━━━━━━\n• بالرد: رفع حمار / تنزيل من قلبي\n• اوامر الزواج: (تتزوجني، طلاق، زوجي، زوجتي)\n• تصويت العقوبات: (اكتموه)"),
-        "m5": os.getenv("M5_MENU_TEXT", "💻 **لوحة التحكم والمطور الأساسي (م5):**\n━━━━━━━━━━━━\n• حظر عام / كتم عام / الغاء عام\n• بث البيانات: ذيع + ايدي المجموعة\n• الصيانة: تحديث / اعاده تشغيل - reload"),
-        "m6": os.getenv("M6_MENU_TEXT", "🚀 **الخدمات العامة وأدوات التحميل (م6):**\n━━━━━━━━━━━━\n• الترفيه: (نسبه الحب، نسبه الغباء، شرايك في افتاري)\n• البحث: (قوقل + النص، ترجم عربي + النص، اذكار، قران)\n• التحميل: (تيك + الرابط، ساوند + الرابط)")
+        "m1": os.getenv("M1_MENU_TEXT", "⚙️ <b>أوامر الإدارية والاشراف (م1):</b>\n━━━━━━━━━━━━\n• بالرد: (حظر، كتم، طرد، تثبيت)\n• بالرد: (الغاء حظر، الغاء كتم، الغاء تثبيت)"),
+        "m2": os.getenv("M2_MENU_TEXT", "⚙️ <b>قائمة الإعدادات العامة (م2):</b>\n━━━━━━━━━━━━\n• عرض البيانات: (الرابط، المالكين، الادمنيه، القوانين، المجموعه)\n• تهيئة البيانات: (مسح الرابط، انشاء رابط، ضع القوانين)"),
+        "m3": os.getenv("M3_MENU_TEXT", "🔒 <b>قائمة التحكم بالقفل والتعطيل (م3):</b>\n━━━━━━━━━━━━\n• الصيغة: قفل / فتح + (الصور، الروابط، البوتات، السب، الكل)\n• الصيغة: تفعيل / تعطيل + (التسليه، الترحيب، الردود، الايدي)"),
+        "m4": os.getenv("M4_MENU_TEXT", "🎯 <b>قائمة أوامر التسلية التفاعلية (م4):</b>\n━━━━━━━━━━━━\n• بالرد: رفع حمار / تنزيل من قلبي\n• اوامر الزواج: (تتزوجني، طلاق، زوجي، زوجتي)\n• تصويت العقوبات: (اكتموه)"),
+        "m5": os.getenv("M5_MENU_TEXT", "💻 <b>لوحة التحكم والمطور الأساسي (م5):</b>\n━━━━━━━━━━━━\n• حظر عام / كتم عام / الغاء عام\n• بث البيانات: ذيع + ايدي المجموعة\n• الصيانة: تحديث / اعاده تشغيل - reload"),
+        "m6": os.getenv("M6_MENU_TEXT", "🚀 <b>الخدمات العامة وأدوات التحميل (م6):</b>\n━━━━━━━━━━━━\n• الترفيه: (نسبه الحب، نسبه الغباء، شرايك في افتاري)\n• البحث: (قوقل + النص، ترجم عربي + النص، اذكار، قران)\n• التحميل: (تيك + الرابط، ساوند + الرابط)")
     }
-    
+
     if menu_id in submenus_texts:
-        await callback.message.edit_text(submenus_texts[menu_id], parse_mode="Markdown", reply_markup=get_back_keyboard())
+        await callback.message.edit_text(submenus_texts[menu_id], reply_markup=get_back_keyboard())
         await callback.answer()
     elif menu_id == "back":
         await callback.message.edit_text(MAIN_TEXT, reply_markup=get_main_keyboard())
@@ -127,39 +120,37 @@ async def callback_navigation_engine(callback: types.CallbackQuery):
 
 @dp.message(F.text.in_({"حظر", "كتم", "طرد", "تثبيت"}))
 async def administration_processing_pool(message: types.Message):
-    """Processes core management constraints over target users via message responses."""
     if not await check_admin(message) or not message.reply_to_message:
-        return
-    
+        return await message.reply("❌ يجب الرد على رسالة العضو")
+
     target_user = message.reply_to_message.from_user
     action = message.text
-    
+
     try:
         if action == "حظر":
-            await message.chat.ban(user_id=target_user.id)
+            await bot.ban_chat_member(message.chat.id, target_user.id)
             await message.reply(f"👤 العضو {target_user.first_name} تم حظره بنجاح.")
         elif action == "كتم":
-            await message.chat.restrict(user_id=target_user.id, permissions=types.ChatPermissions(can_send_messages=False))
+            await bot.restrict_chat_member(message.chat.id, target_user.id, permissions=ChatPermissions(can_send_messages=False))
             await message.reply(f"🔇 تم كتم العضو {target_user.first_name} بنجاح.")
         elif action == "طرد":
-            await message.chat.ban(user_id=target_user.id)
-            await message.chat.unban(user_id=target_user.id)
+            await bot.ban_chat_member(message.chat.id, target_user.id)
+            await bot.unban_chat_member(message.chat.id, target_user.id)
             await message.reply(f"🚷 تم طرد العضو {target_user.first_name} من المجموعة.")
         elif action == "تثبيت":
-            await message.reply_to_message.pin()
+            await bot.pin_chat_message(message.chat.id, message.reply_to_message.message_id)
             await message.reply("📌 تم تثبيت الرسالة بنجاح.")
     except Exception as e:
         await message.reply(f"❌ لم يتم تنفيذ الإجراء. السبب: {str(e)}")
 
 @dp.message(F.text.in_({"الرابط", "القوانين", "المجموعه"}))
 async def configurations_retrieval_router(message: types.Message):
-    """Fetches operational properties belonging to active chat communities instantly."""
     chat_id = message.chat.id
     command = message.text
-    
+
     if command == "الرابط":
         try:
-            link = await message.chat.export_invite_link() if message.chat.type != "private" else "الدردشة خاصة"
+            link = await bot.export_chat_invite_link(chat_id) if message.chat.type!= "private" else "الدردشة خاصة"
             await message.reply(f"🔗 رابط المجموعه: {link}")
         except Exception:
             await message.reply("❌ البوت يحتاج صلاحية إدارة الروابط أولاً.")
@@ -167,7 +158,7 @@ async def configurations_retrieval_router(message: types.Message):
         rules = db["g_rules"].get(chat_id, "ℹ️ لا توجد قوانين مخصصة لهذه المجموعة بعد.")
         await message.reply(rules)
     elif command == "المجموعه":
-        await message.reply(f"📊 معلومات المجموعه:\n• الاسم: {message.chat.title}\n• الايدي: `{chat_id}`")
+        await message.reply(f"📊 معلومات المجموعه:\n• الاسم: {message.chat.title}\n• الايدي: <code>{chat_id}</code>")
 
 # ==========================================
 # 🔒 MODULE م3: LOCKING & RESTRICTIONS SYSTEM
@@ -175,22 +166,21 @@ async def configurations_retrieval_router(message: types.Message):
 
 @dp.message(lambda message: message.text and any(message.text.startswith(cmd) for cmd in ["قفل ", "فتح ", "تفعيل ", "تعطيل "]))
 async def boundary_restriction_engine(message: types.Message):
-    """Toggles contextual group features or media configuration lock parameters."""
     if not await check_admin(message):
         return
-    
+
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
         return
-        
+
     action, target = parts[0], parts[1]
     chat_id = message.chat.id
-    
+
     if chat_id not in db["locks"]:
         db["locks"][chat_id] = set()
     if chat_id not in db["features"]:
         db["features"][chat_id] = set()
-        
+
     if action == "قفل":
         db["locks"][chat_id].add(target)
         await message.reply(f"🔒 تم قفل {target} بنجاح.")
@@ -205,8 +195,32 @@ async def boundary_restriction_engine(message: types.Message):
         await message.reply(f"❌ تم تعطيل {target} من المجموعة.")
 
 # ==========================================
-# 🎯 MODULE م4: INTERACTIVE SIMULATIONS
+# 🎯 MODULE م4: INTERACTIVE SIMULATIONS - كملته لك
 # ==========================================
 
-@dp.message(F.text.in_({"رفع حمار", "تتزوجني", "زوجتي", "زوجي"}))
+@dp.message(F.text.in_({"رفع حمار", "تتزوجني", "زوجتي", "زوجي", "طلاق"}))
 async def interactive_simulation_router(message: types.Message):
+    if not message.reply_to_message and message.text in ["رفع حمار", "زوجتي", "زوجي"]:
+        return await message.reply("❌ يجب الرد على العضو")
+
+    target = message.reply_to_message.from_user.first_name if message.reply_to_message else ""
+    user = message.from_user.first_name
+    cmd = message.text
+
+    responses = {
+        "رفع حمار": f"🐴 تم رفع {target} رتبة حمار الجروب بنجاح",
+        "تتزوجني": f"💍 {target} هل تقبل الزواج من {user}؟",
+        "زوجتي": f"❤️ {user} اعلن ان {target} زوجته",
+        "زوجي": f"❤️ {user} اعلنت ان {target} زوجها",
+        "طلاق": f"💔 تم الطلاق بين {user} و {target}"
+    }
+    await message.reply(responses.get(cmd, "امر غير معروف"))
+
+# ==========================================
+# 🚀 تشغيل البوت
+# ==========================================
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
