@@ -410,4 +410,153 @@ def handle_menu(call):
     bot.answer_callback_query(call.id)
 
 print("BOT STARTED...")
-bot.infinity_polling(none_stop=True)
+bot.infinity_polling(none_stop=True) 
+# ==========================================
+# باقي اوامر م1 : اوامر الادمنيه
+# ==========================================
+
+@bot.message_handler(func=lambda msg: msg.text == "الادمنيه")
+def list_admins(message):
+    if not is_user_admin(message.chat.id, message.from_user.id): return
+    admins = bot.get_chat_administrators(message.chat.id)
+    text = "↢ قائمة الادمنيه:\n"
+    for admin in admins:
+        name = admin.user.first_name
+        text += f"- {name}\n"
+    bot.reply_to(message, text)
+
+@bot.message_handler(func=lambda msg: msg.text == "المشرفين")
+def list_roles(message):
+    conn = sqlite3.connect("tia_database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, role FROM roles WHERE chat_id =?", (message.chat.id,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows: return bot.reply_to(message, "↢ لا يوجد مشرفين مرفوعين")
+    
+    text = "↢ قائمة المشرفين:\n"
+    for user_id, role in rows:
+        try:
+            user = bot.get_chat_member(message.chat.id, user_id).user
+            name = user.first_name
+            text += f"- {name} : {role}\n"
+        except: continue
+    bot.reply_to(message, text)
+
+@bot.message_handler(func=lambda msg: msg.text == "تثبيت")
+def pin_msg(message):
+    if not is_user_admin(message.chat.id, message.from_user.id): return
+    if message.reply_to_message:
+        bot.pin_chat_message(message.chat.id, message.reply_to_message.message_id)
+        bot.reply_to(message, "↢ تم تثبيت الرسالة ✓")
+    else: bot.reply_to(message, "↢ رد على الرسالة")
+
+@bot.message_handler(func=lambda msg: msg.text == "الغاء التثبيت")
+def unpin_msg(message):
+    if not is_user_admin(message.chat.id, message.from_user.id): return
+    bot.unpin_chat_message(message.chat.id)
+    bot.reply_to(message, "↢ تم الغاء تثبيت الرسالة ✓")
+
+@bot.message_handler(func=lambda msg: msg.text == "الحظر")
+def list_banned(message):
+    if not is_user_admin(message.chat.id, message.from_user.id): return
+    bot.reply_to(message, "↢ استخدم البوت @getmyid_bot لعرض قائمة المحظورين")
+
+@bot.message_handler(func=lambda msg: msg.text == "المقيدين")
+def list_restricted(message):
+    if not is_user_admin(message.chat.id, message.from_user.id): return
+    bot.reply_to(message, "↢ استخدم البوت @getmyid_bot لعرض قائمة المكتومين")
+
+# ==========================================
+# م2 : الرابط والقوانين والترحيب والوصف
+# ==========================================
+
+def init_group_table():
+    conn = sqlite3.connect("tia_database.db")
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS groups
+                     (chat_id INTEGER PRIMARY KEY, link TEXT, rules TEXT, welcome TEXT, description TEXT)''')
+    conn.commit()
+    conn.close()
+
+init_group_table()
+
+def get_group_data(chat_id):
+    conn = sqlite3.connect("tia_database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT link, rules, welcome, description FROM groups WHERE chat_id =?", (chat_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row if row else (None, None, None, None)
+
+def set_group_data(chat_id, column, value):
+    conn = sqlite3.connect("tia_database.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO groups (chat_id) VALUES (?)", (chat_id,))
+    cursor.execute(f"UPDATE groups SET {column} =? WHERE chat_id =?", (value, chat_id))
+    conn.commit()
+    conn.close()
+
+@bot.message_handler(func=lambda msg: msg.text and msg.text.startswith("ضع رابط"))
+def set_link(message):
+    if not is_user_admin(message.chat.id, message.from_user.id): return
+    link = message.text.replace("ضع رابط ", "", 1)
+    set_group_data(message.chat.id, "link", link)
+    bot.reply_to(message, "↢ تم حفظ الرابط ✓")
+
+@bot.message_handler(func=lambda msg: msg.text == "الرابط")
+def get_link(message):
+    link, _, _, _ = get_group_data(message.chat.id)
+    if link: bot.reply_to(message, f"↢ رابط المجموعة:\n{link}")
+    else: bot.reply_to(message, "↢ لا يوجد رابط محفوظ. استخدم ضع رابط + الرابط")
+
+@bot.message_handler(func=lambda msg: msg.text and msg.text.startswith("ضع قوانين"))
+def set_rules(message):
+    if not is_user_admin(message.chat.id, message.from_user.id): return
+    rules = message.text.replace("ضع قوانين ", "", 1)
+    set_group_data(message.chat.id, "rules", rules)
+    bot.reply_to(message, "↢ تم حفظ القوانين ✓")
+
+@bot.message_handler(func=lambda msg: msg.text == "القوانين")
+def get_rules(message):
+    _, rules, _, _ = get_group_data(message.chat.id)
+    if rules: bot.reply_to(message, f"↢ قوانين المجموعة:\n\n{rules}")
+    else: bot.reply_to(message, "↢ لا توجد قوانين محفوظة")
+
+@bot.message_handler(func=lambda msg: msg.text and msg.text.startswith("ضع ترحيب"))
+def set_welcome(message):
+    if not is_user_admin(message.chat.id, message.from_user.id): return
+    welcome = message.text.replace("ضع ترحيب ", "", 1)
+    set_group_data(message.chat.id, "welcome", welcome)
+    bot.reply_to(message, "↢ تم حفظ رسالة الترحيب ✓\nملاحظة: {name} = اسم العضو , {chat} = اسم القروب")
+
+@bot.message_handler(func=lambda msg: msg.text == "الترحيب")
+def get_welcome(message):
+    _, _, welcome, _ = get_group_data(message.chat.id)
+    if welcome: bot.reply_to(message, f"↢ رسالة الترحيب:\n{welcome}")
+    else: bot.reply_to(message, "↢ لا توجد رسالة ترحيب محفوظة")
+
+@bot.message_handler(func=lambda msg: msg.text and msg.text.startswith("ضع وصف"))
+def set_description(message):
+    if not is_user_admin(message.chat.id, message.from_user.id): return
+    desc = message.text.replace("ضع وصف ", "", 1)
+    set_group_data(message.chat.id, "description", desc)
+    bot.reply_to(message, "↢ تم حفظ وصف المجموعة ✓")
+
+@bot.message_handler(func=lambda msg: msg.text == "الوصف")
+def get_description(message):
+    _, _, _, desc = get_group_data(message.chat.id) # صلحت هذا السطر
+    if desc: bot.reply_to(message, f"↢ وصف المجموعة:\n{desc}")
+    else: bot.reply_to(message, "↢ لا يوجد وصف محفوظ")
+
+@bot.message_handler(content_types=['new_chat_members'])
+def welcome_new_member(message):
+    _, _, welcome, _ = get_group_data(message.chat.id) # صلحت هذا السطر
+    for new_user in message.new_chat_members:
+        name = new_user.first_name
+        if welcome:
+            text = welcome.replace("{name}", name).replace("{chat}", message.chat.title)
+            bot.send_message(message.chat.id, text)
+        else:
+            bot.send_message(message.chat.id, f"↢ اهلا {name} نورت {message.chat.title} 🌹")
