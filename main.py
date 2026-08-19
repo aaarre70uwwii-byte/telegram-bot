@@ -3,12 +3,13 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import sqlite3
 import random
 import re
+import os # 1. ضفنا os عشان نقرا من المتغيرات
 
 # ==========================================
 # ⚙️ قسم المتغيرات والإعدادات (تعديل هنا بسهولة)
 # ==========================================
-BOT_TOKEN = "YOUR_BOT_TOKEN"          # ضع توكن بوتك الحقيقي هنا
-CHANNEL_URL = "https://t.me"    # رابط قناة التحديثات الخاص بك
+BOT_TOKEN = os.environ.get("BOT_TOKEN") # 2. صار يقرا من Railway تلقائي
+CHANNEL_URL = "https://t.me" # رابط قناة التحديثات الخاص بك
 
 MAIN_MENU_TEXT = """↤اهلا فيك بعد عمري في قائمه اوامر : ✓ 𝐓𝐢𝐚 :
 ━━━━━━━━━━━━
@@ -17,10 +18,10 @@ MAIN_MENU_TEXT = """↤اهلا فيك بعد عمري في قائمه اوام�
 ◂ م3 : اوامر القفل - الفتح
 ◂ م4 : اوامر التسليه
 ◂ م5 : اوامر Dev
-◂ م6 : الاوامر الخدميه 
+◂ م6 : الاوامر الخدميه
 ━━━━━━━━━━━━
-                  1.             2.             3.
-                  4.             5.              6"""
+                  1. 2. 3.
+                  4. 5. 6"""
 
 M1_TEXT = """↢ أهلاً فيك يا حلو ♡
 • قائمة اوامر الادمنيه
@@ -43,17 +44,17 @@ M1_TEXT = """↢ أهلاً فيك يا حلو ♡
 ↢ مسح المنشئين
 ↢ مسح المدراء
 ↢ مسح المالكين
-↢ مسح الادمنيه 
+↢ مسح الادمنيه
 
 🚫 اوامر الطرد والحظر :
 ↢ تقييد + الوقت
-↢ حظر 
-↢ طرد 
+↢ حظر
+↢ طرد
 ↢ كتم
-↢ تقييد 
-↢ الغاء الحظر 
+↢ تقييد
+↢ الغاء الحظر
 ↢ الغاء الكتم
-↢ فك التقييد 
+↢ فك التقييد
 ↢ رفع القيود"""
 
 M2_TEXT = """حياك الله في قائمة الاعدادات :
@@ -61,15 +62,15 @@ M2_TEXT = """حياك الله في قائمة الاعدادات :
 ↢ الرابط
 ↢ المالكين
 ↢ المالكين الاساسين
-↢ المنشئين 
+↢ المنشئين
 ↢ الادمنيه
 ↢ المدراء
 ↢ المميزين
 ↢ المحظورين
 ↢ القوانين
-↢ المكتومين 
-↢ معلوماتي 
-↢ الحمايه  
+↢ المكتومين
+↢ معلوماتي
+↢ الحمايه
 ↢ الاعدادت
 ↢ المجموعه
 
@@ -90,7 +91,7 @@ M3_TEXT = """- حياك في قائمة القفل - التعطيل :
 ⚙️ ثانيا : اوامر التفعيل - التعطيل :
 ↢ تفعيل - تعطيل ضافني | الاذكار | الثنائي | افتاري | التسليه | الكت | الترحيب | الردود | الانذار | التحذير | الايدي | الحمايه"""
 
-M4_TEXT = """اهلا بك عزيزي
+M4_TEXT = """اهلا بك عزي
 - اوامر التسليه :
 ━━━━━━━━━━━━
 🎯 اوامر تسلية تظهر بالايدي :
@@ -98,7 +99,7 @@ M4_TEXT = """اهلا بك عزيزي
 • رفع بقلبي : تنزيل من قلبي
 
 👥 للجروب:
-• رفع + اسم اختياري 
+• رفع + اسم اختياري
 • مسح رتب التسليه | رتب التسليه | تعطيل التسليه
 ━━━━━━━━━━━━
 🌍 للعام:
@@ -109,14 +110,14 @@ M4_TEXT = """اهلا بك عزيزي
 • اكتموه (تصويت)
 • تعطيل - تفعيل : اكتموه | زوجني"""
 
-M5_TEXT = """- اهلا بك عزيزي Dev
+M5_TEXT = """- اهلا بك عزي Dev
 • اضف رد تواصل | حذف رد تواصل | ردود التواصل
 • ترحيب البوت | مسح صوره الترحيب | تعطيل | اسم بوتك + غادر
 • تعطيل - تفعيل الزاجل | مسح المالكين الاساسيين | ذيع + ايدي المجموعه - بالرد
 • فتح - قفل ردود MY | رفع - تنزيل Dev | فتح - قفل الاحصائيات / حظر العام
 • حظر - كتم عام | قائمه العام | الردود العامه | اضف رد عام | تحديث | reload"""
 
-M6_TEXT = """• اهلا بك عزيزي
+M6_TEXT = """• اهلا بك عزي
 - اوامر الخدميه :
 ━━━━━━━━━━━━
 📊 ألعاب ونسب تفاعلية:
@@ -142,10 +143,12 @@ bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 
 def init_db():
     conn = sqlite3.connect("tia_database.db")
-    cursor = conn.cursor()cursor.execute("CREATE TABLE IF NOT EXISTS roles (chat_id INTEGER, user_id INTEGER, role TEXT, PRIMARY KEY (chat_id, user_id))")
+    cursor = conn.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS roles (chat_id INTEGER, user_id INTEGER, role TEXT, PRIMARY KEY (chat_id, user_id))") # 3. فصلناه بسطر
     cursor.execute("CREATE TABLE IF NOT EXISTS locks (chat_id INTEGER, lock_type TEXT, status INTEGER, PRIMARY KEY (chat_id, lock_type))")
     cursor.execute("CREATE TABLE IF NOT EXISTS custom_replies (chat_id INTEGER, keyword TEXT, reply TEXT, PRIMARY KEY (chat_id, keyword))")
     cursor.execute("CREATE TABLE IF NOT EXISTS fun_roles (chat_id INTEGER, user_id INTEGER, fun_role TEXT, PRIMARY KEY (chat_id, user_id))")
+    cursor.execute("CREATE TABLE IF NOT EXISTS groups (chat_id INTEGER PRIMARY KEY, link TEXT, rules TEXT, welcome TEXT, description TEXT)") # 4. ضفنا جدول groups
     conn.commit()
     conn.close()
 
@@ -196,7 +199,7 @@ def get_info(message):
     cm = bot.get_chat_member(message.chat.id, user.id)
     role = "المالك الأساسي 👑" if cm.status == 'creator' else ("مشرف المجموعة 🛡️" if cm.status == 'administrator' else "عضو")
     if role == "عضو":
-        saved = db_execute("SELECT role FROM roles WHERE chat_id = ? AND user_id = ?", (message.chat.id, user.id), fetch=True, fetchone=True)
+        saved = db_execute("SELECT role FROM roles WHERE chat_id =? AND user_id =?", (message.chat.id, user.id), fetch=True, fetchone=True)
         if saved: role = saved[0]
 
     if message.text in ["ايدي", "الايدي", "معلوماتي"]:
@@ -214,13 +217,25 @@ def admin_action(message):
     tname = message.reply_to_message.from_user.first_name
     cmd = message.text
     try:
-        if cmd == "حظر": bot.ban_chat_member(message.chat.id, tid); bot.reply_to(message, f"🚷 تم حظر {tname}.")elif cmd == "طرد": bot.ban_chat_member(message.chat.id, tid); bot.unban_chat_member(message.chat.id, tid); bot.reply_to(message, f"🏃‍♂️ تم طرد {tname}.")
-        elif cmd == "كتم" or cmd == "تقييد": bot.restrict_chat_member(message.chat.id, tid, can_send_messages=False); bot.reply_to(message, f"🤫 تم كتم {tname}.")
-        elif cmd in ["الغاء الحظر", "رفع القيود"]: bot.unban_chat_member(message.chat.id, tid); bot.reply_to(message, f"✅ تم فك حظر/قيود {tname}.")
-        elif cmd in ["الغاء الكتم", "فك التقييد"]: bot.restrict_chat_member(message.chat.id, tid, can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True); bot.reply_to(message, f"🔊 تم إلغاء كتم {tname}.")
-    except Exception: bot.reply_to(message, "❌ خطأ بالصلاحيات، تأكد أن البوت مشرف كامل الصلاحية.")
+        if cmd == "حظر": # 5. فصلنا السطور
+            bot.ban_chat_member(message.chat.id, tid)
+            bot.reply_to(message, f"🚷 تم حظر {tname}.")
+        elif cmd == "طرد":
+            bot.ban_chat_member(message.chat.id, tid)
+            bot.unban_chat_member(message.chat.id, tid)
+            bot.reply_to(message, f"🏃‍♂️ تم طرد {tname}.")
+        elif cmd == "كتم" or cmd == "تقييد":
+            bot.restrict_chat_member(message.chat.id, tid, can_send_messages=False)
+            bot.reply_to(message, f"🤫 تم كتم {tname}.")
+        elif cmd in ["الغاء الحظر", "رفع القيود"]:
+            bot.unban_chat_member(message.chat.id, tid)
+            bot.reply_to(message, f"✅ تم فك حظر/قيود {tname}.")
+        elif cmd in ["الغاء الكتم", "فك التقييد"]:
+            bot.restrict_chat_member(message.chat.id, tid, can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True)
+            bot.reply_to(message, f"🔊 تم إلغاء كتم {tname}.")
+    except Exception:
+        bot.reply_to(message, "❌ خطأ بالصلاحيات، تأكد أن البوت مشرف كامل الصلاحية.")
 
-# 🛠️ [تم الإصلاح]: حل مشكلة التفكيك وقراءة الرتب بشكل صحيح عند الرفع أو التنزيل الفعلي
 @bot.message_handler(func=lambda msg: msg.text.startswith(("رفع ", "تنزيل ")) if msg.text else False)
 def manage_roles(message):
     if not is_user_admin(message.chat.id, message.from_user.id): return
@@ -228,20 +243,23 @@ def manage_roles(message):
     tid = message.reply_to_message.from_user.id
     tname = message.reply_to_message.from_user.first_name
     cmd = message.text
-    
+
     if "حمار" in cmd or "قلبي" in cmd:
         role_type = "حمار الجروب 🐴" if "حمار" in cmd else "في قلبي ❤️"
         if "رفع" in cmd:
-            db_execute("INSERT OR REPLACE INTO fun_roles (chat_id, user_id, fun_role) VALUES (?, ?, ?)", (message.chat.id, tid, role_type))
+            db_execute("INSERT OR REPLACE INTO fun_roles (chat_id, user_id, fun_role) VALUES (?,?,?)", (message.chat.id, tid, role_type))
             bot.reply_to(message, f"🔥 تم رفع {tname} {role_type}!")
         else:
-            db_execute("DELETE FROM fun_roles WHERE chat_id = ? AND user_id = ?", (message.chat.id, tid))
+            db_execute("DELETE FROM fun_roles WHERE chat_id =? AND user_id =?", (message.chat.id, tid))
             bot.reply_to(message, f"📉 تم تنزيل {tname} من رتبة التسلية.")
         return
 
     if cmd.startswith("رفع "):
         rname = cmd.replace("رفع ", "")
-        db_execute("INSERT OR REPLACE INTO roles (chat_id, user_id, role) VALUES (?, ?, ?)", (message.chat.id, tid, rname))
+        db_execute("INSERT OR REPLACE INTO roles (chat_id, user_id, role) VALUES (?,?,?)", (message.chat.id, tid, rname))
         bot.reply_to(message, f"💼 تم رفع {tname} برتبة {rname}.")
     elif cmd.startswith("تنزيل "):
-        db_execute("DELETE FROM roles WHERE chat_id = ? AND user_id = ?", (message.chat.id, tid))
+        db_execute("DELETE FROM roles WHERE chat_id =? AND user_id =?", (message.chat.id, tid))
+        bot.reply_to(message, f"📉 تم تنزيل {tname} من الرتب.")
+
+bot.infinity_polling()
