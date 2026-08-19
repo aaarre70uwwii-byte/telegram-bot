@@ -1,4 +1,2 @@
-aiogram==3.15.0
-python-dotenv==1.0.1
-yt-dlp
-aiohttp
+pip install pytelegrambotapi python-dotenv
+python bot.py
