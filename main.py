@@ -14,10 +14,9 @@ class KeepAliveServer(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write("🟢 سورس 𝐓𝐢α الخارق نشط ويعمل بنجاح 24/7 مع أنظمة الحماية والردود المتقدمة والتاك!".encode('utf-8'))
+        self.wfile.write("🟢 سورس 𝐓𝐢α الخارق نشط ويعمل بنجاح 24/7 دون توقف!".encode('utf-8'))
 
     def log_message(self, format, *args):
-        # تعطيل طباعة سجلات الويب العشوائية في الترمينال للحفاظ على نظافة الـ Logs
         return
 
 def run_web_server():
@@ -44,8 +43,6 @@ group_settings = {}
 secret_whispers = {}
 custom_commands = {}
 bank_accounts = {}
-
-# قواميس لحفظ الردود المخصصة التلقائية (لكل جروب)
 group_responses = {}
 
 custom_ranks = {
@@ -112,6 +109,11 @@ def init_group_settings(chat_id):
         if key not in ["dev_basic", "dev_m"] and chat_id not in custom_ranks[key]: custom_ranks[key][chat_id] = []
     return group_settings[chat_id]
 
+def get_command(chat_id, text):
+    if chat_id in custom_commands and text in custom_commands[chat_id]:
+        return custom_commands[chat_id][text]
+    return text
+
 # ---------- 💬 قسم استقبال الرسائل والأوامر النصية ----------
 
 @bot.message_handler(commands=['start', 'help', 'الاوامر', 'أوامر', 'اوامر'])
@@ -164,11 +166,10 @@ def handle_response_settings(message):
         content = text.replace("اضف ردي ", "").strip()
         parts = content.split(" ", 1)
         if len(parts) < 2:
-            bot.reply_to(message, "⚠️ طريقة الاستخدام خطأ! اكتب كالتالي:\n`اضف ردي` + الكلمة المفتاحية + الرد المطلوب عليها\nمثال: `اضف ردي هلا هيلين نورت الجروب`", parse_mode="Markdown")
+            bot.reply_to(message, "⚠️ طريقة الاستخدام خطأ! اكتب كالتالي:\n`اضف ردي` + الكلمة + الرد المطلوب عليها")
             return
         trigger_word = parts[0].strip()
         reply_val = parts[1].strip()
-        
         group_responses[chat_id][trigger_word] = reply_val
         bot.reply_to(message, f"📝 **تم إضافة الرد التلقائي المخصص بنجاح!**\n• الكلمة: `{trigger_word}`\n• الرد: `{reply_val}`", parse_mode="Markdown")
 
@@ -177,21 +178,18 @@ def handle_response_settings(message):
 def handle_group_tag_all(message):
     chat_id = message.chat.id
     if not is_admin(chat_id, message.from_user.id): return
-    
     try:
         admins = bot.get_chat_administrators(chat_id)
         tag_text = "📣 **نداء جماعي تلقائي عاجل لجميع الأعضاء والمشرفين بالتفاعل!**\n━━━━━ 𝐓𝐢α ━━━━━\n"
-        
         for admin in admins[:10]: 
             if not admin.user.is_bot:
                 tag_text += f"↤ [{admin.user.first_name}](tg://user?id={admin.user.id}) \n"
-        
         tag_text += "━━━━━ 𝐓𝐢α ━━━━━\n💡 الرجاء التواجد والتفاعل بالجروب يا حلوين حياكم!"
         bot.send_message(chat_id, tag_text, parse_mode="Markdown")
     except Exception:
         bot.reply_to(message, "📣 تواجدوا يا حلوين بالشات نبي تفاعل فخم اليوم! 🔥")
 
-# نظام البنك المالي والألعاب الجماعية التفاعلية وردود الهيبة
+# نظام البنك المالي والألعاب الجماعية التفاعلية وردود الهيبة (تم إصلاح المسافات البادئة للـ try هنا تماماً)
 @bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text)
 def handle_bank_games_and_responses(message):
     chat_id = message.chat.id
@@ -222,3 +220,5 @@ def handle_bank_games_and_responses(message):
     elif text.startswith("استثمار "):
         if user_id not in bank_accounts: return
         try:
+            amount = int(text.replace("استثمار ", "").strip())
+            if amount <= 0 or bank_accounts[user_id]["balance"] < amount: return
