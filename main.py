@@ -1,224 +1,150 @@
 import os
 import sys
-import time
 import io
 import random
 import threading
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatPrivileges
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# ---------- 🌐 خادم الويب المدمج لإبقاء البوت حياً ----------
+# ---------- 🌐 خادم الويب لإبقاء البوت حي ----------
 class KeepAliveServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
-        self.wfile.write("🟢 سورس 𝐓𝐢α الخارق نشط ويعمل بنجاح 24/7 دون توقف!".encode('utf-8'))
-
-    def log_message(self, format, *args):
-        return
-
-def run_web_server():
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(('0.0.0.0', port), KeepAliveServer)
-    server.serve_forever()
+        self.wfile.write(b"TiA Bot is Alive")
+    def log_message(self, *args): pass
 
 def keep_alive():
-    """تشغيل الخادم في خلفية منفصلة لتأمين استمرار البوت"""
-    t = threading.Thread(target=run_web_server)
-    t.daemon = True
-    t.start()
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(('0.0.0.0', port), KeepAliveServer)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
 
-# ---------- 🤖 إعدادات البوت والتوكن والتعريفات ----------
+# ---------- 🤖 البوت ----------
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-if not BOT_TOKEN:
-    print("❌ خطأ: لم يتم العثور على متغير البيئة 'BOT_TOKEN'. يرجى إضافته في منصة الاستضافة.")
-    sys.exit(1)
+if not BOT_TOKEN: sys.exit("❌ BOT_TOKEN")
 
+keep_alive() # مهم جدا عشان Railway
 bot = telebot.TeleBot(BOT_TOKEN)
 
 user_codes = {}
 group_settings = {}
-secret_whispers = {}
-custom_commands = {}
 bank_accounts = {}
 group_responses = {}
+custom_ranks = {"dev_basic": [], "dev_m": [], "owner_basic": {}, "owner": {}, "vip": {}}
+DEVELOPER_ID = 7488375443
 
-custom_ranks = {
-    "dev_basic": [],   # مطور اساسي
-    "dev_m": [],       # مطور m
-    "owner_basic": {}, 
-    "owner": {},       
-    "vip": {}          
-}
-
-DEVELOPER_ID = 7488375443  # آيدي المطور الأساسي الثابت والمحمي
-
-FUN_QUESTIONS = ["لو خيروك تعيش في جزيرة لوحدك أو مع شخص تكرهه؟", "صفة مستحيل تتحملها بالشخص اللي قدامك؟"]
-JOKES = ["محشش شاف إشارة ممنوع الوقوف، قام انسدح!", "مرة نملة شافت عصير فراولة قالت: واو أخيراً شفت البحر الأحمر!"]
-WORD_GAME = ["تفاحة", "مدرسة", "برمجة", "تليجرام", "سيرفر", "كمبيوتر"]
+FUN_QUESTIONS = ["لو خيروك جزيرة لوحدك ولا مع شخص تكرهه؟", "اكره صفة في اللي قدامك؟"]
+JOKES = ["محش شاف ممنوع الوقوف انسدح!", "نملة شافت عصير قالت البحر الاحمر!"]
+WORD_GAME = ["تفاحة", "مدرسة", "برمجة", "تليجرام"]
 
 GROUP_MENU_TEXT = (
-    "↢ أهلاً يا حلو ♡\n"
-    "• قائمة اوامر 𝐓𝐢α الشاملة والحماية\n\n"
-    "- أنظمة الردود والتاك والبنك المدمجة:\n"
-    "↢ تفعيل الردود | تعطيل الردود\n"
-    "↢ اضف ردي + الكلمة + الرد (بالرد أو سطر واحد)\n"
-    "↢ تاك ↤ لعمل نداء جماعي للأعضاء\n"
-    "↢ انشا حسابي بنكي | فلوسي | استثمار\n"
-    "↢ كشط | زوجني | كت | كلمات\n\n"
-    "تحديثات السورس الحصرية: « 𝐓𝐢α »  @eeccvu"
+    "↢ قائمة اوامر 𝐓𝐢α\n\n"
+    "↢ تفعيل الردود | تعطيل الردود\n↢ اضف ردي + كلمة + الرد\n"
+    "↢ تاك | انشا حسابي بنكي | فلوسي | استثمار [المبلغ]\n"
+    "↢ كشط | زوجني | كت | كلمات\n"
 )
-
-# ---------- دالات فحص الهوية والتهيئة ----------
 
 def is_admin(chat_id, user_id):
     if user_id == DEVELOPER_ID or user_id in custom_ranks["dev_basic"] or user_id in custom_ranks["dev_m"]: return True
-    if chat_id in custom_ranks["owner_basic"] and user_id in custom_ranks["owner_basic"][chat_id]: return True
-    if chat_id in custom_ranks["owner"] and user_id in custom_ranks["owner"][chat_id]: return True
-    try:
-        chat_member = bot.get_chat_member(chat_id, user_id)
-        return chat_member.status in ['creator', 'administrator']
-    except Exception: return False
-
-def get_user_rank(chat_id, user_id):
-    if user_id == DEVELOPER_ID: return "مطور السورس الأساسي 👑"
-    if user_id in custom_ranks["dev_basic"]: return "مطور اساسي بالسورس 🛡️"
-    if user_id in custom_ranks["dev_m"]: return "مطور m معتمد ⚡"
-    try:
-        member = bot.get_chat_member(chat_id, user_id)
-        if member.status == 'creator': return "المالك الأساسي للمجموعة 💎"
-        elif member.status == 'administrator': return "مشرف الجروب 👮‍♂️"
-        else: return "عضو محترم 👤"
-    except Exception: return "عضو 👤"
+    try: return bot.get_chat_member(chat_id, user_id).status in ['creator', 'administrator']
+    except: return False
 
 def init_group_settings(chat_id):
-    if chat_id not in group_settings:
-        group_settings[chat_id] = {
-            "status": True, 
-            "welcome": True, 
-            "welcome_msg": "أهلاً بك يا قلبي في المجموعة!", 
-            "lock_links": False,
-            "lock_photos": False,
-            "responses_enabled": True  
-        }
-    if chat_id not in group_responses:
-        group_responses[chat_id] = {}
-    for key in custom_ranks.keys():
-        if key not in ["dev_basic", "dev_m"] and chat_id not in custom_ranks[key]: custom_ranks[key][chat_id] = []
+    if chat_id not in group_settings: group_settings[chat_id] = {"status": True, "responses_enabled": True}
+    if chat_id not in group_responses: group_responses[chat_id] = {}
+    for key in ["owner_basic", "owner", "vip"]:
+        if chat_id not in custom_ranks[key]: custom_ranks[key][chat_id] = []
     return group_settings[chat_id]
 
-def get_command(chat_id, text):
-    if chat_id in custom_commands and text in custom_commands[chat_id]:
-        return custom_commands[chat_id][text]
-    return text
+def get_dev_main_keyboard():
+    m = InlineKeyboardMarkup(row_width=2)
+    m.add(InlineKeyboardButton("⌨️ كيبورد الرموز", callback_data="dev_open_kb"), InlineKeyboardButton("🚀 تشغيل", callback_data="dev_run_code"))
+    m.add(InlineKeyboardButton("📋 عرض", callback_data="dev_show_code"), InlineKeyboardButton("🧹 مسح", callback_data="dev_clear_code"))
+    return m
 
-# ---------- 💬 قسم استقبال الرسائل والأوامر النصية ----------
+def get_dev_symbols_keyboard():
+    m = InlineKeyboardMarkup(row_width=4)
+    m.row(InlineKeyboardButton("{ }", "dev_add_{ }"), InlineKeyboardButton("[ ]", "dev_add_[ ]"), InlineKeyboardButton("( )", "dev_add_( )"), InlineKeyboardButton(":", "dev_add_:"))
+    m.row(InlineKeyboardButton(";", "dev_add_;"), InlineKeyboardButton("=", "dev_add_="), InlineKeyboardButton("+", "dev_add_+"), InlineKeyboardButton("-", "dev_add_-"))
+    m.row(InlineKeyboardButton("🔙 رجوع", "dev_main_menu"))
+    return m
 
-@bot.message_handler(commands=['start', 'help', 'الاوامر', 'أوامر', 'اوامر'])
-def handle_start_and_commands(message):
-    chat_id = message.chat.id
+# ---------- الرسائل ----------
+@bot.message_handler(commands=['start', 'help', 'الاوامر'])
+def start(message):
     if message.chat.type == "private":
-        bot.send_message(chat_id, "💻 **مرحباً بك في لوحة كيبورد المطور 24/7!**", reply_markup=get_dev_main_keyboard())
+        user_codes.setdefault(message.chat.id, "")
+        bot.send_message(message.chat.id, "💻 **لوحة المطور 𝐓𝐢α**", reply_markup=get_dev_main_keyboard(), parse_mode="Markdown")
     else:
-        init_group_settings(chat_id)
+        init_group_settings(message.chat.id)
         bot.reply_to(message, GROUP_MENU_TEXT)
 
-# أوامر الرفع للمطورين والأمور الإدارية الخارقة
 @bot.message_handler(func=lambda msg: msg.text in ['رفع مطور اساسي', 'تنزيل مطور اساسي', 'رفع m', 'تنزيل m'])
-def handle_developer_promotions(message):
-    if message.from_user.id != DEVELOPER_ID: return
-    if not message.reply_to_message:
-        bot.reply_to(message, "⚠️ يرجى الرد على العضو المقصود!")
-        return
-    target_id = message.reply_to_message.from_user.id
-    target_name = message.reply_to_message.from_user.first_name
-    
-    if message.text == 'رفع مطور اساسي':
-        if target_id not in custom_ranks["dev_basic"]: custom_ranks["dev_basic"].append(target_id)
-        bot.reply_to(message, f"🛡️ تم رفع **{target_name}** مطور اساسي للسورس بنجاح!")
-    elif message.text == 'تنزيل مطور اساسي':
-        if target_id in custom_ranks["dev_basic"]: custom_ranks["dev_basic"].remove(target_id)
-        bot.reply_to(message, f"✖️ تم تنزيل المطور الاساسي **{target_name}**.")
-    elif message.text == 'رفع m':
-        if target_id not in custom_ranks["dev_m"]: custom_ranks["dev_m"].append(target_id)
-        bot.reply_to(message, f"⚡ تم رفع **{target_name}** مطور m معتمد!")
-    elif message.text == 'تنزيل m':
-        if target_id in custom_ranks["dev_m"]: custom_ranks["dev_m"].remove(target_id)
-        bot.reply_to(message, f"✖️ تم تنزيل المطور m **{target_name}**.")
+def dev_rank(message):
+    if message.from_user.id!= DEVELOPER_ID or not message.reply_to_message: return
+    tid = message.reply_to_message.from_user.id; name = message.reply_to_message.from_user.first_name
+    if 'رفع مطور اساسي' in message.text: custom_ranks["dev_basic"].append(tid); bot.reply_to(message, f"🛡️ تم رفع {name}")
+    if 'تنزيل مطور اساسي' in message.text:
+        if tid in custom_ranks["dev_basic"]: custom_ranks["dev_basic"].remove(tid)
+        bot.reply_to(message, f"✖️ تم تنزيل {name}")
 
-# نظام تفعيل/تعطيل الردود وإضافة ردود مخصصة بالجروب (اضف ردي)
-@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text and (msg.text in ['تفعيل الردود', 'تعطيل الردود'] or msg.text.startswith("اضف ردي ")))
-def handle_response_settings(message):
-    chat_id = message.chat.id
-    if not is_admin(chat_id, message.from_user.id): return
-    settings = init_group_settings(chat_id)
-    text = message.text
+@bot.message_handler(func=lambda msg: msg.chat.type!= "private" and msg.text in ['تفعيل الردود', 'تعطيل الردود'] or msg.text.startswith("اضف ردي "))
+def responses(message):
+    if not is_admin(message.chat.id, message.from_user.id): return
+    s = init_group_settings(message.chat.id)
+    if message.text == 'تفعيل الردود': s["responses_enabled"] = True; bot.reply_to(message, "🟢 تم التفعيل")
+    elif message.text == 'تعطيل الردود': s["responses_enabled"] = False; bot.reply_to(message, "🔴 تم التعطيل")
+    elif message.text.startswith("اضف ردي "):
+        try: k, v = message.text.replace("اضف ردي ", "").split(" ", 1); group_responses[message.chat.id][k] = v; bot.reply_to(message, f"📝 تم اضافة رد: {k}")
+        except: bot.reply_to(message, "⚠️ اكتب: اضف ردي هلا هلا والله")
 
-    if text == 'تفعيل الردود':
-        settings["responses_enabled"] = True
-        bot.reply_to(message, "🟢 تم تفعيل ردود الأعضاء والردود التلقائية بالجروب بنجاح.")
-    elif text == 'تعطيل الردود':
-        settings["responses_enabled"] = False
-        bot.reply_to(message, "🔴 تم تعطيل وقفل ردود الأعضاء في هذه المجموعة.")
-    elif text.startswith("اضف ردي "):
-        content = text.replace("اضف ردي ", "").strip()
-        parts = content.split(" ", 1)
-        if len(parts) < 2:
-            bot.reply_to(message, "⚠️ طريقة الاستخدام خطأ! اكتب كالتالي:\n`اضف ردي` + الكلمة + الرد المطلوب عليها")
-            return
-        trigger_word = parts[0].strip()
-        reply_val = parts[1].strip()
-        group_responses[chat_id][trigger_word] = reply_val
-        bot.reply_to(message, f"📝 **تم إضافة الرد التلقائي المخصص بنجاح!**\n• الكلمة: `{trigger_word}`\n• الرد: `{reply_val}`", parse_mode="Markdown")
+@bot.message_handler(func=lambda msg: msg.chat.type!= "private" and msg.text == "تاك")
+def tag(message):
+    if not is_admin(message.chat.id, message.from_user.id): return
+    admins = bot.get_chat_administrators(message.chat.id)
+    tag = "📣 **نداء:** " + " ".join([f"[{a.user.first_name}](tg://user?id={a.user.id})" for a in admins[:10] if not a.user.is_bot])
+    bot.send_message(message.chat.id, tag, parse_mode="Markdown")
 
-# نظام التاك الجماعي والنداء التلقائي لجميع الأعضاء والمشرفين
-@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text == "تاك")
-def handle_group_tag_all(message):
-    chat_id = message.chat.id
-    if not is_admin(chat_id, message.from_user.id): return
-    try:
-        admins = bot.get_chat_administrators(chat_id)
-        tag_text = "📣 **نداء جماعي تلقائي عاجل لجميع الأعضاء والمشرفين بالتفاعل!**\n━━━━━ 𝐓𝐢α ━━━━━\n"
-        for admin in admins[:10]: 
-            if not admin.user.is_bot:
-                tag_text += f"↤ [{admin.user.first_name}](tg://user?id={admin.user.id}) \n"
-        tag_text += "━━━━━ 𝐓𝐢α ━━━━━\n💡 الرجاء التواجد والتفاعل بالجروب يا حلوين حياكم!"
-        bot.send_message(chat_id, tag_text, parse_mode="Markdown")
-    except Exception:
-        bot.reply_to(message, "📣 تواجدوا يا حلوين بالشات نبي تفاعل فخم اليوم! 🔥")
-
-# نظام البنك المالي والألعاب الجماعية التفاعلية وردود الهيبة (تم إصلاح المسافات البادئة للـ try هنا تماماً)
-@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text)
-def handle_bank_games_and_responses(message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
-    text = message.text
-    settings = init_group_settings(chat_id)
-
-    if settings.get("responses_enabled") and text in group_responses.get(chat_id, {}):
-        bot.reply_to(message, group_responses[chat_id][text])
-        return
-
-    if 'مطور' in text or 'المطور' in text:
-        dev_replies = ["تاج راسي المطور وغالينا، تبي منه شيء؟ 😎", "المطور مشغول حالياً ببرمجة أكواد خارقة مثلي، لا تزعجه 💻✨"]
-        if user_id != DEVELOPER_ID: bot.reply_to(message, random.choice(dev_replies))
-        return
+@bot.message_handler(func=lambda msg: msg.chat.type!= "private" and msg.text)
+def games(message):
+    cid, uid, text = message.chat.id, message.from_user.id, message.text
+    s = init_group_settings(cid)
+    if s["responses_enabled"] and text in group_responses.get(cid, {}): return bot.reply_to(message, group_responses[cid][text])
 
     if text == 'انشا حسابي بنكي':
-        if user_id in bank_accounts: bot.reply_to(message, "⚠️ حسابك البنكي نشط بالفعل ولديك أموال!")
-        else:
-            bank_accounts[user_id] = {"balance": 500, "invested": 0}
-            bot.reply_to(message, f"💳 **تم إنشاء حسابك البنكي بنجاح في سورس 𝐓𝐢α!**\n💰 تم إيداع هدية ترحيبية: `500$` في رصيدك الحالي.", parse_mode="Markdown")
+        bank_accounts.setdefault(uid, {"balance": 500, "invested": 0}); bot.reply_to(message, "💳 تم +500$ هدية")
     elif text == 'فلوسي':
-        if user_id not in bank_accounts:
-            bot.reply_to(message, "⚠️ ليس لديك حساب بنكي حالياً! اكتب (انشا حسابي بنكي) للبدء.")
-            return
-        bot.reply_to(message, f"💰 **كشف حسابك المالي الحالي:**\n• الرصيد المتاح: `{bank_accounts[user_id]['balance']}$`", parse_mode="Markdown")
+        if uid not in bank_accounts: return bot.reply_to(message, "⚠️ سوي حساب")
+        b = bank_accounts[uid]; bot.reply_to(message, f"💰 رصيدك: `{b['balance']}$`", parse_mode="Markdown")
     elif text.startswith("استثمار "):
-        if user_id not in bank_accounts: return
+        if uid not in bank_accounts: return
         try:
-            amount = int(text.replace("استثمار ", "").strip())
-            if amount <= 0 or bank_accounts[user_id]["balance"] < amount: return
+            amt = int(text.split()[1])
+            if amt > bank_accounts[uid]["balance"]: return bot.reply_to(message, "❌ رصيدك ما يكفي")
+            bank_accounts[uid]["balance"] -= amt; profit = int(amt * 0.2); bank_accounts[uid]["balance"] += amt + profit
+            bot.reply_to(message, f"📈 ربحت `{profit}$` رصيدك: `{bank_accounts[uid]['balance']}$`", parse_mode="Markdown")
+        except: bot.reply_to(message, "⚠️ استثمار 100")
+    elif text == 'كشط':
+        if uid in bank_accounts: win = random.randint(50, 300); bank_accounts[uid]["balance"] += win; bot.reply_to(message, f"🎰 فزت `{win}$`")
+    elif text == 'زوجني': bot.reply_to(message, "💍 تم تزويجك 😂")
+    elif text == 'كت': bot.reply_to(message, f"🎯 {random.choice(FUN_QUESTIONS)}")
+    elif text == 'كلمات': w = random.choice(WORD_GAME); bot.reply_to(message, f"⌨️ رتب: `{''.join(random.sample(w, len(w)))}`", parse_mode="Markdown")
+
+# ---------- الازرار ----------
+@bot.callback_query_handler(func=lambda call: True)
+def callback(call):
+    cid = call.message.chat.id; data = call.data
+    if data == "dev_main_menu": bot.edit_message_text("💻 لوحة التحكم", cid, call.message_id, reply_markup=get_dev_main_keyboard())
+    elif data == "dev_open_kb": bot.edit_message_text("⌨️ الرموز:", cid, call.message_id, reply_markup=get_dev_symbols_keyboard())
+    elif data.startswith("dev_add_"): user_codes[cid] += data.replace("dev_add_", ""); bot.answer_callback_query(call.id, "تم")
+    elif data == "dev_show_code": bot.send_message(cid, f"📋 كودك:\n```\n{user_codes.get(cid, 'فاضي')}\n```", parse_mode="Markdown")
+    elif data == "dev_clear_code": user_codes[cid] = ""; bot.answer_callback_query(call.id, "تم المسح")
+    elif data == "dev_run_code":
+        code = user_codes.get(cid, "")
+        if not code: return bot.answer_callback_query(call.id, "الكود فاضي!", True)
+        try: old, new = sys.stdout, io.StringIO(); sys.stdout = new; exec(code); sys.stdout = old; bot.send_message(cid, f"✅ النتيجة:\n```\n{new.getvalue()}\n```", parse_mode="Markdown")
+        except Exception as e: bot.send_message(cid, f"❌ خطأ: `{e}`", parse_mode="Markdown")
+
+print("✅ البوت 𝐓𝐢α شغال 24/7")
+bot.infinity_polling(none_stop=True)
