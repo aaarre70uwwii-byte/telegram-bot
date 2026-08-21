@@ -137,7 +137,6 @@ def get_group_back_keyboard():
     markup.add(InlineKeyboardButton("🔙 العودة لقائمة الأوامر", callback_data="g_main_menu"))
     return markup
 
-
 # ---------- 💬 قسم استقبال الرسائل والأوامر النصية ----------
 
 @bot.message_handler(commands=['start', 'help', 'الاوامر', 'أوامر', 'اوامر'])
@@ -158,7 +157,6 @@ def handle_start_and_commands(message):
     else:
         init_group_settings(chat_id)
         bot.reply_to(message, GROUP_MENU_TEXT, reply_markup=get_group_keyboard())
-
 
 # --- [الجروبات] برمجة وظائف أوامر م2 (الإعدادات) تفاعلياً وواقعياً ---
 @bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text in ['تفعيل', 'تعطيل', 'الترحيب تفعيل', 'الترحيب تعطيل', 'الاعدادات'])
@@ -189,7 +187,6 @@ def handle_group_m2_inputs(message):
         settings["bot_name"] = message.text.replace('تعيين اسم ', '')
         bot.reply_to(message, f"⚜️ تم تغيير اسم البوت بالجروب إلى: {settings['bot_name']}")
 
-
 # --- [الجروبات] برمجة وظائف أوامر م3 (القفل والفتح والأمان) ---
 @bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text in ['قفل الروابط', 'فتح الروابط', 'قفل الصور', 'فتح الصور', 'قفل الملصقات', 'فتح الملصقات'])
 def handle_group_m3_locks(message):
@@ -207,7 +204,6 @@ def handle_group_m3_locks(message):
     
     bot.reply_to(message, f"🔒 تم تنفيذ أمر: **{text}** بنجاح.", parse_mode="Markdown")
 
-
 # --- [الجروبات] برمجة وظائف أوامر م4 (التسلية والالعاب العشوائية) ---
 @bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text in ['فعالية', 'كت تويت', 'صراحه', 'لو خيروك', 'نكته'])
 def handle_group_m4_fun(message):
@@ -215,3 +211,7 @@ def handle_group_m4_fun(message):
     if text in ['فعالية', 'كت تويت', 'صراحه', 'لو خيروك']:
         bot.reply_to(message, f"🎯 **{text}:**\n\n{random.choice(FUN_QUESTIONS)}")
     elif text == 'نكته':
+        bot.reply_to(message, f"😂 {random.choice(JOKES)}")
+
+print("✅ البوت 𝐓𝐢𝐚 شغال الان...")
+bot.infinity_polling()
