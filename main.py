@@ -3,10 +3,28 @@ import sys
 import time
 import io
 import random
+import threading
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from flask import Flask
 
-# 1. جلب توكن البوت بشكل آمن من متغيرات الاستضافة
+# ---------- 🌐 خادم الويب لإبقاء البوت حياً ----------
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "🟢 البوت العام مستقر 24/7 ومؤمن بالكامل ضد أي توقف برمي!"
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = threading.Thread(target=run_web_server)
+    t.daemon = True
+    t.start()
+
+# ---------- 🤖 إعدادات البوت والتوكن ----------
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
     print("❌ خطأ: لم يتم العثور على متغير البيئة 'BOT_TOKEN'. يرجى إضافته في منصة الاستضافة.")
@@ -14,12 +32,14 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# تخزين الأكواد الخاصة بكل مطور في الخاص
 user_codes = {}
-# تخزين إعدادات الحماية لكل جروب بشكل منفصل
 group_settings = {}
+secret_whispers = {}
+custom_commands = {}
 
-# قوائم ألعاب التسلية (م4)
+# 👑 آيدي حسابك الحقيقي ليتعرف عليك البوت فوراً في الجروبات ويحميك
+DEVELOPER_ID = 7488375443  
+
 FUN_QUESTIONS = [
     "لو خيروك تعيش في جزيرة لوحدك أو مع شخص تكرهه؟",
     "كت تويت: صفة مستحيل تتحملها بالشخص اللي قدامك؟",
@@ -32,9 +52,8 @@ JOKES = [
     "مرة نملة شافت عصير فراولة قالت: واو أخيراً شفت البحر الأحمر!"
 ]
 
-# نص لوحة أوامر الجروبات الأساسي
 GROUP_MENU_TEXT = (
-    "↤اهلا عمري في قائمه اوامر» 𝐓𝐢𝐚: ✓\n"
+    "↤اهلا عمري في قائمه اوامر» 𝐓𝐢α: ✓\n"
     "━━━━━ 𝐓𝐢α ━━━━━\n\n"
     "◂ م2 : اوامر الاعدادات\n"
     "◂ م3 : اوامر القفل - الفتح\n"
@@ -49,30 +68,43 @@ GROUP_MENU_TEXT = (
 # ---------- دالات فحص الهوية والتهيئة ----------
 
 def is_admin(chat_id, user_id):
-    """التحقق من صلاحيات المشرف في الجروبات"""
     try:
         chat_member = bot.get_chat_member(chat_id, user_id)
         return chat_member.status in ['creator', 'administrator']
     except Exception:
         return False
 
+def get_user_rank(chat_id, user_id):
+    if user_id == DEVELOPER_ID:
+        return "مطور السورس الأساسي 👑"
+    try:
+        member = bot.get_chat_member(chat_id, user_id)
+        if member.status == 'creator': return "المالك الأساسي للمجموعة 💎"
+        elif member.status == 'administrator': return "مشرف الجروب 👮‍♂️"
+        else: return "عضو محترم 👤"
+    except Exception:
+        return "عضو 👤"
+
 def init_group_settings(chat_id):
-    """تهيئة نظام الحماية عند دخول الجروب"""
     if chat_id not in group_settings:
         group_settings[chat_id] = {
             "status": True,       
             "welcome": True,      
             "welcome_msg": "أهلاً بك يا قلبي في المجموعة! نورتنا ✨",
-            "bot_name": "𝐓𝐢𝐚",
+            "bot_name": "𝐓𝐢α",
             "lock_links": False,
             "lock_photos": False,
             "lock_stickers": False
         }
     return group_settings[chat_id]
 
-# ---------- 🛠️ قسم لوحات المفاتيح (Keyboards) ----------
+def get_command(chat_id, text):
+    if chat_id in custom_commands and text in custom_commands[chat_id]:
+        return custom_commands[chat_id][text]
+    return text
 
-# [الخاص] لوحة المطور الرئيسية
+# ---------- 🛠️ قسم لوحات المفاتيح ----------
+
 def get_dev_main_keyboard():
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -85,7 +117,6 @@ def get_dev_main_keyboard():
     )
     return markup
 
-# [الخاص] لوحة الرموز واختصارات لغات البرمجة للمطور
 def get_dev_symbols_keyboard():
     markup = InlineKeyboardMarkup(row_width=4)
     markup.row(
@@ -109,7 +140,6 @@ def get_dev_symbols_keyboard():
     markup.row(InlineKeyboardButton("🔙 العودة للتحكم", callback_data="dev_main_menu"))
     return markup
 
-# [الخاص] لوحة أزرار الأكواد الجاهزة (Templates)
 def get_dev_templates_keyboard(category):
     markup = InlineKeyboardMarkup(row_width=1)
     templates = {
@@ -123,7 +153,6 @@ def get_dev_templates_keyboard(category):
     markup.add(InlineKeyboardButton("⬅️ العودة لكيبورد الرموز", callback_data="dev_open_kb"))
     return markup
 
-# [الجروبات] لوحة أزرار الإدارة (م1 إلى م6) - تم إصلاح المسميات البرمجية هنا
 def get_group_keyboard():
     markup = InlineKeyboardMarkup(row_width=3)
     markup.row(InlineKeyboardButton("م1", callback_data="g_m1"), InlineKeyboardButton("م2", callback_data="g_m2"), InlineKeyboardButton("م3", callback_data="g_m3"))
@@ -142,76 +171,69 @@ def get_group_back_keyboard():
 @bot.message_handler(commands=['start', 'help', 'الاوامر', 'أوامر', 'اوامر'])
 def handle_start_and_commands(message):
     chat_id = message.chat.id
-    
-    # 1. إذا كان الاستخدام في الخاص (تفعيل لوحة المطور)
     if message.chat.type == "private":
         if chat_id not in user_codes: user_codes[chat_id] = ""
         welcome_txt = (
-            "💻 **مرحباً بك في لوحة كيبورد المطور المتكاملة والمفحوصة!**\n\n"
-            "أنت الآن في المحادثة الخاصة. يمكنك كتابة أي كود بايثون مباشرة أو استخدام أزرار الرموز بالأسفل، "
+            "💻 **مرحباً بك في لوحة كيبورد المطور المتكاملة والمحمية 24/7!**\n\n"
+            "أنت الآن في المحادثة الخاصة. يمكنك كتابة أي كود بايثون مباشرة أو استخدام أزرار الرموز بالأسفل, "
             "ثم الضغط على زر التشغيل لتنفيذ الكود وقراءة المخرجات فوراً!"
         )
         bot.send_message(chat_id, welcome_txt, reply_markup=get_dev_main_keyboard(), parse_mode="Markdown")
-        
-    # 2. إذا كان الاستخدام في الجروبات والقنوات (تفعيل لوحة الإدارة والحماية)
     else:
         init_group_settings(chat_id)
         bot.reply_to(message, GROUP_MENU_TEXT, reply_markup=get_group_keyboard())
 
-# --- [الجروبات] برمجة وظائف أوامر م2 (الإعدادات) تفاعلياً وواقعياً ---
-@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text in ['تفعيل', 'تعطيل', 'الترحيب تفعيل', 'الترحيب تعطيل', 'الاعدادات'])
-def handle_group_m2(message):
+# نظام تعيين وتغيير أسماء الأوامر بالجروب (تم تأمين الثغرة والفحص هنا)
+@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text and msg.text.startswith("تعيين امر "))
+def handle_change_command_name(message):
     chat_id = message.chat.id
     if not is_admin(chat_id, message.from_user.id): return
-    settings = init_group_settings(chat_id)
-    text = message.text
-    
-    if text == 'تفعيل': settings["status"] = True; bot.reply_to(message, "🟢 تم تفعيل البوت في المجموعة.")
-    elif text == 'تعطيل': settings["status"] = False; bot.reply_to(message, "🔴 تم تعطيل البوت في المجموعة.")
-    elif text == 'الترحيب تفعيل': settings["welcome"] = True; bot.reply_to(message, "✅ تم تفعيل رسائل الترحيب.")
-    elif text == 'الترحيب تعطيل': settings["welcome"] = False; bot.reply_to(message, "✖️ تم تعطيل رسائل الترحيب.")
-    elif text == 'الاعدادات':
-        status_txt = f"⚙️ **إعدادات حماية الجروب الحالية:**\n\n• البوت: {'مفعل 🟢' if settings['status'] else 'معطل 🔴'}\n• الترحيب: {'مفعل ✅' if settings['welcome'] else 'معطل ✖️'}\n• قفل الروابط: {'مقفل 🔒' if settings['lock_links'] else 'مفتوح 🔓'}\n• قفل الصور: {'مقفل 🔒' if settings['lock_photos'] else 'مفتوح 🔓'}\n• قفل الملصقات: {'مقفل 🔒' if settings['lock_stickers'] else 'مفتوح 🔓'}"
-        bot.reply_to(message, status_txt, parse_mode="Markdown")
+    parts = message.text.split()
+    if len(parts) < 4:
+        bot.reply_to(message, "⚠️ طريقة الاستخدام خطأ! اكتب كالتالي:\n`تعيين امر` + [الأمر القديم] + [الأمر الجديد]")
+        return
+    old_cmd = parts[2]
+    new_cmd = parts[3]
+    if chat_id not in custom_commands: custom_commands[chat_id] = {}
+    custom_commands[chat_id][new_cmd] = old_cmd
+    bot.reply_to(message, f"⚜️ تم تعيين الأمر الجديد بنجاح!\n• أصبح أمر **[{new_cmd}]** يقوم بوظيفة أمر **[{old_cmd}]**.", parse_mode="Markdown")
 
-@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text and (msg.text.startswith('وضع ترحيب ') or msg.text.startswith('تعيين اسم ')))
-def handle_group_m2_inputs(message):
+# نظام الهمسات الحقيقي (اهمس)
+@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text and msg.text.startswith("اهمس "))
+def handle_whisper_command(message):
     chat_id = message.chat.id
-    if not is_admin(chat_id, message.from_user.id): return
-    settings = init_group_settings(chat_id)
-    
-    if message.text.startswith('وضع ترحيب '):
-        settings["welcome_msg"] = message.text.replace('وضع ترحيب ', '')
-        bot.reply_to(message, "📝 تم حفظ نص الترحيب الجديد بنجاح.")
-    elif message.text.startswith('تعيين اسم '):
-        settings["bot_name"] = message.text.replace('تعيين اسم ', '')
-        bot.reply_to(message, f"⚜️ تم تغيير اسم البوت بالجروب إلى: {settings['bot_name']}")
+    sender_id = message.from_user.id
+    sender_name = message.from_user.first_name
+    if not message.reply_to_message:
+        bot.reply_to(message, "⚠️ يجب إرسال الأمر بالرد على الشخص الذي تريد الهمس له!")
+        return
+    target_user_id = message.reply_to_message.from_user.id
+    target_name = message.reply_to_message.from_user.first_name
+    whisper_text = message.text.replace("اهمس ", "").strip()
+    if not whisper_text: return
+    whisper_id = f"w_{int(time.time())}_{random.randint(100, 999)}"
+    secret_whispers[whisper_id] = {"sender": sender_id, "target": target_user_id, "text": whisper_text}
+    try: bot.delete_message(chat_id, message.message_id)
+    except Exception: pass
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("🔒 قراءة الهمسة السرية", callback_data=f"read_{whisper_id}"))
+    bot.send_message(chat_id, f"🗣️ مستخدم: {sender_name}\n👤 أرسل همسة سرية إلى: {target_name}\n👇 لا يمكن لأحد قراءتها غيرهما!", reply_markup=markup)
 
-# --- [الجروبات] برمجة وظائف أوامر م3 (القفل والفتح والأمان) ---
-@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text in ['قفل الروابط', 'فتح الروابط', 'قفل الصور', 'فتح الصور', 'قفل الملصقات', 'فتح الملصقات'])
-def handle_group_m3_locks(message):
+# نظام ردود المطور التلقائية
+@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text and ('مطور' in msg.text or 'المطور' in msg.text))
+def handle_developer_replies(message):
+    dev_replies = [
+        "تاج راسي المطور وغالينا، تبي منه شيء؟ 😎",
+        "المطور مشغول حالياً ببرمجة أكواد خارقة مثلي، لا تزعجه 💻✨",
+        "لبيك! ذكرت اسم المطور الحاضر بقلوبنا، شبيك لبيك؟ ⚜️"
+    ]
+    if message.from_user.id != DEVELOPER_ID:
+        bot.reply_to(message, random.choice(dev_replies))
+
+# المعالج الشامل لأقسام الأوامر مع دعم ميزة "تغيير اسم الأمر" الذكية
+@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text)
+def handle_all_group_text_commands(message):
     chat_id = message.chat.id
-    if not is_admin(chat_id, message.from_user.id): return
-    settings = init_group_settings(chat_id)
-    text = message.text
+    user_id = message.from_user.id
+    text = get_command(chat_id, message.text)
     
-    if text == 'قفل الروابط': settings["lock_links"] = True
-    elif text == 'فتح الروابط': settings["lock_links"] = False
-    elif text == 'قفل الصور': settings["lock_photos"] = True
-    elif text == 'فتح الصور': settings["lock_photos"] = False
-    elif text == 'قفل الملصقات': settings["lock_stickers"] = True
-    elif text == 'فتح الملصقات': settings["lock_stickers"] = False
-    
-    bot.reply_to(message, f"🔒 تم تنفيذ أمر: **{text}** بنجاح.", parse_mode="Markdown")
-
-# --- [الجروبات] برمجة وظائف أوامر م4 (التسلية والالعاب العشوائية) ---
-@bot.message_handler(func=lambda msg: msg.chat.type != "private" and msg.text in ['فعالية', 'كت تويت', 'صراحه', 'لو خيروك', 'نكته'])
-def handle_group_m4_fun(message):
-    text = message.text
-    if text in ['فعالية', 'كت تويت', 'صراحه', 'لو خيروك']:
-        bot.reply_to(message, f"🎯 **{text}:**\n\n{random.choice(FUN_QUESTIONS)}")
-    elif text == 'نكته':
-        bot.reply_to(message, f"😂 {random.choice(JOKES)}")
-
-print("✅ البوت 𝐓𝐢𝐚 شغال الان...")
-bot.infinity_polling()
