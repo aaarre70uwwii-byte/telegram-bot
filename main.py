@@ -37,17 +37,16 @@ custom_ranks = {"dev_basic": [], "dev_m": [], "owner_basic": {}, "owner": {}, "v
 DEVELOPER_ID = 7488375443
 
 FUN_QUESTIONS = ["لو خيروك جزيرة لوحدك ولا مع شخص تكرهه؟", "اكره صفة في اللي قدامك؟", "لو معاك مليون دولار اول شي تسويه؟"]
-JOKES = ["محش شاف ممنوع الوقوف انسدح!", "مرة نملة شافت عصير قالت البحر الاحمر!"]
 WORD_GAME = ["تفاحة", "مدرسة", "برمجة", "تليجرام", "كمبيوتر"]
 
 GROUP_MENU_TEXT = (
-    "↢ اهلا فيك في قائمة 𝐓𝐢α الشاملة ✓\n━━━━━ 𝐓𝐢α ━━━━━\n\n"
+    "↢ اهلا فيك في قائمة TiA الشاملة ✓\n━━━━━ TiA ━━━━━\n\n"
     "↢ تفعيل الردود | تعطيل الردود\n"
     "↢ اضف ردي + الكلمة + الرد\n"
     "↢ تاك ↤ نداء جماعي\n"
     "↢ انشا حسابي بنكي | فلوسي | استثمار [المبلغ]\n"
     "↢ كشط | زوجني | كت | كلمات\n"
-    "━━━━━ 𝐓𝐢α ━━━━━\n@eeccvu"
+    "━━━━━ TiA ━━━━━\n@eeccvu"
 )
 
 def is_admin(chat_id, user_id):
@@ -88,12 +87,12 @@ def save_code(message):
 def start(message):
     if message.chat.type == "private":
         user_codes.setdefault(message.chat.id, "")
-        bot.send_message(message.chat.id, "💻 **لوحة المطور 𝐓𝐢α 24/7**\n\nارسل الكود هنا سطر سطر\nوبعدها اضغط زر `تشغيل`", reply_markup=get_dev_main_keyboard(), parse_mode="Markdown")
+        bot.send_message(message.chat.id, "💻 **لوحة المطور TiA 24/7**\n\nارسل الكود هنا سطر سطر\nوبعدها اضغط زر `تشغيل`", reply_markup=get_dev_main_keyboard(), parse_mode="Markdown")
     else:
         init_group_settings(message.chat.id)
         bot.reply_to(message, GROUP_MENU_TEXT)
 
-@bot.message_handler(func=lambda msg: msg.text in ['رفع مطور اساسي', 'تنزيل مطور اساسي', 'رفع m', 'تنزيل m'])
+@bot.message_handler(func=lambda msg: msg.text in ['رفع مطور اساسي', 'تنزيل مطور اساسي'])
 def dev_rank(message):
     if message.from_user.id!= DEVELOPER_ID or not message.reply_to_message: return
     tid = message.reply_to_message.from_user.id; name = message.reply_to_message.from_user.first_name
@@ -148,11 +147,11 @@ def games(message):
     elif text == 'كت': bot.reply_to(message, f"🎯 كت تويت: {random.choice(FUN_QUESTIONS)}")
     elif text == 'كلمات': w = random.choice(WORD_GAME); bot.reply_to(message, f"⌨️ رتب الكلمة: `{''.join(random.sample(w, len(w)))}`", parse_mode="Markdown")
 
-# ---------- الازرار - مصلحة من خطأ 409 ----------
+# ---------- الازرار ----------
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     cid = call.message.chat.id
-    mid = call.message.message_id # التعديل المهم هنا
+    mid = call.message.message_id
     data = call.data
     bot.answer_callback_query(call.id)
 
@@ -184,5 +183,5 @@ def callback(call):
         except Exception as e:
             bot.send_message(cid, f"❌ خطأ:\n`{e}`", parse_mode="Markdown")
 
-print("✅ البوت 𝐓𝐢α شغال 24/7")
+print("✅ البوت TiA شغال 24/7")
 bot.infinity_polling(none_stop=True, skip_pending=True, long_polling_timeout=30)
