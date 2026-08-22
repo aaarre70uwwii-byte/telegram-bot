@@ -1,120 +1,113 @@
 import os
 import sys
-import re
-import sqlite3
-import asyncio
-import random
-from datetime import timedelta
-from telegram import Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, MessageHandler, filters, ContextTypes, CallbackQueryHandler, CommandHandler
-from telegram.constants import ChatMemberStatus
+import io
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# --- 1. قراءة البيانات من.env للامان ---
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-DEVELOPER_ID = int(os.getenv("DEVELOPER_ID", "7488375443")) # حطه في.env افضل
-# ----------------------------------------
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-DB_FILE = "bot_database.db"
+if not BOT_TOKEN:
+    print("❌ خطأ: لم يتم العثور على متغير البيئة 'BOT_TOKEN'.")
+    sys.exit(1)
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users_roles (chat_id INTEGER, user_id INTEGER, role TEXT, PRIMARY KEY(chat_id, user_id, role))''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS locks (chat_id INTEGER, item TEXT, status INTEGER, PRIMARY KEY(chat_id, item))''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS features (chat_id INTEGER, item TEXT, status INTEGER, PRIMARY KEY(chat_id, item))''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS replies (chat_id INTEGER, type TEXT, keyword TEXT, response TEXT, PRIMARY KEY(chat_id, type, keyword))''')
-    conn.commit()
-    conn.close()
-
-init_db()
-
-# دوال DB باستخدام with للامان
-def set_role(chat_id, user_id, role):
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.execute("INSERT OR REPLACE INTO users_roles VALUES (?,?,?)", (chat_id, user_id, role))
-
-def check_role(chat_id, user_id, role):
-    with sqlite3.connect(DB_FILE) as conn:
-        res = conn.execute("SELECT 1 FROM users_roles WHERE chat_id=? AND user_id=? AND role=?", (chat_id, user_id, role)).fetchone()
-        return bool(res)
-
-def set_lock(chat_id, item, status):
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.execute("INSERT OR REPLACE INTO locks VALUES (?,?,?)", (chat_id, item, 1 if status else 0))
-
-def get_lock(chat_id, item):
-    with sqlite3.connect(DB_FILE) as conn:
-        res = conn.execute("SELECT status FROM locks WHERE chat_id=? AND item=?", (chat_id, item)).fetchone()
-        return bool(res) if res else False
-
-#... باقي دوال DB نفس الفكرة
-
-# نصوص القوائم
-menu_main_text = "🎀 *AISED PANEL* 🎀\n━━━━━━━━━━━━━━━━━━━━\n👋 *أهلاً بك عزي في قائمة الأوامر الرئيسية:*"
-cliche_m1 = "🛠️ *قائمة أوامر الإدارة (م1):*\nحظر | طرد | كتم | رفع ادمن"
-cliche_m2 = "⚙️ *قائمة الإعدادات (م2):*\nالرابط | القوانين | معلوماتي"
-cliche_m3 = "🔒 *قائمة الأقفال (م3):*\nقفل الروابط | قفل الصور | قفل الكل"
-cliche_m4 = "🎭 *قائمة التسلية (م4):*\nزواج | طلاق | العاب"
-cliche_m5 = "👑 *قائمة Dev (م5):*\nحظر عام | اذاعة | اعادة تشغيل"
-cliche_m6 = "🌿 *قائمة الخدمية (م6):*\nقوقل | ترجم | تحميل"
+bot = telebot.TeleBot(BOT_TOKEN)
+user_codes = {}
 
 def get_main_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("➊ الادارة", callback_data="btn_m1"), InlineKeyboardButton("➋ الاعدادات", callback_data="btn_m2"), InlineKeyboardButton("➌ الاقفال", callback_data="btn_m3")],
-        [InlineKeyboardButton("➍ التسلية", callback_data="btn_m4"), InlineKeyboardButton("➎ Dev", callback_data="btn_m5")],
-        [InlineKeyboardButton("➏ الخدمية", callback_data="btn_m6")],
-        [InlineKeyboardButton("القفل والفتح", callback_data="btn_m3"), InlineKeyboardButton("التفعيل", callback_data="btn_features")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("⌨️ فتح الكيبورد البرمجي", callback_data="open_kb"),
+        InlineKeyboardButton("🚀 تشغيل الكود المكتوب", callback_data="run_code")
+    )
+    markup.add(
+        InlineKeyboardButton("📋 عرض الكود الحالي", callback_data="show_code"),
+        InlineKeyboardButton("🧹 مسح الكود بالكامل", callback_data="clear_code")
+    )
+    return markup
 
-def get_back_keyboard():
-    keyboard = [[InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="btn_back")]]
-    return InlineKeyboardMarkup(keyboard)
+def get_dev_keyboard():
+    markup = InlineKeyboardMarkup(row_width=4)
+    markup.row(
+        InlineKeyboardButton("🐍 Python", callback_data="lang_py"),
+        InlineKeyboardButton("🌐 Web/JS", callback_data="lang_web"),
+        InlineKeyboardButton("🗄️ SQL", callback_data="lang_sql"),
+        InlineKeyboardButton("🐙 Git", callback_data="lang_git")
+    )
+    markup.row(
+        InlineKeyboardButton("{ }", callback_data="add_{ }"),
+        InlineKeyboardButton("[ ]", callback_data="add_[ ]"),
+        InlineKeyboardButton("( )", callback_data="add_( )"),
+        InlineKeyboardButton("< >", callback_data="add_< >")
+    )
+    markup.row(
+        InlineKeyboardButton(";", callback_data="add_;"),
+        InlineKeyboardButton("=", callback_data="add_="),
+        InlineKeyboardButton("+", callback_data="add_+"),
+        InlineKeyboardButton("-", callback_data="add_-")
+    )
+    markup.row(InlineKeyboardButton("🔙 القائمة الرئيسية", callback_data="main_menu"))
+    return markup
 
-async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    chat = update.effective_chat
-    if not chat or chat.type not in ["group", "supergroup"]: return False
-    user_id = update.effective_user.id
-    if user_id == DEVELOPER_ID: return True
-    try:
-        member = await context.bot.get_chat_member(chat.id, user_id)
-        return member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
-    except: return False
-
-# --- 2. الاوامر الاساسية ---
-async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(menu_main_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
-
-# --- 3. التعامل مع الازرار ---
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    texts = {
-        "btn_m1": cliche_m1, "btn_m2": cliche_m2, "btn_m3": cliche_m3,
-        "btn_m4": cliche_m4, "btn_m5": cliche_m5, "btn_m6": cliche_m6,
-        "btn_back": menu_main_text
+def get_sub_keyboard(category):
+    markup = InlineKeyboardMarkup(row_width=1)
+    templates = {
+        'py': [('print("Hello")', 'tpl_print("Hello")'), ('if condition:', 'tpl_if condition:'), ('for i in range(5):', 'tpl_for i in range(5):')],
+        'web': [('console.log()', 'tpl_console.log()'), ('<div></div>', 'tpl_<div></div>'), ('document.id', 'tpl_document.id')],
+        'sql': [('SELECT * FROM', 'tpl_SELECT * FROM'), ('WHERE id = 1', 'tpl_WHERE id = 1')],
+        'git': [('git add.', 'tpl_git add.'), ('git commit -m', 'tpl_git commit -m'), ('git push', 'tpl_git push')]
     }
+    for text, callback in templates.get(category, []):
+        markup.add(InlineKeyboardButton(text, callback_data=callback))
+    markup.add(InlineKeyboardButton("⬅️ العودة لكيبورد الرموز", callback_data="open_kb"))
+    return markup
 
-    if data in texts:
-        reply_markup = get_back_keyboard() if data!= "btn_back" else get_main_keyboard()
-        await query.edit_message_text(texts[data], reply_markup=reply_markup, parse_mode="Markdown")
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    chat_id = message.chat.id
+    user_codes.setdefault(chat_id, "")
+    welcome_text = "👋 أهلاً بك في كيبورد المطورين العام!\n\nهذا البوت يدعم الاستخدام الجماعي، لكل مستخدم مساحة برمجة خاصة به."
+    bot.send_message(chat_id, welcome_text, reply_markup=get_main_keyboard())
 
-# --- 4. تشغيل البوت ---
-def main():
-    if not TOKEN:
-        print("خطأ: حط TOKEN في متغير البيئة TELEGRAM_BOT_TOKEN")
-        sys.exit(1)
+@bot.message_handler(func=lambda message: True)
+def handle_text_input(message):
+    chat_id = message.chat.id
+    user_codes.setdefault(chat_id, "")
+    user_codes[chat_id] += message.text + "\n"
+    bot.reply_to(message, "📥 تم حفظ الكود في مساحتك الخاصة!", reply_markup=get_main_keyboard())
 
-    app = Application.builder().token(TOKEN).build()
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callbacks(call):
+    chat_id = call.message.chat.id
+    data = call.data
+    user_codes.setdefault(chat_id, "")
 
-    app.add_handler(CommandHandler("start", start_cmd))
-    app.add_handler(CallbackQueryHandler(button_handler))
+    if data == "main_menu":
+        bot.edit_message_text("📱 القائمة الرئيسية:", chat_id, call.message_id, reply_markup=get_main_keyboard())
+    elif data == "open_kb":
+        bot.edit_message_text("⌨️ كيبورد الرموز والأوامر الجاهزة:", chat_id, call.message.message_id, reply_markup=get_dev_keyboard())
+    elif data.startswith("lang_"):
+        lang = data.split("_")[1]
+        bot.edit_message_text(f"🚀 اختصارات {lang.upper()}:", chat_id, call.message.message_id, reply_markup=get_sub_keyboard(lang))
+    elif data.startswith("add_"):
+        symbol = data.replace("add_", "")
+        user_codes[chat_id] += symbol + " "
+        bot.answer_callback_query(call.id, f"تم إضافة: {symbol}")
+    elif data.startswith("tpl_"):
+        template = data.replace("tpl_", "")
+        user_codes[chat_id] += template + "\n"
+        bot.answer_callback_query(call.id, "تم إضافة الجملة البرمجية!")
+    elif data == "show_code":
+        current_code = user_codes[chat_id] if user_codes[chat_id].strip() else "[مساحة كودك فارغة]"
+        bot.send_message(chat_id, f"📝 كودك الحالي:\n```\n{current_code}\n```")
+        bot.answer_callback_query(call.id)
+    elif data == "clear_code":
+        user_codes[chat_id] = ""
+        bot.send_message(chat_id, "🧹 تم مسح مساحة الأكواد الخاصة بك.")
+        bot.answer_callback_query(call.id)
+    elif data == "run_code":
+        bot.send_message(chat_id, "⚠️ التشغيل معطل لأسباب أمنية.\nالبوت للكتابة والحفظ فقط.")
+        bot.answer_callback_query(call.id)
 
-    print("البوت شغال...")
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__': # تم التصليح
+    print("🟢 البوت يعمل الآن...")
+    bot.infinity_polling()
