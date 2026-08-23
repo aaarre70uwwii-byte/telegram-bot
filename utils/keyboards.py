@@ -1,32 +1,75 @@
 from telebot import types
 
 def لوحة_الاوامر_الرئيسية():
-    """القائمة الرئيسية اللي بتظهر في القروبات والقنوات فقط"""
-    markup = types.InlineKeyboardMarkup(row_width=5)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
     
-    # الصف الاول: زر 1
-    markup.add(
-        types.InlineKeyboardButton("1", callback_data="menu_1")
-    )
+    btn1 = types.KeyboardButton("1")
+    btn2 = types.KeyboardButton("2")
+    btn3 = types.KeyboardButton("3")
+    btn4 = types.KeyboardButton("4")
+    btn5 = types.KeyboardButton("5")
+    btn6 = types.KeyboardButton("6")
     
-    # الصف الثاني: 2 3 4 5 6
-    markup.add(
-        types.InlineKeyboardButton("2", callback_data="menu_2"),
-        types.InlineKeyboardButton("3", callback_data="menu_3"),
-        types.InlineKeyboardButton("4", callback_data="menu_4"),
-        types.InlineKeyboardButton("5", callback_data="menu_5"),
-        types.InlineKeyboardButton("6", callback_data="menu_6")
-    )
+    btn_lock = types.KeyboardButton("🔒 القفل والفتح")
+    btn_set = types.KeyboardButton("⚙️ التفعيل والتعطيل")
+    btn_update = types.KeyboardButton("🦋 تحديثات البوت")
     
-    # الصف الثالث: القفل والفتح + التفعيل والتعطيل
-    markup.add(
-        types.InlineKeyboardButton("🔒 القفل والفتح", callback_data="menu_locks"),
-        types.InlineKeyboardButton("🟢 التفعيل والتعطيل", callback_data="menu_toggle")
-    )
+    markup.add(btn1, btn2, btn3)
+    markup.add(btn4, btn5, btn6)
+    markup.add(btn_lock, btn_set)
+    markup.add(btn_update)
     
-    # الصف الرابع: تحديثات
-    markup.add(
-        types.InlineKeyboardButton("تحديثات 𝐓𝐢𝐚 ; @eeccvu", url="https://t.me/eeccvu")
-    )
-    
+    return markup
+
+
+def لوحة_م1():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add("حظر", "طرد")
+    markup.add("كتم", "الغاء كتم")
+    markup.add("مسح", "معلومات")
+    markup.add("رجوع")
+    return markup
+
+
+def لوحة_م2():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add("تفعيل الردود", "تعطيل الردود")
+    markup.add("تفعيل الترحيب", "تعطيل الترحيب")
+    markup.add("رجوع")
+    return markup
+
+
+def لوحة_م3():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add("قفل الروابط", "فتح الروابط")
+    markup.add("قفل الصور", "فتح الصور")
+    markup.add("قفل الكلايش", "فتح الكلايش")
+    markup.add("رجوع")
+    return markup
+
+
+def لوحة_م4():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add("رفع هطف", "تنزيل هطف")
+    markup.add("زواج", "طلاق")
+    markup.add("اكتموه")
+    markup.add("رجوع")
+    return markup
+
+
+def لوحة_م5():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add("حظر عام", "الغاء حظر عام")
+    markup.add("ذيع", "الردود العامة")
+    markup.add("اعادة تشغيل")
+    markup.add("رجوع")
+    return markup
+
+
+def لوحة_م6():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add("نسبه الحب", "تحبه")
+    markup.add("قوقل", "ترجم عربي")
+    markup.add("قران", "اذكار")
+    markup.add("رجوع")
     return markup
