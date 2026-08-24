@@ -147,3 +147,54 @@ def setup_menu(bot):
 **الاصدار:** 1.0 - 23/08/2026
 ——————————————————"""
             bot.send_message(chat_id, text, parse_mode="Markdown")
+from utils.keyboards import dev_keyboard
+import config # مهم عشان نقرا المتغيرات
+
+def setup(bot, المطور_الاساسي, admins):
+
+    @bot.message_handler(commands=['panel', 'admin'])
+    def admin_panel(message):
+        if message.from_user.id != المطور_الاساسي:
+            return bot.reply_to(message, "❌ هذا الامر للمطور فقط")
+        
+        bot.send_message(
+            message.chat.id,
+            f"👑 اهلا بالمطور\nبوت: {config.اسم_البوت}\nالحالة: {'صيانة' if config.MAINTENANCE else 'شغال'}",
+            reply_markup=dev_keyboard()
+        )
+
+    @bot.message_handler(func=lambda m: m.from_user.id == المطور_الاساسي)
+    def dev_buttons(message):
+        text = message.text
+
+        if text == "📊 الاحصائيات":
+            # هنا يقرا من المتغيرات
+            bot.send_message(message.chat.id, 
+                f"📊 الاحصائيات:\n\n"
+                f"اسم البوت: {config.اسم_البوت}\n"
+                f"ايدي المطور: {config.المطور_الاساسي}\n"
+                f"حالة الصيانة: {config.MAINTENANCE}\n"
+                f"عدد الادمن: {len(config.admins)}"
+            )
+
+        elif text == "⚙️ الاعدادات":
+            bot.send_message(message.chat.id, 
+                f"⚙️ الاعدادات الحالية:\n\n"
+                f"`BOT_TOKEN`: {'موجود' if config.BOT_TOKEN else 'فارغ'}\n"
+                f"`DEVELOPER_ID`: {config.المطور_الاساسي}\n"
+                f"`BOT_NAME`: {config.اسم_البوت}\n"
+                f"`MAINTENANCE`: {config.MAINTENANCE}",
+                parse_mode="Markdown"
+            )
+
+        elif text == "🔒 اقفال البوت":
+            # تغير المتغير
+            config.MAINTENANCE = not config.MAINTENANCE
+            status = "مفعل" if config.MAINTENANCE else "معطل"
+            bot.send_message(message.chat.id, f"✅ تم {status} وضع الصيانة")
+
+        elif text == "❌ اغلاق اللوحة":
+            from telebot.types import ReplyKeyboardRemove
+            bot.send_message(message.chat.id, "تم اغلاق لوحة التحكم", reply_markup=ReplyKeyboardRemove())
+
+    print("✅ تم تحميل: menu.py - يقرا من المتغيرات")
