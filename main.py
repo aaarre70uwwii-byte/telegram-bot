@@ -28,5 +28,4 @@ print("="*50)
 print(f"✅ بوت {اسم_البوت} شغال الان")
 print(f"✅ المطور: {المطور_الاساسي}")
 print("="*50)
-
 bot.infinity_polling(none_stop=True, timeout=60)
