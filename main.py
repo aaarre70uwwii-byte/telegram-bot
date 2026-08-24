@@ -5,13 +5,18 @@ import importlib
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from config import * # يقرأ التوكن والايدي من هنا
+from config import * # يقرأ الايدي والاسم من هنا
 from utils.keyboards import *
 
-bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
+BOT_TOKEN = os.getenv("BOT_TOKEN") # يقرأ التوكن من Railway
 
-# ========== استدعاء كل ملفات cogs تلقائي ==========
-cogs_list = ["menu", "locks"] # ضيف اسم اي ملف جديد هنا
+if BOT_TOKEN is None:
+    print("❌ خطأ: ما لقى BOT_TOKEN في المتغيرات")
+    sys.exit()
+
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
+
+cogs_list = ["menu", "locks"]
 
 for cog in cogs_list:
     module = importlib.import_module(f"cogs.{cog}")
@@ -19,7 +24,6 @@ for cog in cogs_list:
         module.setup(bot, المطور_الاساسي, admins)
     print(f"✅ تم تحميل: {cog}.py")
 
-# ========== تشغيل البوت ==========
 print("="*50)
 print(f"✅ بوت {اسم_البوت} شغال الان")
 print(f"✅ المطور: {المطور_الاساسي}")
