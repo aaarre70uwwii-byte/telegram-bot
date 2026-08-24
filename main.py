@@ -1,31 +1,34 @@
 import telebot
 import os
-import sys
+import config
 import importlib
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# فحص التوكن قبل التشغيل
+if not config.BOT_TOKEN:
+    print("❌ خطا: BOT_TOKEN فاضي. روح Railway Variables وحطه")
+    exit()
 
-from config import * # يقرأ الايدي والاسم من هنا
-from utils.keyboards import *
+bot = telebot.TeleBot(config.BOT_TOKEN, parse_mode="Markdown")
 
-BOT_TOKEN = os.getenv("BOT_TOKEN") # يقرأ التوكن من Railway
+# ========== استدعاء تلقائي لكل ملفات cog1 الى cog6 ==========
+print("🔄 جاري تحميل ملفات الحماية...")
+for i in range(1, 7):
+    try:
+        cog_module = importlib.import_module(f"cogs.cog{i}")
+        cog_module.setup(bot, config.المطور_الاساسي, config.admins)
+        print(f"✅ تم تحميل: cog{i}.py")
+    except Exception as e:
+        print(f"⚠️ لم يتم تحميل cog{i}.py : {e}")
 
-if BOT_TOKEN is None:
-    print("❌ خطأ: ما لقى BOT_TOKEN في المتغيرات")
-    sys.exit()
+# ========== تشغيل ملف القائمة والكيبورد ==========
+from cogs.menu import setup as menu_setup
+menu_setup(bot, config.المطور_الاساسي, config.admins)
+print("✅ تم تحميل: menu.py - لوحة المطور")
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
+print(f"-----------------------------------")
+print(f"✅ بوت {config.اسم_البوت} الان شغال 100%")
+print(f"✅ المطور: {config.المطور_الاساسي}")
+print(f"-----------------------------------")
 
-cogs_list = ["menu", "locks"]
-
-for cog in cogs_list:
-    module = importlib.import_module(f"cogs.{cog}")
-    if hasattr(module, "setup"):
-        module.setup(bot, المطور_الاساسي, admins)
-    print(f"✅ تم تحميل: {cog}.py")
-
-print("="*50)
-print(f"✅ بوت {اسم_البوت} شغال الان")
-print(f"✅ المطور: {المطور_الاساسي}")
-print("="*50)
-bot.infinity_polling(none_stop=True, timeout=60)
+# تشغيل البوت
+bot.infinity_polling(none_stop=True, timeout=60, long_polling_timeout=60)
