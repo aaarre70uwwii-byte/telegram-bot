@@ -1,28 +1,16 @@
 from telebot import types
 
+# ========== لوحة الاوامر الرئيسية ==========
 def لوحة_الاوامر_الرئيسية():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
-    
-    btn1 = types.KeyboardButton("1")
-    btn2 = types.KeyboardButton("2")
-    btn3 = types.KeyboardButton("3")
-    btn4 = types.KeyboardButton("4")
-    btn5 = types.KeyboardButton("5")
-    btn6 = types.KeyboardButton("6")
-    
-    btn_lock = types.KeyboardButton("🔒 القفل والفتح")
-    btn_set = types.KeyboardButton("⚙️ التفعيل والتعطيل")
-    btn_update = types.KeyboardButton("🦋 تحديثات البوت")
-    
-    markup.add(btn1, btn2, btn3)
-    markup.add(btn4, btn5, btn6)
-    markup.add(btn_lock, btn_set)
-    markup.add(btn_update)
-    
+    markup.add("1", "2", "3")
+    markup.add("4", "5", "6")
+    markup.add("🔒 القفل والفتح", "⚙️ التفعيل والتعطيل")
+    markup.add("🦋 تحديثات البوت")
     return markup
 
-
-def لوحة_م1():
+# ========== لوحات الاقسام ==========
+def لوحة_م1(): # الادمنية
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add("حظر", "طرد")
     markup.add("كتم", "الغاء كتم")
@@ -30,16 +18,14 @@ def لوحة_م1():
     markup.add("رجوع")
     return markup
 
-
-def لوحة_م2():
+def لوحة_م2(): # الاعدادات
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add("تفعيل الردود", "تعطيل الردود")
     markup.add("تفعيل الترحيب", "تعطيل الترحيب")
     markup.add("رجوع")
     return markup
 
-
-def لوحة_م3():
+def لوحة_م3(): # القفل
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add("قفل الروابط", "فتح الروابط")
     markup.add("قفل الصور", "فتح الصور")
@@ -47,8 +33,7 @@ def لوحة_م3():
     markup.add("رجوع")
     return markup
 
-
-def لوحة_م4():
+def لوحة_م4(): # التسلية
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add("رفع هطف", "تنزيل هطف")
     markup.add("زواج", "طلاق")
@@ -56,8 +41,7 @@ def لوحة_م4():
     markup.add("رجوع")
     return markup
 
-
-def لوحة_م5():
+def لوحة_م5(): # Dev
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add("حظر عام", "الغاء حظر عام")
     markup.add("ذيع", "الردود العامة")
@@ -65,11 +49,18 @@ def لوحة_م5():
     markup.add("رجوع")
     return markup
 
-
-def لوحة_م6():
+def لوحة_م6(): # الخدمية
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add("نسبه الحب", "تحبه")
     markup.add("قوقل", "ترجم عربي")
     markup.add("قران", "اذكار")
     markup.add("رجوع")
+    return markup
+
+# ========== لوحة المطور ==========
+def dev_keyboard():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.row(types.KeyboardButton("📊 الاحصائيات"), types.KeyboardButton("💾 نسخة احتياطية"))
+    markup.row(types.KeyboardButton("🔒 صيانة"), types.KeyboardButton("⚙️ الاعدادات"))
+    markup.row(types.KeyboardButton("❌ اغلاق"))
     return markup
