@@ -1,18 +1,22 @@
 from utils.keyboards import *
 import telebot
 import random
+import config
+from telebot.types import ReplyKeyboardRemove
 
-المطور_الاساسي = 7488375443
-admins = [7488375443] # ضفته هنا عشان يكون ادمن تلقائي
+المطور_الاساسي = config.المطور_الاساسي
+admins = config.admins
 
 def is_admin(bot, chat_id, user_id):
     try:
         member = bot.get_chat_member(chat_id, user_id)
         return member.status in ['creator', 'administrator'] or user_id in admins
-    except: return False
+    except: 
+        return False
 
 def setup_menu(bot):
 
+    # ========== امر /start و /اوامر ==========
     @bot.message_handler(commands=['اوامر', 'help', 'start'])
     def ارسال_قائمة_الاوامر(message):
         text = """**بوت 𝐓𝐢𝐚**
@@ -28,6 +32,13 @@ def setup_menu(bot):
 ——————————————————"""
         bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=لوحة_الاوامر_الرئيسية())
 
+    # ========== امر تفعيل للقروبات ==========
+    @bot.message_handler(func=lambda m: m.text and m.text.lower() == "تفعيل")
+    def تفعيل_البوت(message):
+        if message.chat.type in ['group', 'supergroup']:
+            bot.reply_to(message, "✅ تم تفعيل بوت 𝐓𝐢𝐚 للحماية")
+
+    # ========== ازرار القائمة الرئيسية ==========
     @bot.message_handler(content_types=['text'])
     def ازرار_القائمة(message):
         chat_id = message.chat.id
@@ -65,25 +76,11 @@ def setup_menu(bot):
         elif text == "الغاء كتم" and message.reply_to_message:
             if is_admin(bot, chat_id, user_id):
                 target = message.reply_to_message.from_user.id
-                bot.restrict_chat_member(chat_id, target, can_send_messages=True)
+                bot.restrict_chat_member(chat_id, target, can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True)
                 bot.send_message(chat_id, f"🔊 تم الغاء الكتم عن {message.reply_to_message.from_user.first_name}")
         elif text == "معلومات" and message.reply_to_message:
             u = message.reply_to_message.from_user
-            bot.send_message(chat_id, f"**الاسم:** {u.first_name}\n**الايدي:** `{u.id}`\n**اليوزر:** @{u.username}")
-
-        # ========== م2 الاعدادات ==========
-        elif text == "تفعيل الردود": bot.send_message(chat_id, "✅ تم تفعيل الردود")
-        elif text == "تعطيل الردود": bot.send_message(chat_id, "❌ تم تعطيل الردود")
-        elif text == "تفعيل الترحيب": bot.send_message(chat_id, "✅ تم تفعيل الترحيب")
-        elif text == "تعطيل الترحيب": bot.send_message(chat_id, "❌ تم تعطيل الترحيب")
-
-        # ========== م3 القفل ==========
-        elif text == "قفل الروابط": bot.send_message(chat_id, "🔒 تم قفل الروابط")
-        elif text == "فتح الروابط": bot.send_message(chat_id, "🔓 تم فتح الروابط")
-        elif text == "قفل الصور": bot.send_message(chat_id, "🔒 تم قفل الصور")
-        elif text == "فتح الصور": bot.send_message(chat_id, "🔓 تم فتح الصور")
-        elif text == "قفل الكلايش": bot.send_message(chat_id, "🔒 تم قفل الكلايش")
-        elif text == "فتح الكلايش": bot.send_message(chat_id, "🔓 تم فتح الكلايش")
+            bot.send_message(chat_id, f"**الاسم:** {u.first_name}\n**الايدي:** `{u.id}`\n**اليوزر:** @{u.username}", parse_mode="Markdown")
 
         # ========== م4 التسلية ==========
         elif text == "رفع هطف" and message.reply_to_message:
@@ -101,24 +98,17 @@ def setup_menu(bot):
             name = message.reply_to_message.from_user.first_name
             bot.send_message(chat_id, f"🤫 تم كتم {name} 5 دقايق")
 
-        # ========== م5 Dev - للمطور فقط 7488375443 ==========
-        elif text == "حظر عام" and message.reply_to_message:
-            if user_id == المطور_الاساسي:
-                target = message.reply_to_message.from_user.id
-                bot.send_message(chat_id, f"✅ تم حظر عام {target}")
-        elif text == "الغاء حظر عام" and message.reply_to_message:
-            if user_id == المطور_الاساسي:
-                target = message.reply_to_message.from_user.id
-                bot.send_message(chat_id, f"✅ تم الغاء الحظر العام {target}")
-        elif text == "ذيع" and message.reply_to_message:
-            if user_id == المطور_الاساسي:
-                bot.send_message(chat_id, "📢 تم الاذاعة")
-        elif text == "الردود العامة":
-            if user_id == المطور_الاساسي:
-                bot.send_message(chat_id, "📢 الردود العامة: 0")
-        elif text == "اعادة تشغيل":
-            if user_id == المطور_الاساسي:
-                bot.send_message(chat_id, "🔄 جاري اعادة التشغيل...")
+        # ========== م5 Dev - للمطور فقط ==========
+        elif text in ["حظر عام", "الغاء حظر عام", "ذيع", "الردود العامة", "اعادة تشغيل"]:
+            if user_id != المطور_الاساسي:
+                return bot.send_message(chat_id, "❌ هذا الامر للمطور فقط")
+            if text == "حظر عام" and message.reply_to_message:
+                bot.send_message(chat_id, f"✅ تم حظر عام {message.reply_to_message.from_user.id}")
+            elif text == "الغاء حظر عام" and message.reply_to_message:
+                bot.send_message(chat_id, f"✅ تم الغاء الحظر العام {message.reply_to_message.from_user.id}")
+            elif text == "ذيع": bot.send_message(chat_id, "📢 تم الاذاعة")
+            elif text == "الردود العامة": bot.send_message(chat_id, "📢 الردود العامة: 0")
+            elif text == "اعادة تشغيل": bot.send_message(chat_id, "🔄 جاري اعادة التشغيل...")
 
         # ========== م6 الخدمية ==========
         elif text == "نسبه الحب" and message.reply_to_message:
@@ -144,14 +134,11 @@ def setup_menu(bot):
 
 **قناة البوت:** @eeccvu
 **المطور:** @eeccvu
-**الاصدار:** 1.0 - 23/08/2026
+**الاصدار:** 1.0 - 24/08/2026
 ——————————————————"""
             bot.send_message(chat_id, text, parse_mode="Markdown")
-from utils.keyboards import dev_keyboard
-import config # مهم عشان نقرا المتغيرات
 
-def setup(bot, المطور_الاساسي, admins):
-
+    # ========== لوحة المطور ==========
     @bot.message_handler(commands=['panel', 'admin'])
     def admin_panel(message):
         if message.from_user.id != المطور_الاساسي:
@@ -163,38 +150,18 @@ def setup(bot, المطور_الاساسي, admins):
             reply_markup=dev_keyboard()
         )
 
-    @bot.message_handler(func=lambda m: m.from_user.id == المطور_الاساسي)
+    @bot.message_handler(func=lambda m: m.from_user.id == المطور_الاساسي and m.chat.type == 'private')
     def dev_buttons(message):
         text = message.text
-
         if text == "📊 الاحصائيات":
-            # هنا يقرا من المتغيرات
-            bot.send_message(message.chat.id, 
-                f"📊 الاحصائيات:\n\n"
-                f"اسم البوت: {config.اسم_البوت}\n"
-                f"ايدي المطور: {config.المطور_الاساسي}\n"
-                f"حالة الصيانة: {config.MAINTENANCE}\n"
-                f"عدد الادمن: {len(config.admins)}"
-            )
-
-        elif text == "⚙️ الاعدادات":
-            bot.send_message(message.chat.id, 
-                f"⚙️ الاعدادات الحالية:\n\n"
-                f"`BOT_TOKEN`: {'موجود' if config.BOT_TOKEN else 'فارغ'}\n"
-                f"`DEVELOPER_ID`: {config.المطور_الاساسي}\n"
-                f"`BOT_NAME`: {config.اسم_البوت}\n"
-                f"`MAINTENANCE`: {config.MAINTENANCE}",
-                parse_mode="Markdown"
-            )
-
-        elif text == "🔒 اقفال البوت":
-            # تغير المتغير
+            bot.send_message(message.chat.id, f"📊 اسم البوت: {config.اسم_البوت}\nايديك: {config.المطور_الاساسي}")
+        elif text == "🔒 صيانة":
             config.MAINTENANCE = not config.MAINTENANCE
             status = "مفعل" if config.MAINTENANCE else "معطل"
-            bot.send_message(message.chat.id, f"✅ تم {status} وضع الصيانة")
+            bot.send_message(message.chat.id, f"✅ وضع الصيانة: {status}")
+        elif text == "💾 نسخة احتياطية":
+            bot.send_message(message.chat.id, "✅ تم اخذ نسخة")
+        elif text == "❌ اغلاق":
+            bot.send_message(message.chat.id, "تم الاغلاق", reply_markup=ReplyKeyboardRemove())
 
-        elif text == "❌ اغلاق اللوحة":
-            from telebot.types import ReplyKeyboardRemove
-            bot.send_message(message.chat.id, "تم اغلاق لوحة التحكم", reply_markup=ReplyKeyboardRemove())
-
-    print("✅ تم تحميل: menu.py - يقرا من المتغيرات")
+    print("✅ تم تحميل: menu.py")
