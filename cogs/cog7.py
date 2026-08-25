@@ -11,10 +11,10 @@ def setup(bot, المطور_الاساسي, admins):
         markup.add("1","2","3")
         markup.add("اوامر التسليه","اوامر Dev")
         markup.add("اوامر خدميه")
+        markup.add("الغاء")
         
-        bot.send_message(message.chat.id, f"""<b>AISED
-الاوامر
-- أهلاً بك عزي في قائمة الاوامر :
+        bot.send_message(message.chat.id, f"""<b>🤖 AISED BOT
+الاوامر الرئيسية
 
 ━━━━━━━━━━━━
 ◂ 1م : اوامر الادمنيه
@@ -31,7 +31,7 @@ def setup(bot, المطور_الاساسي, admins):
         text = message.text
         
         if text == "1" or text == "م1":
-            م1(message)  # نفس الملف
+            م1(message)
         elif text == "2" or text == "م2":
             from cogs import cog2
             cog2.م2(message)
@@ -47,8 +47,13 @@ def setup(bot, المطور_الاساسي, admins):
         elif text == "اوامر خدميه" or text == "6" or text == "م6":
             from cogs import cog6
             cog6.م6(message)
+        elif text == "الغاء":
+            markup = types.ReplyKeyboardRemove()
+            bot.send_message(message.chat.id, "✅ تم الغاء الكيبورد", reply_markup=markup)
 
     # قائمة 1
     @bot.message_handler(commands=['م1'])
     def م1(message): 
-        bot.reply_to(message, f"<b>• أهلاً بك في قائمة اوامر الادمنيه\n━━━━━━━━━━━━\nسيتم اضافتها لاحقا\n━━━━━━━━━━━━</b>")
+        bot.reply_to(message, f"<b>• أهلاً بك في قائمة اوامر الادمنيه\n━━━━━━━━━━━━\nسيتم اضافتها لاحقا\n━━━━━━━━━━━━</b>", parse_mode="HTML")
+
+    print("✅ تم تحميل: cog7.py - لوحة الاوامر")
