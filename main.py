@@ -1,32 +1,45 @@
 import telebot
-import os
 import config
-import importlib
+import time
+import os
 
-# فحص التوكن
-if not config.BOT_TOKEN:
-    print("❌ خطا: BOT_TOKEN فاضي. روح Railway Variables وحطه")
+# فحص المتغيرات
+if not config.TOKEN:
+    print("❌ خطأ: BOT_TOKEN غير موجود في المتغيرات")
+    exit()
+if not config.DEV:
+    print("❌ خطأ: DEV_ID غير موجود في المتغيرات")
     exit()
 
-bot = telebot.TeleBot(config.BOT_TOKEN, parse_mode="Markdown")
+bot = telebot.TeleBot(config.TOKEN, parse_mode="HTML")
 
-# تحميل cog1 الى cog6 تلقائي
-print("🔄 جاري تحميل ملفات الحماية...")
-for i in range(1, 7):
+المطور_الاساسي = config.DEV
+admins = config.admins
+
+# تحميل كل ملفات cogs
+try:
+    from cogs import cog1, cog2, cog3, cog4, cog5, cog6, cog7
+
+    cog1.setup(bot, المطور_الاساسي, admins)
+    cog2.setup(bot, المطور_الاساسي, admins)
+    cog3.setup(bot, المطور_الاساسي, admins)
+    cog4.setup(bot, المطور_الاساسي, admins)
+    cog5.setup(bot, المطور_الاساسي, admins)
+    cog6.setup(bot, المطور_الاساسي, admins)
+    cog7.setup(bot, المطور_الاساسي, admins)
+
+    print("✅ تم تحميل جميع ملفات cogs بنجاح")
+
+except Exception as e:
+    print(f"❌ خطأ في تحميل الملفات: {e}")
+    exit()
+
+print(f"✅ البوت 𝐓𝐢𝐚 اشتغل - المطور: {المطور_الاساسي}")
+
+# تشغيل البوت مع اعادة تلقائية
+while True:
     try:
-        cog_module = importlib.import_module(f"cogs.cog{i}")
-        cog_module.setup(bot, config.المطور_الاساسي, config.admins)
-        print(f"✅ تم تحميل: cog{i}.py")
+        bot.polling(none_stop=True, interval=0, timeout=20)
     except Exception as e:
-        print(f"⚠️ لم يتم تحميل cog{i}.py : {e}")
-
-# تحميل القائمة
-from cogs.menu import setup_menu
-setup_menu(bot)
-
-print(f"-----------------------------------")
-print(f"✅ بوت {config.اسم_البوت} الان شغال 100%")
-print(f"✅ المطور: {config.المطور_الاساسي}")
-print(f"-----------------------------------")
-
-bot.infinity_polling(none_stop=True, timeout=60, long_polling_timeout=60)
+        print(f"⚠️ حدث خطأ: {e}")
+        time.sleep(5)
