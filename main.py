@@ -5,7 +5,7 @@ import os
 
 # فحص المتغيرات
 if not config.TOKEN:
-    print("❌ خطأ: BOT_TOKEN غير موجود في المتغيرات")
+    print("❌ خطأ: TOKEN غير موجود في المتغيرات")
     exit()
 if not config.DEV:
     print("❌ خطأ: DEV_ID غير موجود في المتغيرات")
@@ -36,10 +36,26 @@ except Exception as e:
 
 print(f"✅ البوت 𝐓𝐢𝐚 اشتغل - المطور: {المطور_الاساسي}")
 
-# تشغيل البوت مع اعادة تلقائية
-while True:
+# === اهم جزء: Webhook للـ Railway ===
+WEBHOOK = os.getenv('WEBHOOK', 'False').lower() == 'true'
+URL = os.getenv('URL', '')
+
+if WEBHOOK and URL:
+    # وضع الويبهوك حق Railway
+    print("🌐 شغال على Webhook:", URL)
     try:
-        bot.polling(none_stop=True, interval=0, timeout=20)
+        bot.remove_webhook()
+        time.sleep(1)
+        bot.set_webhook(url=URL)
+        bot.infinity_polling()
     except Exception as e:
-        print(f"⚠️ حدث خطأ: {e}")
-        time.sleep(5)
+        print(f"❌ خطأ في الويبهوك: {e}")
+else:
+    # وضع polling حق الجهاز
+    print("🔄 شغال على Polling")
+    while True:
+        try:
+            bot.polling(none_stop=True, interval=0, timeout=20)
+        except Exception as e:
+            print(f"⚠️ حدث خطأ: {e}")
+            time.sleep(5)
