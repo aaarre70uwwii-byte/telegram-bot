@@ -57,17 +57,17 @@ URL = os.getenv('URL', '')
 
 if WEBHOOK and URL:
     # وضع الويبهوك حق Railway
-    delete_old_webhook() # نحذفه اول
+    delete_old_webhook()
     print("🌐 شغال على Webhook:", URL)
     try:
         bot.set_webhook(url=URL)
         print("🚀 البوت شغال الان على Webhook...")
-        bot.infinity_polling()
+        # هنا نوقف - ما نحتاج polling
     except Exception as e:
         print(f"❌ خطأ في الويبهوك: {e}")
 else:
     # وضع polling حق الجهاز
-    delete_old_webhook() # نحذفه اول
+    delete_old_webhook()
     print("🔄 شغال على Polling")
     print("🚀 البوت شغال الان على Polling...")
     while True:
