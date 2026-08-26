@@ -200,4 +200,14 @@ def setup(bot, المطور_الاساسي, admins):
 • طرد_البوتات - طرد_المحذوفين - كشف_البوتات
 ━━━━━━━━━━━━</b>""", parse_mode="HTML")
 
+    # ========== الاضافات الجديدة ==========
+    @bot.message_handler(commands=['start'])
+    def start(message):
+        name = message.from_user.first_name
+        bot.reply_to(message, f"❤️ اهلا <b>{name}</b>\n\nانا البوت <b>𝐓𝐢𝐚</b>\nاستخدم /m1 لعرض اوامر الادمنيه", parse_mode="HTML")
+
+    @bot.message_handler(commands=['help'])
+    def help_cmd(message):
+        bot.reply_to(message, "📜 استخدم /m1 لعرض قائمة الادمنيه الكاملة")
+
     print("✅ تم تحميل: cog1.py - ملف الادمنيه كامل")
