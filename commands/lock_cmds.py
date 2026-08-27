@@ -1,202 +1,115 @@
-import os
 from pyrogram import Client, filters
-from pyrogram.types import Message, ChatPermissions
-from pyrogram.errors import ChatAdminRequired
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ChatPermissions
+import os, json, re
 
-# قراءة أيدي المطور من متغيرات البيئة تلقائياً
-DEV_ID = int(os.getenv("DEV_ID", 0))
+app = Client("MyShieldBot")
+OWNER_ID = int(os.getenv("OWNER_ID"))
 
-# دالة مساعدة للتحقق من صلاحيات المشرف أو المطور لضمان أمان البوت
-async def is_admin_or_dev(client: Client, chat_id: int, user_id: int) -> bool:
-    if user_id == DEV_ID:
-        return True
-    try:
-        member = await client.get_chat_member(chat_id, user_id)
-        return member.status in ["administrator", "creator"]
-    except Exception:
-        return False
+DB_FILE = "data.json"
+with open(DB_FILE,"r", encoding="utf-8") as f: db = json.load(f)
 
-# قواعد بيانات مؤقتة في الذاكرة لتخزين الحالات
-locks_db = {}
-features_db = {}
+def save():
+    with open(DB_FILE,"w", encoding="utf-8") as f: json.dump(db, f, ensure_ascii=False, indent=2)
 
-# القائمة المعتمدة والمدققة لأوامر القفل والفتح
-LOCKABLE_ITEMS = [
-    "جمثون", "السب", "الايرانيه", "الكتابه", "الاباحي", "تعديل الميديا",
-    "التعديل", "الفيديو", "الصور", "الملصقات", "المتحركه", "الدردشه",
-    "الروابط", "التاك", "البوتات", "المعرفات", "الكلايش", "التكرار",
-    "التوجيه", "الانلاين", "الجهات", "الكل", "الدخول", "الصوت",
-    "التوجيه بالتقييد", "الروابط بالتقييد", "المتحركه بالتقييد",
-    "الصور بالتقييد", "الفيديو بالتقييد", "البوتات بالطرد"
+def is_admin(user_id):
+    return user_id == OWNER_ID or user_id in db["ranks"].get("admin", [])
+
+def get_settings(chat_id):
+    return db["settings"].setdefault(str(chat_id), {})
+
+# ========== عرض قائمة م3 ==========
+@app.on_callback_query(filters.regex("menu_3"))
+async def show_lock_menu(client, query: CallbackQuery):
+    text = """**- اهلا بك في قائمة القفل - التعطيل :**
+**- اوامر القفل والفتح :**
+━━━━━━━━━━━━ 
+`قفل جمثون` `قفل السب` `قفل الايرانيه` `قفل الكتابه`
+`قفل الاباحي` `قفل تعديل الميديا` `قفل التعديل` `قفل الفيديو`
+`قفل الصور` `قفل الملصقات` `قفل المتحركه` `قفل الدردشه`
+`قفل الروابط` `قفل التاك` `قفل البوتات` `قفل المعرفات`
+`قفل البوتات بالطرد` `قفل الكلايش` `قفل التكرار` `قفل التوجيه`
+`قفل الانلاين` `قفل الجهات` `قفل الكل` `قفل الدخول`
+`قفل الصوت` `قفل التوجيه بالتقييد` `قفل الروابط بالتقييد`
+`قفل المتحركه بالتقييد` `قفل الصور بالتقييد` `قفل الفيديو بالتقييد`
+━━━━━━━━━━━━
+**- اوامر التفعيل - التعطيل :**
+`تفعيل ضافني` `تفعيل الاذكار` `تفعيل الثنائي` `تفعيل افتاري`
+`تفعيل التسليه` `تفعيل الكت` `تفعيل الترحيب` `تفعيل الردود`
+`تفعيل الانذار` `تفعيل التحذير` `تفعيل الايدي` `تفعيل الرابط`
+`تفعيل اطردني` `تفعيل الحظر` `تفعيل الرفع` `تفعيل التنزيل`
+`تفعيل التحويل` `تفعيل الحمايه` `تفعيل المنشن` `تفعيل الاقتباسات`
+`تفعيل الخدميه` `تفعيل اليوتيوب` `تفعيل الايدي بالصوره` `تفعيل التحقق`
+`تفعيل ردود السورس`
+━━━━━━━━━━━━"""
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ رجوع", callback_data="back_menu")]])
+    await query.message.edit_text(text, reply_markup=keyboard)
+    await query.answer()
+
+# ========== اوامر القفل الاساسية ==========
+lock_commands = {
+    "جمثون": "gmthon", "السب": "insult", "الايرانيه": "persian", "الكتابه": "text",
+    "الاباحي": "porn", "تعديل الميديا": "edit_media", "التعديل": "edit", "الفيديو": "video",
+    "الصور": "photo", "الملصقات": "sticker", "المتحركه": "gif", "الدردشه": "chat",
+    "الروابط": "link", "التاك": "tag", "البوتات": "bots", "المعرفات": "username",
+    "الكلايش": "spam", "التكرار": "flood", "التوجيه": "forward", "الانلاين": "inline",
+    "الجهات": "contact", "الدخول": "join", "الصوت": "voice"
+}
+
+for cmd, key in lock_commands.items():
+    @app.on_message(filters.group & filters.command([f"قفل {cmd}", f"فتح {cmd}"]))
+    async def lock_handler(client, message: Message, k=key, c=cmd):
+        if not is_admin(message.from_user.id): return
+        s = get_settings(message.chat.id)
+        s[f"lock_{k}"] = "قفل" in message.text
+        save()
+        await message.reply(f"✅ تم {'قفل' if s[f'lock_{k}'] else 'فتح'} {c}")
+
+# ========== اوامر القفل بالتقييد ==========
+restrict_commands = {
+    "التوجيه بالتقييد": "forward_restrict", "الروابط بالتقييد": "link_restrict",
+    "المتحركه بالتقييد": "gif_restrict", "الصور بالتقييد": "photo_restrict",
+    "الفيديو بالتقييد": "video_restrict"
+}
+
+for cmd, key in restrict_commands.items():
+    @app.on_message(filters.group & filters.command([f"قفل {cmd}", f"فتح {cmd}"]))
+    async def restrict_handler(client, message: Message, k=key, c=cmd):
+        if not is_admin(message.from_user.id): return
+        s = get_settings(message.chat.id)
+        s[f"lock_{k}"] = "قفل" in message.text
+        save()
+        await message.reply(f"✅ تم {'تقييد' if s[f'lock_{k}'] else 'فتح'} {c}")
+
+@app.on_message(filters.group & filters.command(["قفل البوتات بالطرد","فتح البوتات بالطرد"]))
+async def lock_bots_kick(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    s = get_settings(message.chat.id)
+    s["lock_bots_kick"] = "قفل" in message.text
+    save()
+    await message.reply("✅ تم تفعيل طرد البوتات" if s["lock_bots_kick"] else "✅ تم تعطيل طرد البوتات")
+
+@app.on_message(filters.group & filters.command(["قفل الكل","فتح الكل"]))
+async def lock_all(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if "قفل" in message.text:
+        await client.set_chat_permissions(message.chat.id, ChatPermissions())
+        await message.reply("🔒 تم قفل الكل")
+    else:
+        await client.set_chat_permissions(message.chat.id, ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True))
+        await message.reply("🔓 تم فتح الكل")
+
+# ========== اوامر التفعيل والتعطيل ==========
+features = [
+    "ضافني", "الاذكار", "الثنائي", "افتاري", "التسليه", "الكت", "الترحيب", "الردود",
+    "الانذار", "التحذير", "الايدي", "الرابط", "اطردني", "الحظر", "الرفع", "التنزيل",
+    "التحويل", "الحمايه", "المنشن", "الاقتباسات", "الخدميه", "اليوتيوب", "الايدي بالصوره", "التحقق", "ردود السورس"
 ]
 
-# القائمة المعتمدة والمدققة لأوامر التفعيل والتعطيل
-TOGGLE_FEATURES = [
-    "ضافني", "الاذكار", "الذكار", "الثنائي", "افتاري", "التسليه", "الكت", "الترحيب",
-    "الردود", "الانذار", "التحذير", "الايدي", "الرابط", "اطردني", "الحظر",
-    "الرفع", "التنزيل", "التحويل", "الحمايه", "المنشن", "وضع الاقتباسات",
-    "الخدميه", "اليوتيوب", "الايدي بالصوره", "التحقق", "ردود السورس"
-]
-
-# --- 1. معالج أوامر القفل والفتح ---
-@Client.on_message(filters.group & filters.text)
-async def lock_unlock_handler(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-
-    action = None
-    target_item = None
-
-    if cmd.startswith("قفل "):
-        action = "lock"
-        target_item = cmd.replace("قفل ", "", 1).strip()
-    elif cmd.startswith("فتح "):
-        action = "unlock"
-        target_item = cmd.replace("فتح ", "", 1).strip()
-
-    if not action or target_item not in LOCKABLE_ITEMS:
-        return
-
-    if not await is_admin_or_dev(client, chat_id, user_id):
-        return await message.reply_text("❌ عذراً، هذا الأمر خاص بالمشرفين ومطور البوت فقط.")
-
-    if chat_id not in locks_db:
-        locks_db[chat_id] = {}
-
-    try:
-        # جلب الصلاحيات الحالية للجروب لتجنب تصفيرها أو قفل الجروب بالكامل بالخطأ
-        chat_obj = await client.get_chat(chat_id)
-        current_perms = chat_obj.permissions or ChatPermissions()
-        
-        status = False if action == "lock" else True
-
-        # تعديل صلاحيات تليجرام المباشرة بناء على العنصر المستهدف بدقة
-        if target_item in ["الكتابه", "الدردشه", "الكل"]:
-            new_perms = ChatPermissions(
-                can_send_messages=status,
-                can_send_media_messages=status,
-                can_send_polls=status,
-                can_send_other_messages=status,
-                can_add_web_page_previews=status,
-                can_change_info=current_perms.can_change_info,
-                can_invite_users=current_perms.can_invite_users,
-                can_pin_messages=current_perms.can_pin_messages
-            )
-            await client.set_chat_permissions(chat_id, new_perms)
-            
-        elif target_item in ["الصور", "الفيديو", "الملصقات", "المتحركه", "الصوت"]:
-            new_perms = ChatPermissions(
-                can_send_messages=current_perms.can_send_messages,
-                can_send_media_messages=status if target_item in ["الصور", "الفيديو"] else current_perms.can_send_media_messages,
-                can_send_other_messages=status if target_item in ["الملصقات", "المتحركه"] else current_perms.can_send_other_messages,
-                can_send_polls=current_perms.can_send_polls,
-                can_add_web_page_previews=current_perms.can_add_web_page_previews,
-                can_change_info=current_perms.can_change_info,
-                can_invite_users=current_perms.can_invite_users,
-                can_pin_messages=current_perms.can_pin_messages
-            )
-            await client.set_chat_permissions(chat_id, new_perms)
-
-        # حفظ الحالة البرمجية في الذاكرة لجميع الأوامر (بما فيها الحماية الداخلية)
-        locks_db[chat_id][target_item] = (action == "lock")
-        
-        emoji = "🔒" if action == "lock" else "🔓"
-        word = "قفل" if action == "lock" else "فتح"
-        await message.reply_text(f"{emoji} تم **{word}** ({target_item}) في المجموعة بنجاح.")
-
-    except ChatAdminRequired:
-        await message.reply_text("❌ خطأ: البوت يحتاج صلاحية (تغيير معلومات المجموعة ودمج القيود) ليعمل نظام القفل المباشر.")
-    except Exception as e:
-        await message.reply_text(f"⚠️ حدث خطأ أثناء تعديل الأقفال: {str(e)}")
-
-
-# --- 2. معالج أوامر التفعيل والتعطيل ---
-@Client.on_message(filters.group & filters.text)
-async def toggle_features_handler(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-
-    action = None
-    target_feature = None
-
-    if cmd.startswith("تفعيل "):
-        action = "enable"
-        target_feature = cmd.replace("تفعيل ", "", 1).strip()
-    elif cmd.startswith("تعطيل "):
-        action = "disable"
-        target_feature = cmd.replace("تعطيل ", "", 1).strip()
-
-    if not action or target_feature not in TOGGLE_FEATURES:
-        return
-
-    if not await is_admin_or_dev(client, chat_id, user_id):
-        return await message.reply_text("❌ عذراً، هذا الأمر خاص بالمشرفين ومطور البوت فقط.")
-
-    if chat_id not in features_db:
-        features_db[chat_id] = {}
-
-    # توحيد المسمى الإملائي للأذكار
-    if target_feature == "الذكار":
-        target_feature = "الاضكار"
-
-    features_db[chat_id][target_feature] = (action == "enable")
-    
-    emoji = "⚙️" if action == "enable" else "🛑"
-    word = "تفعيل" if action == "enable" else "تعطيل"
-    await message.reply_text(f"{emoji} تم **{word}** ميزة ({target_feature}) للجروب بنجاح.")
-
-
-# --- 3. فحص ومراقبة الرسائل لتطبيق الأقفال البرمجية خلف الكواليس ---
-@Client.on_message(filters.group & ~filters.me, group=2)
-async def monitor_locks_and_filters(client: Client, message: Message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id if message.from_user else None
-
-    if not user_id or chat_id not in locks_db:
-        return
-
-    if await is_admin_or_dev(client, chat_id, user_id):
-        return
-
-    chat_locks = locks_db[chat_id]
-    text = message.text or message.caption or ""
-
-    # 1. فحص قفل الروابط / الروابط بالتقييد
-    if (chat_locks.get("الروابط") or chat_locks.get("الروابط بالتقييد")) and ("t.me/" in text or "http" in text or ".com" in text):
-        try:
-            await message.delete()
-            if chat_locks.get("الروابط بالتقييد"):
-                await message.chat.restrict_member(user_id, ChatPermissions(can_send_messages=False))
-        except Exception:
-            pass
-        return
-
-    # 2. فحص قفل التوجيه / التوجيه بالتقييد
-    if (chat_locks.get("التوجيه") or chat_locks.get("التوجيه بالتقييد")) and message.forward_date:
-        try:
-            await message.delete()
-            if chat_locks.get("التوجيه بالتقييد"):
-                await message.chat.restrict_member(user_id, ChatPermissions(can_send_messages=False))
-        except Exception:
-            pass
-        return
-
-    # 3. فحص قفل المعرفات (Usernames)
-    if chat_locks.get("المعرفات") and "@" in text:
-        try:
-            await message.delete()
-        except Exception:
-            pass
-        return
-
-    # 4. فحص قفل البوتات بالطرد أو الحظر المباشر
-    if message.new_chat_members:
-        for member in message.new_chat_members:
-            if member.is_bot:
-                if chat_locks.get("البوتات") or chat_locks.get("البوتات بالطرد"):
-                    try:
-                        await message.chat.ban_member(member.id)
-                    except Exception:
-                        pass
+for feat in features:
+    @app.on_message(filters.group & filters.command([f"تفعيل {feat}", f"تعطيل {feat}"]))
+    async def feature_handler(client, message: Message, f=feat):
+        if not is_admin(message.from_user.id): return
+        s = get_settings(message.chat.id)
+        s[f"feature_{f}"] = "تفعيل" in message.text
+        save()
+        await message.reply(f"✅ تم {'تفعيل' if s[f'feature_{f}'] else 'تعطيل'} {f}")
