@@ -1,3 +1,1 @@
-pyrogram
-tgcrypto
-python-dotenv
+pyrogram>=2.0.106
