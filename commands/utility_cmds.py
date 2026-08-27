@@ -1,188 +1,161 @@
 # -*- coding: utf-8 -*-
 import os
+import json
 import random
+import requests
 from pyrogram import Client, filters
-from pyrogram.types import Message, ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from pyrogram.errors import ChatAdminRequired
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
-# قراءة أيدي المطور الرئيسي من متغيرات البيئة تلقائياً
-MAIN_DEV_ID = int(os.getenv("DEV_ID", 0))
+app = Client("MyShieldBot")
+OWNER_ID = int(os.getenv("OWNER_ID", 0))
 
-# مخزن مؤقت في الذاكرة لحفظ الهمسات والردود المخصصة
-whispers_db = {}
-custom_replies = {}
+DB_FILE = "data.json"
+try:
+    with open(DB_FILE,"r", encoding="utf-8") as f: db = json.load(f)
+except: db = {"ranks": {"dev": []}, "contact_replies": {}, "global_replies": {}}
 
-# دالة مسابعة للتحقق من الصلاحيات الإدارية لبعض الأوامر الخاصة بالأدمن/المطور
-async def is_admin_or_dev(client: Client, chat_id: int, user_id: int) -> bool:
-    if user_id == MAIN_DEV_ID:
-        return True
-    try:
-        member = await client.get_chat_member(chat_id, user_id)
-        return member.status in ["administrator", "creator"]
-    except Exception:
-        return False
+def save():
+    with open(DB_FILE,"w", encoding="utf-8") as f: json.dump(db, f, ensure_ascii=False, indent=2)
 
-# --- الدالة الشاملة والمفحوصة لجميع الأوامر الخدمية والترفيهية والتحميل والهمسات ---
-@Client.on_message(filters.group & filters.text, group=6)
-async def utilities_master_handler(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id if message.from_user else 0
+def is_dev(user_id):
+    return user_id == OWNER_ID or user_id in db["ranks"].get("dev", [])
 
-    try:
-        # 1. نظام إنشاء الهمسة السرية داخل الجروب بالرد
-        if cmd.startswith("همسه ") or cmd.startswith("همسة "):
-            if not message.reply_to_message or not message.reply_to_message.from_user:
-                return await message.reply_text("⚠️ يرجى الرد على الشخص الذي تريد توجيه الهمسة إليه.\n💡 **مثال:** اكتب `همسة للتوثيق برمجياً` بالرد عليه.")
+# ========== عرض قائمة م6 الاوامر الخدميه ==========
+@app.on_callback_query(filters.regex("menu_6"))
+async def show_service_menu(client, query: CallbackQuery):
+    text = """**• اهلا بك عزي**
+**- اوامر الخدميه :**
+━━━━━━━━━━━━
+**- النسب واللعب:**
+`نسبه الحب` `نسبه الغباء - بالرد` `تحبه - بالرد` `شبيهي - شبيهتي`
+`اهديه بالرد` `اهديه + يوزر الشخص` `نسبه انوثتها - بالرد` `نسبه رجولته - بالرد`
+`البوت السحري`
 
-            whisper_parts = cmd.split(None, 1)
-            if len(whisper_parts) < 2:
-                return await message.reply_text("⚠️ يرجى كتابة نص الهمسة بعد الكلمة.")
+**- البحث والترجمة:**
+`قوقل + كلام البحث` `تطبيق + اسم التطبيق` `تحميل لعبه + اسم اللعبه`
+`معنى + اسمك` `العمر + عمرك` `زخرف + اسمك`
+`ترجم عربي + الكلام` `ترجم انقليزي + الكلام`
 
-            whisper_text = whisper_parts[1].strip()
-            sender_id = user_id
-            receiver_id = message.reply_to_message.from_user.id
+**- المحتوى:**
+`قران` `اذكار` `شعر ، قصائد` `اقتباسات` `ثريد` `قصص ، كتب` `اطربني`
+`اغاني` `هيدرات` `جداريات` `ميمز` `ايدت`
+`قيفات: اطفال ، رومنسيه ، كوكسال ، كيبوب ، عيال ، بنات`
+`افتارات: بنات ، عيال ، فنانين ، تطقيم ، كيبوب ، انمي`
 
-            if sender_id == receiver_id:
-                return await message.reply_text("🧐 لا يمكنك إرسال همسة سرية لنفسك!")
+**- اوامر اخرى:**
+`ارسل + الكلام + اليوزر زاجل` `صيح` `صيح + اليوزر يزعجه خاص`
+`افتاره بالرد` `البايو بالرد` `شرايك في افتاري` `افلام` `من ضافني`
+`اضف رد المالك` `اضف رد انلاين` `اضف رد متعدد`
+`تفعيل كليشة المطور : الافتار والبايو`
 
-            whisper_id = f"w_{message.id}"
-            whispers_db[whisper_id] = {
-                "sender": sender_id,
-                "receiver": receiver_id,
-                "text": whisper_text
-            }
+**- التحميل:**
+`ساوند + الرابط` `تيك + الرابط` `تويتر + الرابط`
+`تحويل الصيغ : صوت - تحويل - متحركه - بصمه`
+━━━━━━━━━━━━"""
+    await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ رجوع", callback_data="back_menu")]]))
+    await query.answer()
 
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔏 اضغط لفتح الهمسة السرية", callback_data=whisper_id)]
-            ])
+# ========== 1. النسب واللعب ==========
+@app.on_message(filters.group & filters.command("نسبه الحب"))
+async def love(client, m: Message):
+    if not m.reply_to_message: return await m.reply("❌ رد على الشخص")
+    p = random.randint(1,100)
+    u1 = m.from_user.first_name; u2 = m.reply_to_message.from_user.first_name
+    await m.reply(f"**نسبه الحب بين {u1} و {u2}:** {p}% ❤️")
 
-            sender_link = f"[{message.from_user.first_name}](tg://user?id={sender_id})"
-            receiver_link = f"[{message.reply_to_message.from_user.first_name}](tg://user?id={receiver_id})"
-            return await message.reply_text(
-                text=f"🔒 تم إرسال همسة سرية من {sender_link} إلى {receiver_link}.\n\n⚠️ لا يمكن لأحد غيرهما فتحها والاطلاع عليها.",
-                reply_markup=keyboard
-            )
+@app.on_message(filters.group & filters.command(["نسبه الغباء","نسبه انوثتها","نسبه رجولته"]))
+async def percent(client, m: Message):
+    if not m.reply_to_message: return await m.reply("❌ بالرد على الشخص")
+    await m.reply(f"**{m.command[0]}:** {random.randint(1,100)}% 😂")
 
-        # 2. أمر الآيدي الذكي والمطور (مع جلب الرتب البرمجية وتأمينها)
-        if cmd in ["ايدي", "ايديات", "id"]:
-            target_user = message.reply_to_message.from_user if (message.reply_to_message and message.reply_to_message.from_user) else message.from_user
-            t_user_id = target_user.id
-            username = f"@{target_user.username}" if target_user.username else "لا يوجد"
+@app.on_message(filters.group & filters.command("تحبه"))
+async def love_him(client, m: Message):
+    if not m.reply_to_message: return await m.reply("❌ بالرد")
+    ans = random.choice(['اي احبه', 'لا والله', 'نص ونص', 'بمووت فيه'])
+    await m.reply(f"{m.reply_to_message.from_user.first_name} {ans}")
 
-            if t_user_id == MAIN_DEV_ID:
-                rank = "👑 مطور البوت الرئيسي"
-            else:
-                try:
-                    member = await client.get_chat_member(chat_id, t_user_id)
-                    if member.status == "creator":
-                        rank = "👑 مالك المجموعة"
-                    elif member.status == "administrator":
-                        rank = "👮‍♂️ مشرف في المجموعة"
-                    else:
-                        rank = "👤 عضو عادي"
-                except Exception:
-                    rank = "👤 عضو عادي"
+@app.on_message(filters.group & filters.command(["شبيهي","شبيهتي"]))
+async def looklike(client, m: Message):
+    animals = ['قطه', 'اسد', 'كلب', 'ارنب', 'ثعلب', 'ذئب', 'قرد']
+    await m.reply(f"**شبيهك هو:** {random.choice(animals)} 😂")
 
-            id_text = f"📌 **معلومات الحساب والتأمين:**\n━━━━━━━━━━━━\n👤 الاسم: {target_user.first_name}\n🆔 الآيدي: `{t_user_id}`\n🏷️ اليوزر: {username}\n🎖️ الرتبة: **{rank}**\n━━━━━━━━━━━━\n📥 آيدي الجروب: `{chat_id}`"
-            return await message.reply_text(id_text)
+@app.on_message(filters.group & filters.command("اهديه"))
+async def gift(client, m: Message):
+    if m.reply_to_message: user = m.reply_to_message.from_user.first_name
+    elif len(m.command) > 1: user = m.command[1]
+    else: return await m.reply("❌ رد على الشخص او اكتب اليوزر")
+    gifts = ["🌹 وردة", "💍 خاتم", "🎁 هدية", "🍫 شوكولاته", "💎 الماس"]
+    await m.reply(f"اهديت {user} {random.choice(gifts)}")
 
-        # 3. الأوامر الخدمية التفاعلية العامة (نسب، آراء، اقتراحات)
-        if cmd == "نسبه الحب":
-            percentage = random.randint(0, 100)
-            return await message.reply_text(f"❤️ نسبة الحب لديك هي: **{percentage}%**")
+# ========== 2. البحث والترجمة ==========
+@app.on_message(filters.group & filters.command("قوقل"))
+async def google(client, m: Message):
+    if len(m.command) < 2: return await m.reply("❌ الاستخدام: قوقل + كلام البحث")
+    q = " ".join(m.command[1:])
+    await m.reply(f"🔍 **بحث قوقل:** {q}\nhttps://www.google.com/search?q={q}")
 
-        elif cmd == "نسبه الغباء":
-            percentage = random.randint(0, 100)
-            if message.reply_to_message and message.reply_to_message.from_user:
-                target_name = message.reply_to_message.from_user.first_name
-                target_id = message.reply_to_message.from_user.id
-                return await message.reply_text(f"🧠 نسبة غباء **[{target_name}](tg://user?id={target_id})** هي: **{percentage}%**")
-            return await message.reply_text(f"🧠 نسبة غبائك هي: **{percentage}%**")
+@app.on_message(filters.group & filters.command(["ترجم عربي","ترجم انقليزي"]))
+async def trans(client, m: Message):
+    if len(m.command) < 2: return await m.reply("❌ الاستخدام: ترجم + النص")
+    await m.reply(f"**الترجمة:** {' '.join(m.command[1:])}\n*ملاحظة: اربط API للترجمة الحقيقية*")
 
-        elif cmd == "تحبه":
-            if not message.reply_to_message or not message.reply_to_message.from_user:
-                return await message.reply_text("⚠️ يرجى الرد على الشخص الذي تود معرفة مشاعرك تجاهه.")
-            percentage = random.randint(0, 100)
-            target_name = message.reply_to_message.from_user.first_name
-            return await message.reply_text(f"👀 نسبة حبك لـ **{target_name}** هي: **{percentage}%**")
+@app.on_message(filters.group & filters.command("زخرف"))
+async def zakrf(client, m: Message):
+    if len(m.command) < 2: return await m.reply("❌ الاستخدام: زخرف + اسمك")
+    name = " ".join(m.command[1:])
+    styles = [f"『{name}』", f"๖{name}๖", f"♛{name}♛", f"★{name}★", f"꧁{name}꧂", f"≪{name}≫"]
+    await m.reply("**زخرفة اسمك:**\n" + "\n".join(styles))
 
-        elif cmd in ["شبيهي", "شبيهتي"]:
-            return await message.reply_text("🎭 شبيهك الحالي في الجروب هو العضو الذي سيرسل الرسالة القادمة!")
+@app.on_message(filters.group & filters.command(["معنى","العمر"]))
+async def info(client, m: Message):
+    if len(m.command) < 2: return await m.reply(f"❌ الاستخدام: {m.command[0]} + الكلمة")
+    await m.reply(f"**{m.command[0]} {m.command[1]}:** قريباً *اربط API*")
 
-        elif cmd == "شرايك في افتاري":
-            rates = ["🔥 فخم جداً 10/10", "✨ لطيف وجميل", "🤷‍♂️ عادي صراحة", "❌ يحتاج تغيير فوراً"]
-            return await message.reply_text(f"🧐 رأي في افتارك: **{random.choice(rates)}**")
+# ========== 3. المحتوى ==========
+quran_list = ["قل هو الله احد", "اية الكرسي", "سورة الفاتحة", "قل اعوذ برب الفلق"]
+zekr_list = ["سبحان الله", "الحمد لله", "الله اكبر", "استغفر الله", "لا اله الا الله"]
+poem_list = ["اذا الشعب يوما اراد الحياة", "وما نيل المطالب بالتمني", "قم للمعلم وفه التبجيلا"]
 
-        elif cmd in ["افتاره", "البايو"]:
-            if not message.reply_to_message or not message.reply_to_message.from_user:
-                return await message.reply_text("⚠️ يرجى الرد على رسالة العضو لجلب معلوماته.")
+@app.on_message(filters.group & filters.command("قران"))
+async def quran(client, m: Message): await m.reply(f"📖 **اية:**\n{random.choice(quran_list)}")
+@app.on_message(filters.group & filters.command("اذكار"))
+async def zekr(client, m: Message): await m.reply(f"📿 **ذكر:**\n{random.choice(zekr_list)}")
+@app.on_message(filters.group & filters.command(["شعر","اقتباسات","ثريد"]))
+async def quotes(client, m: Message): await m.reply(f"✍️ **{m.command[0]}:**\n{random.choice(poem_list)}")
+@app.on_message(filters.group & filters.command(["ميمز","ايدت","هيدرات","جداريات","اغاني","اطربني"]))
+async def media(client, m: Message): await m.reply(f"✅ سيتم ارسال {m.command[0]} عشوائي\n*اربط قاعدة ميديا*")
 
-            target_user = message.reply_to_message.from_user
+# ========== 4. اوامر اخرى ==========
+@app.on_message(filters.group & filters.command("ارسل"))
+async def zagel(client, m: Message):
+    if len(m.command) < 4: return await m.reply("❌ الاستخدام: ارسل الكلام @اليوزر زاجل")
+    text = " ".join(m.command[1:-1]); user = m.command[-1]
+    await m.reply(f"📨 **زاجل الى {user}:**\n{text}")
 
-            if cmd == "افتاره":
-                try:
-                    async for photo in client.get_chat_photos(target_user.id, limit=1):
-                        return await message.reply_photo(photo.file_id, caption=f"📸 افتار: {target_user.first_name}")
-                    await message.reply_text("❌ هذا المستخدم لا يمتلك صورة بروفايل حالياً.")
-                except Exception:
-                    await message.reply_text("❌ فشل جلب صورة المستخدم بسبب إعدادات الخصوصية لديه.")
-            else:
-                try:
-                    full_chat_info = await client.get_chat(target_user.id)
-                    bio = full_chat_info.description if full_chat_info.description else "لا يوجد بايو."
-                    await message.reply_text(f"📝 بايو العضو:\n`{bio}`")
-                except Exception:
-                    await message.reply_text("❌ فشل جلب بايو المستخدم من السيرفر.")
-            return
+@app.on_message(filters.group & filters.command("صيح"))
+async def sayah(client, m: Message):
+    if len(m.command) > 1: await m.reply(f"📢 تم ازعاج {m.command[1]} بالخاص")
+    else: await m.reply("📢 صييييح 😂😂")
 
-        elif cmd in ["نسبه انوثتها", "نسبه رجولته"]:
-            percentage = random.randint(10, 100)
-            word = "أنوثتها" if "انوثتها" in cmd else "رجولته"
-            if message.reply_to_message and message.reply_to_message.from_user:
-                target_name = message.reply_to_message.from_user.first_name
-                return await message.reply_text(f"✨ نسبة {word} للعضو **{target_name}** هي: **{percentage}%**")
-            return await message.reply_text(f"✨ النسبة المئوية التقريبية هي: **{percentage}%**")
+@app.on_message(filters.group & filters.command(["افتاره","البايو"]))
+async def get_info(client, m: Message):
+    if not m.reply_to_message: return await m.reply("❌ بالرد على الشخص")
+    user = m.reply_to_message.from_user
+    if "افتاره" in m.text: await m.reply(f"🖼️ **صورة {user.first_name}**")
+    else: await m.reply(f"📝 **بايو {user.first_name}:**\n{user.bio or 'مافي بايو'}")
 
-        # 4. أوامر المحتوى الديني، الثقافي، والميديا الجاهزة
-        content_triggers = {
-            "قران": "📖 سورة الفاتحة بملف صوتي قادم..",
-            "اذكار": "🌙 (ألا بذكر الله تطمئن القلوب): سبحان الله وبحمده، سبحان الله العظيم.",
-            "شعر": "📜 لَعَلَّ اللَّهَ يُحْدِثُ بَعْدَ ذَلِكَ أَمْرًا.. فكن صبوراً.",
-            "قصائد": "📜 وما نيل المطالب بالتمني.. ولكن تؤخذ الدنيا غلاباً.",
-            "اقتباسات": "💭 'الخوف من الفشل هو العائق الوحيد أمام تحقيق أحلامك.'",
-            "ثريد": "🧵 ثريد ثقافي: هل تعلم أن تليجرام يحمي بياناتك ببروتوكول MTProto المشفر بالكامل؟",
-            "قصص": "📚 قصة اليوم: كان هناك بوت برمج يسهل إدارة المجموعات بكفاءة حتى أصبح الأفضل!",
-            "كتب": "📚 كتاب ننصح به: 'العادات الذرية' لجيمس كلير.",
-            "اطربني": "🎵 جاري تجهيز أغنية عشوائية فخمة لك.. ⏳",
-            "اغاني": "🎶 تفضل بكتابة `بحث + اسم الأغنية` لجلبها فوراً.",
-            "افلام": "🎬 فيلم الليلة المقترح: (The Pursuit of Happyness) كفاح وإصرار.",
-            "البوت السحري": "🔮 أنا البوت السحري، اسألني وسأجيبك بتوقعاتي للمستقبل!",
-            "من ضافني": "👥 تم رصد دخولك للمجموعة بواسطة رابط دعوة عام أو إضافتك من مشرف."
-        }
-        if cmd in content_triggers:
-            return await message.reply_text(content_triggers[cmd])
+@app.on_message(filters.group & filters.command("نادي المطور"))
+async def call_dev(client, m: Message):
+    devs = db["ranks"].get("dev", []) + [OWNER_ID]
+    await m.reply(f"📢 **المطورين:**\n{' '.join([f'`{d}`' for d in devs])}")
 
-        media_keywords = ["هيدرات", "جداريات", "ميمز", "ايدت", "قيفات", "افتارات"]
-        matched_media = next((m for m in media_keywords if m in cmd), None)
-        if matched_media:
-            return await message.reply_text(f"📸 جاري جلب محتوى مخصص لـ (**{cmd}**) من مخزن البيانات الميديا الخاص بالبوت... ⏳")
+# ========== 5. التحميل ==========
+@app.on_message(filters.group & filters.command(["ساوند","تيك","تويتر"]))
+async def download(client, m: Message):
+    if len(m.command) < 2: return await m.reply("❌ الاستخدام: الامر + الرابط")
+    await m.reply(f"✅ جاري تحميل من {m.command[0]}:\n{m.command[1]}\n*اربط API تحميل*")
 
-        # 5. أوامر البحث والخدمات البرمجية المعتمدة على متغيرات المدخلات خلفها
-        if cmd.startswith("صيح "):
-            shout_text = cmd.replace("صيح ", "", 1).strip()
-            if shout_text: return await message.reply_text(f"🗣️ {shout_text.upper()}!!!")
-            return
-
-        elif cmd.startswith("ارسل ") and " زاجل" in cmd:
-            parts = cmd.replace("ارسل ", "").replace(" زاجل", "").strip().rsplit(None, 1)
-            if len(parts) >= 2:
-                msg_content, target_username = parts
-                return await message.reply_text(f"📬 تم إرسال رسالة الزاجل السرية بنجاح إلى: {target_username}")
-            return await message.reply_text("⚠️ صيغة الزاجل خاطئة. الصيغة: `ارسل [الكلام] [اليوزر] زاجل`")
-
-        elif cmd.startswith("قوقل "):
-            search_query = cmd.replace("قوقل ", "", 1).strip()
-
-    except Exception as e:
-        pass
+@app.on_message(filters.group & filters.command("تحويل"))
+async def convert(client, m: Message):
+    if not m.reply_to_message: return await m.reply("❌ رد على الفيديو/الصوت")
+    await m.reply("✅ جاري التحويل... *اربط FFmpeg*")
