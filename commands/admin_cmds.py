@@ -1,18 +1,12 @@
+# -*- coding: utf-8 -*-
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.enums import ChatPermissions, ChatMemberStatus
-import os, json
+import os
 
-app = Client("MyShieldBot")
+from bot import app, save, db # <-- نستخدم حقين bot.py
+
 OWNER_ID = int(os.getenv("OWNER_ID"))
-
-DB_FILE = "data.json"
-if not os.path.exists(DB_FILE):
-    json.dump({"ranks":{"admin":[],"vip":[],"manager":[],"creator":[],"owner":[],"owner_basic":[]},"ban":[],"mute":[],"block":[]}, open(DB_FILE,"w"))
-db = json.load(open(DB_FILE))
-
-def save():
-    with open(DB_FILE,"w") as f: json.dump(db, f)
 
 def is_admin(user_id):
     return user_id == OWNER_ID or user_id in db["ranks"].get("admin", [])
@@ -20,7 +14,7 @@ def is_admin(user_id):
 # ========== عرض القائمة عند الضغط م1 ==========
 @app.on_callback_query(filters.regex("menu_1"))
 async def show_admin_menu(client, query: CallbackQuery):
-    text = """**• أهلاً بك في عزيزي**
+    text = """**• أهلاً بك في عزي**
 **- قائمة اوامر الادمنيه**
 ━━━━━━━━━━━━
 **- اوامر الرفع والتنزيل :**
@@ -55,13 +49,13 @@ async def show_admin_menu(client, query: CallbackQuery):
 async def rank_admin(client, message: Message):
     if not is_admin(message.from_user.id): return await message.reply("❌ ليس لديك صلاحية")
     if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
-    uid = message.reply_to_message.from_user.id # رقم مش نص
+    uid = message.reply_to_message.from_user.id
     if "رفع" in message.text:
         await client.promote_chat_member(message.chat.id, uid)
         if uid not in db["ranks"]["admin"]: db["ranks"]["admin"].append(uid)
         await message.reply("✅ تم رفع ادمن")
     else:
-        await client.promote_chat_member(message.chat.id, uid, privileges=ChatMemberStatus.MEMBER)
+        await client.promote_chat_member(message.chat.id, uid)
         if uid in db["ranks"]["admin"]: db["ranks"]["admin"].remove(uid)
         await message.reply("❌ تم تنزيل ادمن")
     save()
@@ -84,7 +78,7 @@ async def demote_all(client, message: Message):
     uid = message.reply_to_message.from_user.id
     for k in db["ranks"]:
         db["ranks"][k].remove(uid) if uid in db["ranks"][k] else None
-    await client.promote_chat_member(message.chat.id, uid, privileges=ChatMemberStatus.MEMBER)
+    await client.promote_chat_member(message.chat.id, uid)
     save(); await message.reply("✅ تم تنزيل جميع الرتب")
 
 @app.on_message(filters.group & filters.command("حظر"))
