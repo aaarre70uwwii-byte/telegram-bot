@@ -1,69 +1,81 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
-import asyncio
-from pyrogram import Client, filters, idle
-from pyrogram.types import Message
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-# 1. جلب متغيرات البيئة المحمية الخاصة بالسيرفر
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DEV_ID = os.getenv("DEV_ID")
 
-# فحص تأميني إلزامي لمنع تشغيل البوت ببيانات فارغة تسبب انهيار الـ Client
 if not all([API_ID, API_HASH, BOT_TOKEN, DEV_ID]):
-    print("❌ خطأ حرج: يرجى التأكد من إدخال المتغيرات الأربعة (API_ID, API_HASH, BOT_TOKEN, DEV_ID) في إعدادات السيرفر أولاً!")
+    print("❌ خطأ حرج: يرجى التأكد من إدخال المتغيرات الأربعة")
     sys.exit(1)
 
-# 2. تهيئة العقل المدبر وتفعيل ميزة التوجيه التلقائي للمجلد commands
 app = Client(
     "MyShieldBot",
     api_id=int(API_ID),
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
-    plugins=dict(root="commands")  # يربط م1، م2، م3، م4، م5، م6 تلقائياً وبأمان
+    plugins=dict(root="commands")
 )
 
-# 3. أمر عرض القائمة الرئيسية (الاوامر) داخل المجموعات والخاص
+# 1. القائمة الرئيسية بالازرار
 @app.on_message(filters.command(["الاوامر", "help", "اوامري"]) | filters.regex("^(الاوامر|اوامري|help)$"))
 async def main_menu_handler(client: Client, message: Message):
     menu_text = """
-- ‌‌‏أهلاً بك عزي في قائمة الاوامر :
+**- ‌‌‏أهلاً بك عزيزي في قائمة الاوامر :**
 ━━━━━━━━━━━━
-◂ م1 : اوامر الادمنيه 👮‍♂️
-◂ م2 : اوامر الاعدادات ⚙️
-◂ م3 : اوامر القفل - الفتح 🔒
-◂ م4 : اوامر التسليه 😂
-◂ م5 : اوامر Dev 👑
-◂ م6 : الاوامر الخدميه 🛠️
-━━━━━━━━━━━━
-💡 _لفتح أي قائمة، فقط اكتب الرمز الخاص بها في الجروب (مثال: م1)_
+اختر القسم اللي تشتيه من الازرار 👇
 """
-    await message.reply_text(text=menu_text)
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("م1 الادمنية 👮‍♂️", callback_data="menu_1"),
+                InlineKeyboardButton("م2 الاعدادات ⚙️", callback_data="menu_2")
+            ],
+            [
+                InlineKeyboardButton("م3 القفل والفتح 🔒", callback_data="menu_3"),
+                InlineKeyboardButton("م4 التسلية 😂", callback_data="menu_4")
+            ],
+            [
+                InlineKeyboardButton("م5 Dev 👑", callback_data="menu_5"),
+                InlineKeyboardButton("م6 الخدمية 🛠️", callback_data="menu_6")
+            ],
+            [InlineKeyboardButton("🔄 تحديث القائمة", callback_data="main_menu")]
+        ]
+    )
+    await message.reply_text(text=menu_text, reply_markup=keyboard)
 
-# 4. رد اختبار سريع - جديد
+# 2. لما يضغط على الزر
+@app.on_callback_query()
+async def callback_handler(client: Client, callback_query: CallbackQuery):
+    data = callback_query.data
+    
+    if data == "menu_1":
+        text = "◂ قائمة الادمنيه 👮‍♂️\n━━━━━━━━━━━━\n/ban - حظر\n/kick - طرد\n/mute - كتم"
+    elif data == "menu_2":
+        text = "◂ قائمة الاعدادات ⚙️\n━━━━━━━━━━━━\n/ضع_رابط - وضع رابط\n/الترحيب - تفعيل الترحيب"
+    elif data == "menu_3":
+        text = "◂ قائمة القفل والفتح 🔒\n━━━━━━━━━━━━\n/قفل_الصور\n/فتح_الصور"
+    elif data == "menu_4":
+        text = "◂ قائمة التسلية 😂\n━━━━━━━━━━━━\n/نكتة\n/صراحة"
+    elif data == "menu_5":
+        text = "◂ قائمة Dev 👑\n━━━━━━━━━━━━\n/اذاعة\n/المطورين"
+    elif data == "menu_6":
+        text = "◂ القائمة الخدمية 🛠️\n━━━━━━━━━━━━\n/ايدي\n/المعلومات"
+    elif data == "main_menu":
+        return await main_menu_handler(client, callback_query.message)
+    else:
+        text = "قائمة غير موجودة"
+    
+    await callback_query.message.edit_text(text, reply_markup=callback_query.message.reply_markup)
+    await callback_query.answer()
+
 @app.on_message(filters.text & filters.regex("^(تست|test)$"))
 async def test_handler(client: Client, message: Message):
     await message.reply_text("✅ البوت شغال 100% ويسمعك")
 
-# 5. دالة الإقلاع والمحافظة على استمرارية البوت وضغط الرسائل العالي
-async def main():
-    print("⚡ جاري تهيئة وفحص ملفات الحماية والـ Plugins...")
-    await app.start()
-    bot_info = await app.get_me()
-    print("━━━━━━━━")
-    print(f"✅ تم تشغيل البوت بنجاح واكتمل ربط الملفات الستة المحدثة!")
-    print(f"🤖 اسم البوت: {bot_info.first_name}")
-    print(f"🆔 معرف البوت: @{bot_info.username}")
-    print(f"👑 آيدي المطور الرئيسي المعتمد: {DEV_ID}")
-    print("━━━━━━━━")
-    
-    await idle()  # المحافظة على استقبال الرسائل والهمسات بانتظام دون توقف فجائي
-    await app.stop()
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\n👋 تم إيقاف تشغيل البوت بنجاح من التيرمنال.")
+print("⚡ جاري تهيئة وفحص ملفات الحماية والـ Plugins...")
+app.run()
