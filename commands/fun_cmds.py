@@ -1,239 +1,216 @@
-# -*- coding: utf-8 -*-
-import os
 from pyrogram import Client, filters
-from pyrogram.types import Message, ChatPermissions
-from pyrogram.errors import ChatAdminRequired
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ChatPermissions
+import os, json, random
 
-# قراءة أيدي المطور من متغيرات البيئة تلقائياً
-DEV_ID = int(os.getenv("DEV_ID", 0))
+app = Client("MyShieldBot")
+OWNER_ID = int(os.getenv("OWNER_ID"))
 
-# دالة مساعدة للتحقق من صلاحيات المشرف أو المطور لضمان أمان البوت
-async def is_admin_or_dev(client: Client, chat_id: int, user_id: int) -> bool:
-    if user_id == DEV_ID:
-        return True
-    try:
-        member = await client.get_chat_member(chat_id, user_id)
-        return member.status in ["administrator", "creator"]
-    except Exception:
-        return False
+DB_FILE = "data.json"
+with open(DB_FILE,"r", encoding="utf-8") as f: db = json.load(f)
 
-# قواعد بيانات مؤقتة في الذاكرة لتخزين الحالات ورتب التسلية
-fun_status = {}
-group_fun_roles = {}
-global_fun_roles = {}
-marriages = {}
-votes = {}
+def save():
+    with open(DB_FILE,"w", encoding="utf-8") as f: json.dump(db, f, ensure_ascii=False, indent=2)
 
-# قائمة برتب التسلية الأساسية التي تظهر بالايدي
-FUN_ROLES_MAP = {
+def is_admin(user_id):
+    return user_id == OWNER_ID or user_id in db["ranks"].get("admin", [])
+
+def get_settings(chat_id):
+    return db["settings"].setdefault(str(chat_id), {})
+
+def get_fun(chat_id):
+    return get_settings(chat_id).setdefault("fun", {"ranks":{},"global_ranks":{},"votes":{},"married":{}})
+
+# ========== عرض قائمة م4 ==========
+@app.on_callback_query(filters.regex("menu_4"))
+async def show_fun_menu(client, query: CallbackQuery):
+    text = """**• اهلا بك عزي**
+**- اوامر التسليه :**
+━━━━━━━━━━━━
+**- اوامر تسلية تظهر بالايدي :**
+
+`رفع هطف` `تنزيل هطف`
+`رفع بثر` `تنزيل بثر`
+`رفع حمار` `تنزيل حمار`
+`رفع كلب` `تنزيل كلب`
+`رفع كلبه` `تنزيل كلبه`
+`رفع عتوي` `تنزيل عتوي`
+`رفع عتويه` `تنزيل عتويه`
+`رفع لحجي` `تنزيل لحجي`
+`رفع لحجيه` `تنزيل لحجيه`
+`رفع خروف` `تنزيل خروف`
+`رفع خفيفه` `تنزيل خفيفه`
+`رفع خفيف` `تنزيل خفيف`
+`رفع بقلبي` `تنزيل من قلبي`
+
+**- للقروب:**
+`رفع` `مسح رتب التسليه` `رتب التسليه`
+
+**- للعام:**
+`رفع عام` `رتب التسليه عام` `مسح رتب التسليه عام`
+
+**- الزواج:**
+`طلاق` `زواج` `زوجي` `زوجتي` `تتزوجني`
+
+**- التصويت:**
+`اكتموه` `تفعيل اكتموه` `تعطيل اكتموه`
+`تفعيل زوجني` `تعطيل زوجني`
+━━━━━━━━━━━━"""
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ رجوع", callback_data="back_menu")]])
+    await query.message.edit_text(text, reply_markup=keyboard)
+    await query.answer()
+
+# ========== قاموس الرتب كامل ==========
+ranks_map = {
     "هطف": "الهطوف", "بثر": "البثرين", "حمار": "الحمير", "كلب": "الكلاب",
     "كلبه": "الكلبات", "عتوي": "العتوين", "عتويه": "العتويات", "لحجي": "اللحوج",
-    "لحجيه": "اللحجيات", "خروف": "الخرفان", "خفيفه": "الخفيفات", "خفيف": "الخفيفين",
-    "بقلبي": "قلبي"
+    "لحجيه": "اللحجيات", "خروف": "الخرفان", "خفيفه": "الخفيفات", "خفيف": "الخفيفين"
 }
 
-# --- 1. معالج أوامر الرفع والتنزيل (الرتب الافتراضية والاختيارية) ---
-@Client.on_message(filters.group & filters.text)
-async def fun_roles_handler(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
+# ========== رفع وتنزيل رتب ==========
+for rank in ranks_map.keys():
+    @app.on_message(filters.group & filters.command([f"رفع {rank}", f"تنزيل {rank}"]))
+    async def rank_handler(client, message: Message, r=rank):
+        if not get_settings(message.chat.id).get("feature_التسليه", True): return
+        if not is_admin(message.from_user.id): return
+        if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+        uid = str(message.reply_to_message.from_user.id)
+        fun = get_fun(message.chat.id)
+        name = message.reply_to_message.from_user.first_name
 
-    # التحقق من أن التسلية ليست معطلة في الجروب
-    if fun_status.get(chat_id, {}).get("التسليه") is False:
-        return
-
-    # أولاً: معالجة أوامر التنزيل
-    if cmd.startswith("تنزيل "):
-        if not message.reply_to_message:
-            return await message.reply_text("⚠️ يرجى الرد على رسالة الشخص لتنزيل رتبته.")
-
-        role_key = cmd.replace("تنزيل ", "", 1).strip()
-        target_id = message.reply_to_message.from_user.id
-
-        if role_key in FUN_ROLES_MAP:
-            plural_name = FUN_ROLES_MAP[role_key]
-            if chat_id in group_fun_roles and target_id in group_fun_roles[chat_id]:
-                del group_fun_roles[chat_id][target_id]
-            await message.reply_text(f"✅ تم تنزيل العضو من قائمة **{plural_name}**.")
-        return
-
-    elif cmd == "تنزيل من قلبي":
-        if not message.reply_to_message: return
-        target_id = message.reply_to_message.from_user.id
-        if chat_id in group_fun_roles and target_id in group_fun_roles[chat_id]:
-            del group_fun_roles[chat_id][target_id]
-        await message.reply_text("💔 تم تنزيل العضو من قلبك بنجاح.")
-        return
-
-    # ثانياً: معالجة أوامر الرفع
-    if cmd.startswith("رفع "):
-        if not message.reply_to_message:
-            return await message.reply_text("⚠️ يرجى الرد على رسالة الشخص لرفع رتبته.")
-
-        role_key = cmd.replace("رفع ", "", 1).strip()
-
-        # استثناء أمر "رفع عام" ليعالج في الفلتر الخاص به
-        if role_key.startswith("عام "):
-            return
-
-        target_id = message.reply_to_message.from_user.id
-        target_user = message.reply_to_message.from_user
-        target_link = f"[{target_user.first_name}](tg://user?id={target_id})"
-
-        if chat_id not in group_fun_roles:
-            group_fun_roles[chat_id] = {}
-
-        # أ. رفع رتبة تسلية افتراضية
-        if role_key in FUN_ROLES_MAP:
-            plural_name = FUN_ROLES_MAP[role_key]
-            group_fun_roles[chat_id][target_id] = plural_name
-            await message.reply_text(f"😂 تم رفع العضو {target_link} في قائمة **{plural_name}** بنجاح!")
-
-        # ب. رفع رتبة بقلبي
-        elif role_key == "بقلبي":
-            group_fun_roles[chat_id][target_id] = "قلبي"
-            await message.reply_text(f"❤️ تم رفع العضو {target_link} في قلبك بنجاح!")
-
-        # ج. رفع رتبة اختيارية مخصصة للجروب (مثل: رفع كينج)
+        if "رفع" in message.text:
+            fun["ranks"][uid] = r
+            await message.reply(f"✅ تم رفع {name} الى رتبة {ranks_map[r]}")
         else:
-            group_fun_roles[chat_id][target_id] = role_key
-            await message.reply_text(f"👑 تم رفع العضو رتبة جروب مخصصة: **{role_key}**")
+            fun["ranks"].pop(uid, None)
+            await message.reply(f"✅ تم تنزيل {name} من رتبة {ranks_map[r]}")
+        save()
 
-# --- 2. أوامر رتب التسلية العامة والإدارية ---
-@Client.on_message(filters.group & filters.text)
-async def admin_fun_lists(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
+@app.on_message(filters.group & filters.command("رفع بقلبي"))
+async def raise_heart(client, message: Message):
+    if not get_settings(message.chat.id).get("feature_التسليه", True): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = str(message.reply_to_message.from_user.id)
+    get_fun(message.chat.id)["ranks"][uid] = "قلبي"
+    save()
+    await message.reply(f"❤️ تم رفع {message.reply_to_message.from_user.first_name} بقلبك")
 
-    if fun_status.get(chat_id, {}).get("التسليه") is False:
-        return
+@app.on_message(filters.group & filters.command("تنزيل من قلبي"))
+async def down_heart(client, message: Message):
+    if not get_settings(message.chat.id).get("feature_التسليه", True): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = str(message.reply_to_message.from_user.id)
+    fun = get_fun(message.chat.id)
+    if fun["ranks"].get(uid) == "قلبي": fun["ranks"].pop(uid)
+    save()
+    await message.reply(f"💔 تم تنزيل {message.reply_to_message.from_user.first_name} من قلبك")
 
-    # رفع رتبة تسلية عامة (خاص بالمطور فقط)
-    if cmd.startswith("رفع عام "):
-        if user_id!= DEV_ID:
-            return await message.reply_text("❌ عذراً، هذا الأمر خاص بمطور البوت الرئيسي فقط للرتب العامة.")
-        if not message.reply_to_message:
-            return await message.reply_text("⚠️ يرجى الرد على رسالة الشخص لرفعه عام.")
+# ========== رفع باسم اختياري للقروب ==========
+@app.on_message(filters.group & filters.command("رفع"))
+async def raise_custom(client, message: Message):
+    if not get_settings(message.chat.id).get("feature_التسليه", True): return
+    if not is_admin(message.from_user.id): return
+    if len(message.command) < 2: return await message.reply("❌ الاستخدام: رفع اسم الرتبة")
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    rank_name = " ".join(message.command[1:])
+    uid = str(message.reply_to_message.from_user.id)
+    get_fun(message.chat.id)["ranks"][uid] = rank_name
+    save()
+    await message.reply(f"✅ تم رفع {message.reply_to_message.from_user.first_name} الى {rank_name}")
 
-        custom_role = cmd.replace("رفع عام ", "", 1).strip()
-        target_id = message.reply_to_message.from_user.id
-        global_fun_roles[target_id] = custom_role
-        return await message.reply_text(f"🌍 تم رفع العضو رتبة عامة بالبوت: **{custom_role}**")
+@app.on_message(filters.group & filters.command("رتب التسليه"))
+async def show_ranks(client, message: Message):
+    ranks = get_fun(message.chat.id)["ranks"]
+    if not ranks: return await message.reply("مافي رتب تسليه")
+    text = "**رتب التسليه:**\n"
+    for uid, rank in ranks.items(): text += f"• {rank} - `{uid}`\n"
+    await message.reply(text)
 
-    # استعراض القوائم والمسح للمشرفين
-    if cmd in ["رتب التسليه", "رتب التسليه عام", "مسح رتب التسليه"]:
-        if not await is_admin_or_dev(client, chat_id, user_id):
-            return await message.reply_text("❌ عذراً، هذا الأمر خاص بالإدارة والمشرفين فقط.")
+@app.on_message(filters.group & filters.command("مسح رتب التسليه"))
+async def clear_ranks(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    get_fun(message.chat.id)["ranks"] = {}; save()
+    await message.reply("✅ تم مسح رتب التسليه")
 
-        if cmd == "رتب التسليه":
-            roles = group_fun_roles.get(chat_id, {})
-            if not roles: return await message.reply_text("📭 لا توجد رتب تسلية في هذه المجموعة حالياً.")
-            txt = "🎭 **رتب التسلية الحالية بالجروب:**\n\n"
-            for u_id, r_name in roles.items():
-                txt += f"👤 ID: `{u_id}` ◀️ رتبة: **{r_name}**\n"
-            await message.reply_text(txt)
+# ========== رتب التسليه العام ==========
+@app.on_message(filters.group & filters.command("رفع عام"))
+async def raise_global(client, message: Message):
+    if not get_settings(message.chat.id).get("feature_التسليه", True): return
+    if not is_admin(message.from_user.id): return
+    if len(message.command) < 2: return await message.reply("❌ الاستخدام: رفع عام اسم الرتبة")
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    rank_name = " ".join(message.command[1:])
+    uid = str(message.reply_to_message.from_user.id)
+    get_fun(message.chat.id)["global_ranks"][uid] = rank_name
+    save()
+    await message.reply(f"✅ تم رفع {message.reply_to_message.from_user.first_name} عام الى {rank_name}")
 
-        elif cmd == "رتب التسليه عام":
-            if not global_fun_roles: return await message.reply_text("📭 لا توجد رتب تسلية عامة مرفوعة بالبوت حالياً.")
-            txt = "🌍 **رتب التسلية العامة المرفوعة بالبوت:**\n\n"
-            for u_id, r_name in global_fun_roles.items():
-                txt += f"👤 ID: `{u_id}` ◀️ رتبة: **{r_name}**\n"
-            await message.reply_text(txt)
+@app.on_message(filters.group & filters.command("رتب التسليه عام"))
+async def show_global(client, message: Message):
+    ranks = get_fun(message.chat.id)["global_ranks"]
+    if not ranks: return await message.reply("مافي رتب عام")
+    text = "**رتب التسليه العام:**\n"
+    for uid, rank in ranks.items(): text += f"• {rank} - `{uid}`\n"
+    await message.reply(text)
 
-        elif cmd == "مسح رتب التسليه":
-            if chat_id in group_fun_roles:
-                group_fun_roles[chat_id] = {}
-            await message.reply_text("🧹 تم تصفير ومسح رتب التسلية لهذه المجموعة بالكامل بنجاح.")
+@app.on_message(filters.group & filters.command("مسح رتب التسليه عام"))
+async def clear_global(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    get_fun(message.chat.id)["global_ranks"] = {}; save()
+    await message.reply("✅ تم مسح رتب التسليه العام")
 
-# --- 3. نظام محاكاة الزواج والطلاق والتعطيل التابع لها ---
-@Client.on_message(filters.group & filters.text)
-async def marriage_system_handler(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
+# ========== الزواج والطلاق ==========
+@app.on_message(filters.group & filters.command(["تفعيل زوجني","تعطيل زوجني"]))
+async def toggle_marry(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    s = get_settings(message.chat.id)
+    s["feature_زوجني"] = "تفعيل" in message.text; save()
+    await message.reply("✅ تم تفعيل الزواج" if s["feature_زوجني"] else "❌ تم تعطيل الزواج")
 
-    if fun_status.get(chat_id, {}).get("التسليه") is False or fun_status.get(chat_id, {}).get("زوجني") is False:
-        return
+@app.on_message(filters.group & filters.command("زواج"))
+async def marry(client, message: Message):
+    if not get_settings(message.chat.id).get("feature_زوجني", True): return await message.reply("❌ امر الزواج معطل")
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    a, b = str(message.from_user.id), str(message.reply_to_message.from_user.id)
+    get_fun(message.chat.id)["married"][a] = b
+    save()
+    await message.reply(f"💍 مبروك {message.from_user.first_name} و {message.reply_to_message.from_user.first_name} تزوجتو")
 
-    if cmd == "تتزوجني":
-        if not message.reply_to_message:
-            return await message.reply_text("⚠️ يرجى الرد على الشخص الذي تود التقدم للزواج منه.")
-        target_id = message.reply_to_message.from_user.id
-        if user_id == target_id:
-            return await message.reply_text("🧐 لا يمكنك طلب الزواج من نفسك!")
+@app.on_message(filters.group & filters.command("طلاق"))
+async def divorce(client, message: Message):
+    married = get_fun(message.chat.id)["married"]
+    if str(message.from_user.id) in married:
+        married.pop(str(message.from_user.id)); save()
+        await message.reply("💔 تم الطلاق")
+    else: await message.reply("❌ انت مش متزوج")
 
-        if chat_id not in marriages: marriages[chat_id] = {}
-        marriages[chat_id][user_id] = target_id
-        marriages[chat_id][target_id] = user_id
-        await message.reply_text(f"💍 ألف مبروك! تم إعلان الزواج بنجاح بينكما في المجموعة.")
+@app.on_message(filters.group & filters.command(["زوجي","زوجتي"]))
+async def my_spouse(client, message: Message):
+    spouse = get_fun(message.chat.id)["married"].get(str(message.from_user.id))
+    if spouse: await message.reply(f"❤️ زوجك/زوجتك: `{spouse}`")
+    else: await message.reply("❌ انت مش متزوج")
 
-    elif cmd in ["زوجي", "زوجتي"]:
-        partner = marriages.get(chat_id, {}).get(user_id)
-        if not partner:
-            return await message.reply_text("💔 وضعك الحالي (أعزب)، قم بالرد على أحدهم واكتب (تتزوجني) لطلب يدّه.")
-        await message.reply_text(f"❤️ شريك حياتك المسجل في نظام البوت هو صاحب الآيدي الحالي: `{partner}`")
+@app.on_message(filters.group & filters.command("تتزوجني"))
+async def propose(client, message: Message):
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    await message.reply(f"💍 {message.reply_to_message.from_user.first_name} تتزوجني؟")
 
-    elif cmd == "طلاق":
-        if chat_id in marriages and user_id in marriages[chat_id]:
-            partner = marriages[chat_id][user_id]
-            del marriages[chat_id][user_id]
-            if partner in marriages[chat_id]:
-                del marriages[chat_id][partner]
-            await message.reply_text("💔 تم الانفصال رسمياً، عدت إلى قائمة العزاب مجدداً.")
-        else:
-            await message.reply_text("🧐 أنت لست متزوجاً لتقوم بطلب الطلاق!")
+# ========== التصويت اكتموه ==========
+@app.on_message(filters.group & filters.command(["تفعيل اكتموه","تعطيل اكتموه"]))
+async def toggle_vote(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    s = get_settings(message.chat.id)
+    s["feature_اكتموه"] = "تفعيل" in message.text; save()
+    await message.reply("✅ تم تفعيل اكتموه" if s["feature_اكتموه"] else "❌ تم تعطيل اكتموه")
 
-# --- 4. ميزة تصويت الكتم (اكتموه) وأزرار التفعيل والتعطيل للمشرفين ---
-@Client.on_message(filters.group & filters.text)
-async def features_control_and_vote(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-
-    # معالجة أوامر التفعيل والتعطيل للميزات
-    control_cmds = ["تعطيل التسليه", "تفعيل التسليه", "تعطيل اكتموه", "تفعيل اكتموه", "تعطيل زوجني", "تفعيل زوجني"]
-    if cmd in control_cmds:
-        if not await is_admin_or_dev(client, chat_id, user_id):
-            return await message.reply_text("❌ عذراً، هذا التحكم خاص بالمشرفين ومطور البوت فقط.")
-
-        feature = "التسليه" if "التسليه" in cmd else ("اكتموه" if "اكتموه" in cmd else "زوجني")
-        status = True if "تفعيل" in cmd else False
-
-        if chat_id not in fun_status:
-            fun_status[chat_id] = {}
-
-        fun_status[chat_id][feature] = status
-        word = "تفعيل" if status else "تعطيل"
-        return await message.reply_text(f"⚙️ تم **{word}** ميزة ({feature}) في المجموعة بنجاح.")
-
-    # نظام التصويت الذكي (اكتموه) بالرد
-    if cmd == "اكتموه":
-        if fun_status.get(chat_id, {}).get("التسليه") is False or fun_status.get(chat_id, {}).get("اكتموه") is False:
-            return
-        if not message.reply_to_message:
-            return await message.reply_text("⚠️ يرجى الرد على رسالة الشخص الذي تريد كتمه بالتصويت.")
-
-        target_id = message.reply_to_message.from_user.id
-        target_name = message.reply_to_message.from_user.first_name
-
-        vote_key = f"{chat_id}_{target_id}"
-        if vote_key not in votes:
-            votes[vote_key] = set()
-
-        votes[vote_key].add(user_id)
-        current_votes = len(votes[vote_key])
-
-        await message.reply_text(f"🔇 تصويت كتم على {target_name}: {current_votes}/3")
-
-        # عند اكتمال 3 أصوات يتم تنفيذ الكتم المباشر بعضو الجروب
-        if current_votes >= 3:
-            try:
-                await client.restrict_chat_member(chat_id, target_id, ChatPermissions())
-                await message.reply_text(f"🔇 تم كتم {target_name} بنجاح بعد اكتمال التصويت")
-                del votes[vote_key]
-            except ChatAdminRequired:
-                await message.reply_text("❌ ليس لدي صلاحية الكتم")
-            except Exception:
-                await message.reply_text("❌ حدث خطأ اثناء الكتم")
+@app.on_message(filters.group & filters.command("اكتموه"))
+async def mute_vote(client, message: Message):
+    if not get_settings(message.chat.id).get("feature_اكتموه", True): return await message.reply("❌ امر اكتموه معطل")
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    chat_id = str(message.chat.id); target = str(message.reply_to_message.from_user.id)
+    votes = get_fun(chat_id)["votes"].setdefault(target, [])
+    if message.from_user.id not in votes: votes.append(message.from_user.id)
+    if len(votes) >= 3:
+        await client.restrict_chat_member(message.chat.id, int(target), ChatPermissions(can_send_messages=False))
+        await message.reply(f"🔇 تم كتم {message.reply_to_message.from_user.first_name} بالتصويت")
+        votes.clear()
+    else: await message.reply(f"تصويت اكتموه: {len(votes)}/3")
