@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
-import asyncio
-from pyrogram import Client, filters, idle
+from pyrogram import Client, filters
 from pyrogram.types import Message
 
-# 1. جلب متغيرات البيئة المحمية الخاصة بالسيرفر
+# 1. جلب متغيرات البيئة
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DEV_ID = os.getenv("DEV_ID")
 
-# فحص تأميني إلزامي
+# فحص تأميني
 if not all([API_ID, API_HASH, BOT_TOKEN, DEV_ID]):
-    print("❌ خطأ حرج: يرجى التأكد من إدخال المتغيرات الأربعة (API_ID, API_HASH, BOT_TOKEN, DEV_ID)")
+    print("❌ خطأ حرج: يرجى التأكد من إدخال المتغيرات الأربعة")
     sys.exit(1)
 
 # 2. تهيئة العقل المدبر
@@ -25,7 +24,7 @@ app = Client(
     plugins=dict(root="commands")  # خليته commands زي ما هو عندك
 )
 
-# 3. أمر عرض القائمة الرئيسية - يشتغل خاص وجروب وبأي شكل
+# 3. أمر عرض القائمة الرئيسية - يشتغل خاص وجروب
 @app.on_message(filters.command(["الاوامر", "help", "اوامري"]) | filters.regex("^(الاوامر|اوامري|help)$"))
 async def main_menu_handler(client: Client, message: Message):
     menu_text = """
@@ -47,23 +46,6 @@ async def main_menu_handler(client: Client, message: Message):
 async def test_handler(client: Client, message: Message):
     await message.reply_text("✅ البوت شغال 100% ويسمعك")
 
-# 5. دالة الإقلاع
-async def main():
-    print("⚡ جاري تهيئة وفحص ملفات الحماية والـ Plugins...")
-    await app.start()
-    bot_info = await app.get_me()
-    print("━━━━━━━━")
-    print(f"✅ تم تشغيل البوت بنجاح واكتمل ربط الملفات الستة المحدثة!")
-    print(f"🤖 اسم البوت: {bot_info.first_name}")
-    print(f"🆔 معرف البوت: @{bot_info.username}")
-    print(f"👑 آيدي المطور الرئيسي المعتمد: {DEV_ID}")
-    print("━━━━━━━━━━━━━━━━━━━━━━━━")
-    
-    await idle()
-    await app.stop()
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\n👋 تم إيقاف تشغيل البوت بنجاح من التيرمنال.")
+# 5. تشغيل البوت - الطريقة الصحيحة لـ Railway
+print("⚡ جاري تهيئة وفحص ملفات الحماية والـ Plugins...")
+app.run()
