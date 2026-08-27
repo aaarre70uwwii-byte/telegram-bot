@@ -1,155 +1,179 @@
-import os
 from pyrogram import Client, filters
-from pyrogram.types import Message, ChatPermissions
-from pyrogram.errors import ChatAdminRequired, UserAdminInvalid
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.enums import ChatPermissions, ChatMemberStatus
+import os, json
 
-# قراءة أيدي المطور من متغيرات البيئة (يحمل القيمة 0 كافتراضي لحماية الكود)
-DEV_ID = int(os.getenv("DEV_ID", 0))
+app = Client("MyShieldBot")
+OWNER_ID = int(os.getenv("OWNER_ID"))
 
-# دالة مساعدة للتحقق من صلاحيات المشرف أو المطور لضمان أمان البوت
-async def is_admin_or_dev(client: Client, chat_id: int, user_id: int) -> bool:
-    if user_id == DEV_ID:
-        return True
-    try:
-        member = await client.get_chat_member(chat_id, user_id)
-        return member.status in ["administrator", "creator"]
-    except Exception:
-        return False
+DB_FILE = "data.json"
+if not os.path.exists(DB_FILE):
+    json.dump({"ranks":{"admin":[],"vip":[],"manager":[],"creator":[],"owner":[],"owner_basic":[]},"ban":[],"mute":[],"block":[]}, open(DB_FILE,"w"))
+db = json.load(open(DB_FILE))
 
-# --- 1. أوامر الرفع والتنزيل ---
-@Client.on_message(filters.group & filters.text)
-async def manage_roles(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
+def save():
+    with open(DB_FILE,"w") as f: json.dump(db, f)
 
-    # قائمة بأوامر الرفع والتنزيل المدعومة
-    roles_cmds = [
-        "رفع مالك اساسي", "تنزيل مالك اساسي", "رفع مالك", "تنزيل مالك",
-        "رفع مشرف", "تنزيل مشرف", "رفع منشئ", "تنزيل منشئ",
-        "رفع مدير", "تنزيل مدير", "رفع ادمن", "تنزيل ادمن",
-        "رفع مميز", "تنزيل مميز", "تنزيل الكل"
-    ]
+def is_admin(user_id):
+    return user_id == OWNER_ID or user_id in db["ranks"].get("admin", [])
 
-    if cmd not in roles_cmds:
-        return
+# ========== عرض القائمة عند الضغط م1 ==========
+@app.on_callback_query(filters.regex("menu_1"))
+async def show_admin_menu(client, query: CallbackQuery):
+    text = """**• أهلاً بك في عزيزي**
+**- قائمة اوامر الادمنيه**
+━━━━━━━━━━━━
+**- اوامر الرفع والتنزيل :**
+`رفع مالك اساسي` - `تنزيل مالك اساسي`
+`رفع مالك` - `تنزيل مالك`
+`رفع مشرف` - `تنزيل مشرف`
+`رفع منشئ` - `تنزيل منشئ`
+`رفع مدير` - `تنزيل مدير`
+`رفع ادمن` - `تنزيل ادمن`
+`رفع مميز` - `تنزيل مميز`
+`تنزيل الكل`
 
-    # التحقق من الصلاحيات
-    if not await is_admin_or_dev(client, chat_id, user_id):
-        return await message.reply_text("❌ عذراً، هذا الأمر خاص بالمشرفين ومطور البوت فقط.")
+**- اوامر المسح :**
+`مسح الكل` `مسح + عدد` `مسح بالرد`
+`مسح المنشئين` `مسح المدراء` `مسح المالكين`
+`مسح الادمنيه` `مسح المميزين` `مسح المحظورين`
+`مسح المكتومين` `مسح قائمه المنع`
+`مسح الردود` `مسح الاوامر المضافه`
+`مسح الايدي` `مسح الترحيب` `مسح الرابط`
 
-    # التحقق من وجود رد (Reply)
-    if not message.reply_to_message:
-        return await message.reply_text("⚠️ يرجى الرد (Reply) على رسالة الشخص لتنفيذ الأمر عليه.")
+**- اوامر الطرد والحظر :**
+`تقييد + الوقت` `حظر` `طرد` `كتم` `تقييد`
+`الغاء الحظر` `الغاء الكتم` `فك التقييد`
+`رفع القيود` `منع بالرد` `الغاء منع بالرد`
+`طرد البوتات` `طرد المحذوفين` `كشف البوتات`
+━━━━━━━━━━━━"""
+    await query.message.edit_text(text)
+    await query.answer()
 
-    target_user = message.reply_to_message.from_user
-    target_name = target_user.first_name
-    target_link = f"[{target_name}](tg://user?id={target_user.id})"
-
-    if cmd == "تنزيل الكل":
-        await message.reply_text(f"⚠️ تم تنزيل وإلغاء جميع الرتب المرفوعة للعضو {target_link} بنجاح.")
+# ========== تنفيذ الاوامر ==========
+@app.on_message(filters.group & filters.command(["رفع ادمن","تنزيل ادمن"]))
+async def rank_admin(client, message: Message):
+    if not is_admin(message.from_user.id): return await message.reply("❌ ليس لديك صلاحية")
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id # رقم مش نص
+    if "رفع" in message.text:
+        await client.promote_chat_member(message.chat.id, uid)
+        if uid not in db["ranks"]["admin"]: db["ranks"]["admin"].append(uid)
+        await message.reply("✅ تم رفع ادمن")
     else:
-        action = "رفع" if cmd.startswith("رفع") else "تنزيل"
-        role_name = cmd.split(None, 1)[1]
-        await message.reply_text(f"🔹 تم {action} العضو {target_link} كـ (**{role_name}**) بنجاح.")
+        await client.promote_chat_member(message.chat.id, uid, privileges=ChatMemberStatus.MEMBER)
+        if uid in db["ranks"]["admin"]: db["ranks"]["admin"].remove(uid)
+        await message.reply("❌ تم تنزيل ادمن")
+    save()
 
+@app.on_message(filters.group & filters.command(["رفع مميز","تنزيل مميز"]))
+async def rank_vip(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    if "رفع" in message.text:
+        if uid not in db["ranks"]["vip"]: db["ranks"]["vip"].append(uid)
+    else:
+        db["ranks"]["vip"].remove(uid) if uid in db["ranks"]["vip"] else None
+    save(); await message.reply("✅ تم")
 
-# --- 2. أوامر المسح ---
-@Client.on_message(filters.group & filters.text)
-async def clear_data(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
+@app.on_message(filters.group & filters.command("تنزيل الكل"))
+async def demote_all(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    for k in db["ranks"]:
+        db["ranks"][k].remove(uid) if uid in db["ranks"][k] else None
+    await client.promote_chat_member(message.chat.id, uid, privileges=ChatMemberStatus.MEMBER)
+    save(); await message.reply("✅ تم تنزيل جميع الرتب")
 
-    clear_cmds = ["مسح المحظورين", "مسح المكتومين", "مسح قائمه المنع", "مسح الردود", "مسح الروابط"]
+@app.on_message(filters.group & filters.command("حظر"))
+async def ban_cmd(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    await client.ban_chat_member(message.chat.id, uid)
+    if uid not in db["ban"]: db["ban"].append(uid); save()
+    await message.reply("⛔ تم الحظر")
 
-    if cmd not in clear_cmds:
-        return
+@app.on_message(filters.group & filters.command("طرد"))
+async def kick_cmd(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    await client.ban_chat_member(message.chat.id, uid)
+    await client.unban_chat_member(message.chat.id, uid)
+    await message.reply("👢 تم الطرد")
 
-    if not await is_admin_or_dev(client, chat_id, user_id):
-        return await message.reply_text("❌ عذراً، هذا الأمر خاص بالمشرفين ومطور البوت فقط.")
+@app.on_message(filters.group & filters.command("كتم"))
+async def mute_cmd(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    await client.restrict_chat_member(message.chat.id, uid, permissions=ChatPermissions())
+    if uid not in db["mute"]: db["mute"].append(uid); save()
+    await message.reply("🔇 تم الكتم")
 
-    # هنا يمكنك لاحقاً ربطها بقاعدة البيانات الخاصة بالردود أو المنع لتصفيرها
-    await message.reply_text(f"🧹 تم البدء في تنفيذ أمر (**{cmd}**) وتفريغ البيانات المطلوبة بنجاح.")
+@app.on_message(filters.group & filters.command("تقييد"))
+async def restrict_cmd(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    await client.restrict_chat_member(message.chat.id, uid, permissions=ChatPermissions(can_send_messages=False))
+    await message.reply("⛓️ تم التقييد")
 
+@app.on_message(filters.group & filters.command(["الغاء الحظر","فك الحظر"]))
+async def unban_cmd(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    await client.unban_chat_member(message.chat.id, uid)
+    db["ban"].remove(uid) if uid in db["ban"] else None; save()
+    await message.reply("✅ تم فك الحظر")
 
-# --- 3. أوامر الطرد والحظر والكتم الآمنة ---
-@Client.on_message(filters.group & filters.text)
-async def punishment_actions(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
+@app.on_message(filters.group & filters.command(["الغاء الكتم","فك الكتم"]))
+async def unmute_cmd(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    await client.restrict_chat_member(message.chat.id, uid, permissions=ChatPermissions(can_send_messages=True))
+    db["mute"].remove(uid) if uid in db["mute"] else None; save()
+    await message.reply("🔊 تم فك الكتم")
 
-    # الأوامر العادية والأوامر التي تحتوي على وقت (مثل: تقييد + الوقت)
-    if not (cmd in ["حظر", "طرد", "كتم", "تقييد"] or cmd.startswith("تقييد ")):
-        return
+@app.on_message(filters.group & filters.command("فك التقييد"))
+async def unrestrict_cmd(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    await client.restrict_chat_member(message.chat.id, uid, permissions=ChatPermissions(can_send_messages=True))
+    await message.reply("✅ تم فك التقييد")
 
-    if not await is_admin_or_dev(client, chat_id, user_id):
-        return await message.reply_text("❌ عذراً، هذا الأمر خاص بالمشرفين ومطور البوت فقط.")
+@app.on_message(filters.group & filters.command("رفع القيود"))
+async def lift_all(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    await client.set_chat_permissions(message.chat.id, permissions=ChatPermissions(can_send_messages=True))
+    await message.reply("✅ تم رفع جميع القيود")
 
-    if not message.reply_to_message:
-        return await message.reply_text("⚠️ يرجى الرد على رسالة العضو لتنفيذ العقوبة.")
+@app.on_message(filters.group & filters.command("مسح"))
+async def delete_cmd(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if len(message.command) > 1:
+        count = int(message.command[1])
+        await client.delete_messages(message.chat.id, list(range(message.id - count, message.id)))
+        await message.delete()
 
-    target_id = message.reply_to_message.from_user.id
-    target_name = message.reply_to_message.from_user.first_name
-    target_link = f"[{target_name}](tg://user?id={target_id})"
+@app.on_message(filters.group & filters.command("طرد البوتات"))
+async def kick_bots(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    c=0
+    async for m in client.get_chat_members(message.chat.id):
+        if m.user.is_bot: await client.ban_chat_member(message.chat.id, m.user.id); c+=1
+    await message.reply(f"✅ تم طرد {c} بوت")
 
-    try:
-        if cmd == "حظر":
-            await message.chat.ban_member(target_id)
-            await message.reply_text(f"🚫 تم حظر العضو {target_link} من المجموعة.")
-        elif cmd == "طرد":
-            await message.chat.ban_member(target_id)
-            await message.chat.unban_member(target_id)
-            await message.reply_text(f"🚷 تم طرد العضو {target_link} خارج المجموعة.")
-        elif cmd == "كتم" or cmd == "تقييد" or cmd.startswith("تقييد "):
-            # تقييد افتراضي بمنع إرسال الرسائل
-            await message.chat.restrict_member(target_id, ChatPermissions(can_send_messages=False))
-            await message.reply_text(f"🔇 تم كتم وتقييد صلاحيات العضو {target_link} بنجاح.")
-            
-    except ChatAdminRequired:
-        await message.reply_text("❌ خطأ: البوت يحتاج إلى صلاحيات مشرف كاملة (تأكد من رفع البوت مشرف).")
-    except UserAdminInvalid:
-        await message.reply_text("❌ خطأ: لا يمكنك تطبيق هذا الإجراء على مشرف آخر أو على مالك المجموعة.")
-    except Exception as e:
-        await message.reply_text(f"⚠️ حدث خطأ أثناء تنفيذ العقوبة: {str(e)}")
-
-
-# --- 4. أوامر إلغاء العقوبات وفك القيود ---
-@Client.on_message(filters.group & filters.text)
-async def lift_punishment_actions(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-
-    lift_cmds = ["الغاء الحظر", "الغاء الكتم", "فك التقييد", "رفع القيود"]
-
-    if cmd not in lift_cmds:
-        return
-
-    if not await is_admin_or_dev(client, chat_id, user_id):
-        return await message.reply_text("❌ عذراً، هذا الأمر خاص بالمشرفين ومطور البوت فقط.")
-
-    if not message.reply_to_message:
-        return await message.reply_text("⚠️ يرجى الرد على رسالة العضو لالغاء القيود عنه.")
-
-    target_id = message.reply_to_message.from_user.id
-    target_name = message.reply_to_message.from_user.first_name
-    target_link = f"[{target_name}](tg://user?id={target_id})"
-
-    try:
-        if cmd == "الغاء الحظر":
-            await message.chat.unban_member(target_id)
-            await message.reply_text(f"✅ تم إلغاء حظر العضو {target_link} ويمكنه العودة للجروب.")
-        else:
-            # إعادة كافة الصلاحيات للكتابة وإرسال الوسائط
-            await message.chat.restrict_member(target_id, ChatPermissions(
-                can_send_messages=True, can_send_media_messages=True,
-                can_send_polls=True, can_add_web_page_previews=True
-            ))
-            await message.reply_text(f"🔊 تم فك التقييد وإلغاء الكتم عن العضو {target_link} بنجاح.")
-            
-    except ChatAdminRequired:
-        await message.reply_text("❌ خطأ: البوت يحتاج صلاحية مشرف لفك القيود.")
-    except Exception as e:
-        await message.reply_text(f"⚠️ حدث خطأ: {str(e)}")
+@app.on_message(filters.group & filters.command("كشف البوتات"))
+async def show_bots(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    bots=[]
+    async for m in client.get_chat_members(message.chat.id):
+        if m.user.is_bot: bots.append(f"• {m.user.first_name} - `{m.user.id}`")
+    await message.reply("**البوتات:**\n" + "\n".join(bots) if bots else "مافي بوتات")
