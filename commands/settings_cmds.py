@@ -1,133 +1,199 @@
-import os
 from pyrogram import Client, filters
-from pyrogram.types import Message
-from pyrogram.errors import ChatAdminRequired
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+import os, json
 
-# قراءة أيدي المطور من متغيرات البيئة تلقائياً
-DEV_ID = int(os.getenv("DEV_ID", 0))
+app = Client("MyShieldBot")
+OWNER_ID = int(os.getenv("OWNER_ID"))
 
-# دالة مساعدة للتحقق من صلاحيات المشرف أو المطور لضمان أمان البوت
-async def is_admin_or_dev(client: Client, chat_id: int, user_id: int) -> bool:
-    if user_id == DEV_ID:
-        return True
+try:
+    import yt_dlp
+except:
+    yt_dlp = None
+
+DB_FILE = "data.json"
+if not os.path.exists(DB_FILE):
+    json.dump({
+        "ranks":{"admin":[],"vip":[],"manager":[],"creator":[],"owner":[],"owner_basic":[]},
+        "settings":{},
+        "channels":[],
+        "ban":[],"mute":[],"block":[],
+        "commands":{}, "welcome":"", "id_template":"", "rules":""
+    }, open(DB_FILE,"w", encoding="utf-8"))
+
+with open(DB_FILE,"r", encoding="utf-8") as f: db = json.load(f)
+
+def save():
+    with open(DB_FILE,"w", encoding="utf-8") as f: json.dump(db, f, ensure_ascii=False, indent=2)
+
+def is_admin(user_id):
+    return user_id == OWNER_ID or user_id in db["ranks"].get("admin", [])
+
+# ========== عرض قائمة م2 ==========
+@app.on_callback_query(filters.regex("menu_2"))
+async def show_settings_menu(client, query: CallbackQuery):
+    text = """**- اهلا بك في قائمة اوامر الاعدادات :**
+━━━━━━━━━━━━
+
+**- اوامر رؤية الاعدادات :**
+`الرابط` `المالكين` `المالكين الاساسين`
+`المنشئين` `الادمنيه` `المدراء` `المميزين`
+`المحظورين` `المكتومين` `القوانين`
+`معلوماتي` `الحمايه` `الاعدادت` `المجموعه`
+
+**- اوامر وضع الاعدادات :**
+`اضف رابط` `مسح الرابط` `انشاء رابط`
+`ضع الترحيب` `ضع قوانين` `ضع رابط`
+`اضف امر` `تعيين الايدي`
+`اضف قناه` `حذف قناه`
+
+**- اوامر التحميل**
+`تفعيل التحميل` `تعطيل التحميل`
+`بحث + اسم الاغنيه` - لليوتيوب
+`تيك + الرابط` - للتيك توك
+`ساوند + الرابط` - للساوند
+━━━━━━━━━━━━"""
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ رجوع", callback_data="back_menu")]])
+    await query.message.edit_text(text, reply_markup=keyboard)
+    await query.answer()
+
+# ========== اوامر الرؤية ==========
+@app.on_message(filters.group & filters.command("الرابط"))
+async def get_link(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    link = db["settings"].get(str(message.chat.id), {}).get("link", "لا يوجد رابط محفوظ")
+    await message.reply(f"**الرابط:**\n{link}")
+
+@app.on_message(filters.group & filters.command(["المالكين","المالكين الاساسين","المنشئين","الادمنيه","المدراء","المميزين"]))
+async def list_ranks(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    keys = {"المالكين":"owner","المالكين الاساسين":"owner_basic","المنشئين":"creator","الادمنيه":"admin","المدراء":"manager","المميزين":"vip"}
+    key = keys[message.command[0]]
+    users = db["ranks"].get(key, [])
+    await message.reply(f"**{message.command[0]}:**\n" + "\n".join([f"• `{u}`" for u in users]) if users else "فاضي")
+
+@app.on_message(filters.group & filters.command(["المحظورين","المكتومين"]))
+async def list_block(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    key = "ban" if message.command[0]=="المحظورين" else "mute"
+    users = db.get(key, [])
+    await message.reply(f"**{message.command[0]}:**\n" + "\n".join([f"• `{u}`" for u in users]) if users else "مافي")
+
+@app.on_message(filters.group & filters.command("القوانين"))
+async def get_rules(client, message: Message):
+    rules = db["settings"].get(str(message.chat.id), {}).get("rules", "لا توجد قوانين")
+    await message.reply(f"**القوانين:**\n{rules}")
+
+@app.on_message(filters.group & filters.command("معلوماتي"))
+async def my_info(client, message: Message):
+    user = message.from_user
+    await message.reply(f"**اسمك:** {user.first_name}\n**ايديك:** `{user.id}`\n**يوزرك:** @{user.username}")
+
+@app.on_message(filters.group & filters.command("الحمايه"))
+async def protection(client, message: Message):
+    await message.reply("**الحماية:**\nقفل الروابط: معطل\nقفل الكلايش: معطل\nقفل التكرار: معطل")
+
+@app.on_message(filters.group & filters.command("الاعدادت"))
+async def show_settings(client, message: Message):
+    s = db["settings"].get(str(message.chat.id), {})
+    await message.reply(f"**الاعدادات:**\nالرابط: {'موجود' if s.get('link') else 'مافي'}\nالترحيب: {'موجود' if s.get('welcome') else 'مافي'}")
+
+@app.on_message(filters.group & filters.command("المجموعه"))
+async def chat_info(client, message: Message):
+    chat = await client.get_chat(message.chat.id)
+    await message.reply(f"**المجموعة:** {chat.title}\n**الاعضاء:** {chat.members_count}\n**الايدي:** `{chat.id}`")
+
+# ========== اوامر الوضع ==========
+@app.on_message(filters.group & filters.command("انشاء رابط"))
+async def create_link(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    link = await client.export_chat_invite_link(message.chat.id)
+    db["settings"].setdefault(str(message.chat.id), {})["link"] = link; save()
+    await message.reply(f"✅ تم انشاء الرابط:\n{link}")
+
+@app.on_message(filters.group & filters.command(["اضف رابط","ضع رابط"]))
+async def set_link(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الرابط")
+    link = message.reply_to_message.text
+    db["settings"].setdefault(str(message.chat.id), {})["link"] = link; save()
+    await message.reply("✅ تم حفظ الرابط")
+
+@app.on_message(filters.group & filters.command("مسح الرابط"))
+async def del_link(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    db["settings"].setdefault(str(message.chat.id), {})["link"] = ""; save()
+    await message.reply("✅ تم مسح الرابط")
+
+@app.on_message(filters.group & filters.command("ضع الترحيب"))
+async def set_welcome(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الترحيب")
+    db["settings"].setdefault(str(message.chat.id), {})["welcome"] = message.reply_to_message.text; save()
+    await message.reply("✅ تم وضع الترحيب")
+
+@app.on_message(filters.group & filters.command("ضع قوانين"))
+async def set_rules(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على القوانين")
+    db["settings"].setdefault(str(message.chat.id), {})["rules"] = message.reply_to_message.text; save()
+    await message.reply("✅ تم وضع القوانين")
+
+@app.on_message(filters.group & filters.command("اضف امر"))
+async def add_cmd(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الامر والرد")
+    parts = message.reply_to_message.text.split("|")
+    if len(parts)!= 2: return await message.reply("❌ الصيغة: الامر | الرد")
+    db["commands"][parts[0]] = parts[1]; save()
+    await message.reply(f"✅ تم اضافة امر `{parts[0]}`")
+
+@app.on_message(filters.group & filters.command("تعيين الايدي"))
+async def set_id(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على قالب الايدي")
+    db["settings"].setdefault(str(message.chat.id), {})["id_template"] = message.reply_to_message.text; save()
+    await message.reply("✅ تم تعيين قالب الايدي")
+
+@app.on_message(filters.group & filters.command(["اضف قناه","حذف قناه"]))
+async def channel_cmd(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    if len(message.command) < 2: return await message.reply("❌ الاستخدام: اضف قناه @username")
+    channel = message.command[1]
+    if "اضف" in message.text:
+        if channel not in db["channels"]: db["channels"].append(channel)
+        await message.reply(f"✅ تم اضافة {channel}")
+    else:
+        db["channels"].remove(channel) if channel in db["channels"] else None
+        await message.reply(f"✅ تم حذف {channel}")
+    save()
+
+# ========== اوامر التحميل ==========
+download_status = {}
+
+@app.on_message(filters.group & filters.command(["تفعيل التحميل","تعطيل التحميل"]))
+async def toggle_download(client, message: Message):
+    if not is_admin(message.from_user.id): return
+    download_status[str(message.chat.id)] = "تفعيل" in message.text
+    await message.reply("✅ تم تفعيل التحميل" if download_status[str(message.chat.id)] else "❌ تم تعطيل التحميل")
+
+@app.on_message(filters.group & filters.command("بحث"))
+async def search_yt(client, message: Message):
+    if not download_status.get(str(message.chat.id), False): return await message.reply("❌ فعل التحميل اول")
+    if not yt_dlp: return await message.reply("❌ نزل: pip install yt-dlp")
+    if len(message.command) < 2: return await message.reply("❌ بحث + اسم")
+    msg = await message.reply("⏳ جاري البحث...")
     try:
-        member = await client.get_chat_member(chat_id, user_id)
-        return member.status in ["administrator", "creator"]
-    except Exception:
-        return False
+        with yt_dlp.YoutubeDL({'quiet':True}) as ydl:
+            info = ydl.extract_info(f"ytsearch:{' '.join(message.command[1:])}", download=False)['entries'][0]
+        await msg.edit(f"**{info['title']}**\n{info['webpage_url']}")
+    except: await msg.edit("❌ فشل البحث")
 
-# متغير عام في الذاكرة للتحكم بحالة ميزة التحميل (مفعلة تلقائياً)
-download_status = True
+@app.on_message(filters.group & filters.command("تيك"))
+async def tiktok_dl(client, message: Message):
+    if not download_status.get(str(message.chat.id), False): return
+    await message.reply("⏳ قريبا: تحميل التيك توك")
 
-
-# --- 1. أوامر رؤية الاعدادات ---
-@Client.on_message(filters.group & filters.text)
-async def view_settings_handler(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    
-    view_cmds = ["الرابط", "المالكين", "المالكين الاساسين", "المكتومين", "المحظورين"]
-    if cmd not in view_cmds:
-        return
-
-    try:
-        if cmd == "الرابط":
-            chat_details = await client.get_chat(chat_id)
-            invite_link = chat_details.invite_link
-            if invite_link:
-                await message.reply_text(f"🔗 **رابط المجموعة الحالي:**\n{invite_link}")
-            else:
-                await message.reply_text("⚠️ لا يوجد رابط عام للمجموعة حالياً، يمكنك استخدام أمر (انشاء رابط).")
-                
-        elif cmd in ["المالكين", "المالكين الاساسين"]:
-            creator_name = "غير معروف"
-            async for member in client.get_chat_members(chat_id, filter="administrators"):
-                if member.status == "creator":
-                    creator_name = member.user.first_name if member.user.first_name else "مالك المجموعة"
-                    break
-            await message.reply_text(f"👑 **المالك الأساسي للمجموعة هو:**\n👤 {creator_name}")
-            
-        elif cmd == "المكتومين":
-            await message.reply_text("🔕 قائمة الأعضاء المكتومين حالياً فارغة.")
-            
-        elif cmd == "المحظورين":
-            banned_count = 0
-            async for _ in client.get_chat_members(chat_id, filter="banned"):
-                banned_count += 1
-            await message.reply_text(f"🚫 **عدد الأعضاء المحظورين في هذه المجموعة:** {banned_count} عضو.")
-            
-    except ChatAdminRequired:
-        await message.reply_text("❌ خطأ: البوت يحتاج إلى صلاحيات مشرف كاملة لجلب هذه البيانات.")
-    except Exception as e:
-        await message.reply_text(f"⚠️ حدث خطأ أثناء معالجة الأمر: {str(e)}")
-
-
-# --- 2. أوامر وضع الاعدادات ---
-@Client.on_message(filters.group & filters.text)
-async def set_settings_handler(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    
-    set_cmds = ["تعيين الايدي", "اضف امر", "مسح الرابط", "انشاء رابط", "ضع الترحيب"]
-    
-    # التحقق إذا كانت الرسالة تبدأ بأحد أوامر الإعدادات
-    matched_cmd = next((c for c in set_cmds if cmd.startswith(c)), None)
-    if not matched_cmd:
-        return
-        
-    # التحقق من الصلاحيات (مشرف أو مطور)
-    if not await is_admin_or_dev(client, chat_id, user_id):
-        return await message.reply_text("❌ عذراً، هذا الأمر خاص بالمشرفين ومطور البوت فقط.")
-    
-    try:
-        if matched_cmd == "انشاء رابط":
-            new_link = await client.create_chat_invite_link(chat_id)
-            await message.reply_text(f"✅ تم إنشاء رابط جديد للمجموعة بنجاح:\n{new_link.invite_link}")
-        elif matched_cmd == "مسح الرابط":
-            await message.reply_text("🗑️ تم تعطيل ومسح رابط المجموعة بنجاح.")
-        elif matched_cmd == "ضع الترحيب":
-            welcome_text = cmd.replace("ضع الترحيب", "").strip()
-            if not welcome_text:
-                return await message.reply_text("⚠️ يرجى كتابة نص الترحيب بعد الأمر.\n💡 **مثال:** `ضع الترحيب منور الجروب يا غالي`")
-            await message.reply_text(f"📝 تم حفظ نص الترحيب الجديد بنجاح:\n{welcome_text}")
-        else:
-            await message.reply_text(f"⚙️ تم استقبال أمر التعديل: (**{matched_cmd}**) وجاري حفظ الإعدادات.")
-            
-    except ChatAdminRequired:
-        await message.reply_text("❌ خطأ: البوت لا يملك صلاحية إدارة الروابط أو تعديل معلومات المجموعة.")
-    except Exception as e:
-        await message.reply_text(f"⚠️ فشل تنفيذ الأمر بسبب: {str(e)}")
-
-
-# --- 3. أوامر التحميل ---
-@Client.on_message(filters.group & filters.text)
-async def download_control_handler(client: Client, message: Message):
-    cmd = message.text.strip()
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    global download_status
-
-    # أزرار تحويل حالة التحميل
-    if cmd in ["تفعيل التحميل", "تعطيل التحميل"]:
-        if not await is_admin_or_dev(client, chat_id, user_id):
-            return await message.reply_text("❌ عذراً، هذا الأمر خاص بالمشرفين ومطور البوت فقط.")
-            
-        if cmd == "تفعيل التحميل":
-            download_status = True
-            await message.reply_text("📥 تم **تفعيل** ميزة التحميل (لليوتيوب والتيك توك) في المجموعة للجميع.")
-        else:
-            download_status = False
-            await message.reply_text("🛑 تم **تعطيل** ميزة التحميل في المجموعة.")
-        return
-
-    # استقبال أمر البحث والتحميل
-    if cmd.startswith("بحث "):
-        if not download_status:
-            return await message.reply_text("🛑 عذراً، ميزة التحميل معطلة حالياً من قبل إدارة البوت.")
-            
-        media_name = cmd.replace("بحث", "").strip()
-        if not media_name:
-            return await message.reply_text("⚠️ يرجى كتابة اسم الفيديو أو الأغنية بعد أمر بحث.\n💡 **مثال:** `بحث الأماكن محمد عبده`")
-            
-        await message.reply_text(f"🔍 جاري البحث والتحميل لـ (**{media_name}**) من اليوتيوب والتيك توك... ⏳")
+@app.on_message(filters.group & filters.command("ساوند"))
+async def soundcloud_dl(client, message: Message):
+    if not download_status.get(str(message.chat.id), False): return
+    await message.reply("⏳ قريبا: تحميل الساوند")
