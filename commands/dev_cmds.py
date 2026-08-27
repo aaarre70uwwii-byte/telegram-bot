@@ -1,91 +1,88 @@
-# -*- coding: utf-8 -*-
-import os
-import sys
-from pyrogram import Client, filters # 1. ضفت Client هنا
-from pyrogram.types import (
-    Message, InlineKeyboardMarkup, InlineKeyboardButton, 
-    ReplyKeyboardMarkup, KeyboardButton, CallbackQuery, ReplyKeyboardRemove
-)
+from pyrogram import Client, filters
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+import os, json, sys
 
-MAIN_DEV_ID = int(os.getenv("DEV_ID", 0))
-secondary_devs = set()
+app = Client("MyShieldBot")
+OWNER_ID = int(os.getenv("OWNER_ID"))
 
-def is_dev(user_id: int) -> bool:
-    return user_id == MAIN_DEV_ID or user_id in secondary_devs
+DB_FILE = "data.json"
+with open(DB_FILE,"r", encoding="utf-8") as f: db = json.load(f)
 
-def get_dev_reply_keyboard():
-    keyboard = [
-        [KeyboardButton("إعدادات البوت ⚙️"), KeyboardButton("أوامر الإذاعة 📣"), KeyboardButton("قائمه العام 📊")],
-        [KeyboardButton("تغيير المطور الاساسي 👑"), KeyboardButton("مسح المطورين 🧹")],
-        [KeyboardButton("مسح اسم البوت 🗑️"), KeyboardButton("مسح قائمه العام ❌")],
-        [KeyboardButton("تغيير اسم البوت ✏️"), KeyboardButton("مسح المطورين الثانويين 👥")],
-        [KeyboardButton("تعطيل التواصل 📴"), KeyboardButton("جلب النسخه الاحتياطيه 📦")],
-        [KeyboardButton("تفعيل التواصل 📲"), KeyboardButton("تحديث الملفات 🔄")],
-        [KeyboardButton("تفعيل التفعيل التلقائي ✅"), KeyboardButton("تحديث السورس 🚀")],
-        [KeyboardButton("• رجوع • الى قائمة البدء ↩️")]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+def save():
+    with open(DB_FILE,"w", encoding="utf-8") as f: json.dump(db, f, ensure_ascii=False, indent=2)
 
-def get_m5_inline_keyboard():
-    buttons = [
-        [InlineKeyboardButton("أوامر التواصل 📬", callback_data="dev_contact_cmds"), InlineKeyboardButton("الحظر والكتم العام 🚫", callback_data="dev_global_punish")],
-        [InlineKeyboardButton("إدارة الردود العامة 📝", callback_data="dev_replies_cmds"), InlineKeyboardButton("إعداد الكليشات ⚙️", callback_data="dev_cliches_cmds")],
-        [InlineKeyboardButton("أوامر التحديث والتحكم 🔄", callback_data="dev_system_cmds")],
-        [InlineKeyboardButton("إغلاق القائمة ✖️", callback_data="dev_close_menu")]
-    ]
-    return InlineKeyboardMarkup(buttons)
+def is_dev(user_id):
+    return user_id == OWNER_ID or user_id in db["ranks"].get("dev", [])
 
-@app.on_message(filters.text, group=5)
-async def dev_master_handler(client: Client, message: Message): # 2. ضفت : Client
-    cmd = message.text.strip()
-    user_id = message.from_user.id if message.from_user else 0
+# ========== عرض قائمة م5 - تشتغل في الجروب والخاص ==========
+@app.on_callback_query(filters.regex("menu_5"))
+async def show_dev_menu(client, query: CallbackQuery):
+    if not is_dev(query.from_user.id):
+        return await query.answer("❌ هذا الزر للمطورين فقط", show_alert=True)
 
-    # الجروب
-    if message.chat.type != "private":
-        if cmd in ["م5", "اوامر م5"]:
-            return await message.reply_text(
-                text="⭐️ **قائمة أوامر المطور م5**\n\nالأزرار بالأسفل خاصة بالمطورين فقط",
-                reply_markup=get_m5_inline_keyboard()
-            )
-        return
+    text = """**• اهلا بك عزي Dev**
+━━━━━━━━━━━━
+**- ردود التواصل:**
+`اضف رد تواصل` `حذف رد تواصل` `ردود التواصل`
 
-    # الخاص
-    if not is_dev(user_id):
-        return await message.reply_text("❌ هذا الكيبورد خاص بالمطور فقط")
+**- العام:**
+`حظر عام` `كتم عام` `الغاء عام` `قائمه العام`
 
-    if cmd in ["لوحة المطور", "المطور", "مطور", "/start", "م5"]:
-        return await message.reply_text("🎛️ **تم تفعيل لوحة تحكم المطور**", reply_markup=get_dev_reply_keyboard())
+**- المطورين:**
+`رفع Dev` `تنزيل Dev`
 
-    if cmd == "تحديث الملفات 🔄":
-        await message.reply_text("🔄 جاري تحديث ملفات البوت...")
-        os.execv(sys.executable, [sys.executable] + sys.argv)
-    elif cmd == "جلب النسخه الاحتياطيه 📦":
-        return await message.reply_text("📦 جاري تجميع النسخة الاحتياطية...")
-    elif cmd == "تفعيل البوت ⚡":
-        return await message.reply_text("⚡ تم تفعيل البوت")
-    elif cmd == "تعطيل البوت الخدمي 🛑":
-        return await message.reply_text("🛑 تم تعطيل البوت")
-    elif cmd == "• رجوع • الى قائمة البدء ↩️":
-        return await message.reply_text("↩️ تم إخفاء الكيبورد", reply_markup=ReplyKeyboardRemove())
+**- الردود العامه:**
+`اضف رد عام` `الردود العامه` `مسح الردود العامه`
+
+**- الكلايش:**
+`ضع كليشه م1` الى `مسح كليشه م6`
+
+**- النظام:**
+`ذيع` `تحديث` `اعاده تشغيل`
+━━━━━━━━━━━━"""
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ رجوع", callback_data="back_menu")]])
+    await query.message.edit_text(text, reply_markup=keyboard)
+    await query.answer()
+
+# ========== اهم الاوامر ==========
+@app.on_message(filters.command(["رفع Dev","تنزيل Dev"]))
+async def dev_rank(client, message: Message):
+    if message.from_user.id!= OWNER_ID: return await message.reply("❌ للمالك الاساسي فقط")
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    if "رفع" in message.text:
+        db["ranks"].setdefault("dev", []).append(uid); db["ranks"]["dev"] = list(set(db["ranks"]["dev"])); save()
+        await message.reply(f"✅ تم رفع {message.reply_to_message.from_user.first_name} مطور ثانوي")
     else:
-        return await message.reply_text(f"تم الضغط على: {cmd}")
+        if uid in db["ranks"].get("dev", []): db["ranks"]["dev"].remove(uid); save()
+        await message.reply(f"✅ تم تنزيل {message.reply_to_message.from_user.first_name}")
 
-@app.on_callback_query()
-async def dev_inline_callback_handler(client: Client, callback_query: CallbackQuery): # 3. ضفت : Client
-    user_id = callback_query.from_user.id
-    data = callback_query.data
-    if not data.startswith("dev_"): return
-    if not is_dev(user_id): return await callback_query.answer("❌ خاص بالمطورين فقط", show_alert=True)
+@app.on_message(filters.command(["حظر عام","كتم عام"]))
+async def gban(client, message: Message):
+    if not is_dev(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الشخص")
+    uid = message.reply_to_message.from_user.id
+    key = "gban" if "حظر" in message.text else "gmute"
+    db.setdefault(key, []).append(uid); db[key] = list(set(db[key])); save()
+    await message.reply(f"✅ تم {'حظر' if key=='gban' else 'كتم'} عام")
 
-    try:
-        if data == "dev_contact_cmds": text = "📬 **أوامر التواصل:**\n• اضف رد تواصل"
-        elif data == "dev_global_punish": text = "🚫 **الحظر والكتم العام:**\n• حظر عام"
-        elif data == "dev_replies_cmds": text = "📝 **إدارة الردود العامة:**\n• اضف رد عام"
-        elif data == "dev_cliches_cmds": text = "⚙️ **إعداد الكليشات:**\n• وضع كليشه م1"
-        elif data == "dev_system_cmds": text = "🔄 **أوامر التحديث:**\n• تحديث السورس"
-        elif data == "dev_close_menu": return await callback_query.message.delete()
-        else: text = "قسم غير موجود"
-        
-        await callback_query.message.edit_text(text, reply_markup=get_m5_inline_keyboard())
-        await callback_query.answer()
-    except: pass
+@app.on_message(filters.command("ذيع"))
+async def broadcast(client, message: Message):
+    if not is_dev(message.from_user.id): return
+    if not message.reply_to_message: return await message.reply("❌ رد على الرسالة")
+    count=0
+    for chat_id in db.get("chats", []):
+        try: await client.forward_messages(chat_id, message.chat.id, message.reply_to_message.id); count+=1
+        except: pass
+    await message.reply(f"✅ تمت الاذاعة الى {count} قروب")
+
+@app.on_message(filters.command(["تحديث","اعاده تشغيل"]))
+async def restart(client, message: Message):
+    if not is_dev(message.from_user.id): return
+    if "تحديث" in message.text:
+        global db
+        with open(DB_FILE,"r", encoding="utf-8") as f: db = json.load(f)
+        await message.reply("✅ تم التحديث")
+    else:
+        await message.reply("✅ جاري اعادة التشغيل...")
+        os.execl(sys.executable, sys.executable, *sys.argv)
