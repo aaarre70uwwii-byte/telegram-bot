@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import random
 from pyrogram import Client, filters
@@ -33,29 +34,29 @@ async def utilities_master_handler(client: Client, message: Message):
         if cmd.startswith("همسه ") or cmd.startswith("همسة "):
             if not message.reply_to_message or not message.reply_to_message.from_user:
                 return await message.reply_text("⚠️ يرجى الرد على الشخص الذي تريد توجيه الهمسة إليه.\n💡 **مثال:** اكتب `همسة للتوثيق برمجياً` بالرد عليه.")
-            
+
             whisper_parts = cmd.split(None, 1)
             if len(whisper_parts) < 2:
                 return await message.reply_text("⚠️ يرجى كتابة نص الهمسة بعد الكلمة.")
-                
+
             whisper_text = whisper_parts[1].strip()
             sender_id = user_id
             receiver_id = message.reply_to_message.from_user.id
-            
+
             if sender_id == receiver_id:
                 return await message.reply_text("🧐 لا يمكنك إرسال همسة سرية لنفسك!")
-                
+
             whisper_id = f"w_{message.id}"
             whispers_db[whisper_id] = {
                 "sender": sender_id,
                 "receiver": receiver_id,
                 "text": whisper_text
             }
-            
+
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔏 اضغط لفتح الهمسة السرية", callback_data=whisper_id)]
             ])
-            
+
             sender_link = f"[{message.from_user.first_name}](tg://user?id={sender_id})"
             receiver_link = f"[{message.reply_to_message.from_user.first_name}](tg://user?id={receiver_id})"
             return await message.reply_text(
@@ -68,7 +69,7 @@ async def utilities_master_handler(client: Client, message: Message):
             target_user = message.reply_to_message.from_user if (message.reply_to_message and message.reply_to_message.from_user) else message.from_user
             t_user_id = target_user.id
             username = f"@{target_user.username}" if target_user.username else "لا يوجد"
-            
+
             if t_user_id == MAIN_DEV_ID:
                 rank = "👑 مطور البوت الرئيسي"
             else:
@@ -111,14 +112,14 @@ async def utilities_master_handler(client: Client, message: Message):
 
         elif cmd == "شرايك في افتاري":
             rates = ["🔥 فخم جداً 10/10", "✨ لطيف وجميل", "🤷‍♂️ عادي صراحة", "❌ يحتاج تغيير فوراً"]
-            return await message.reply_text(f"🧐 رأيي في افتارك: **{random.choice(rates)}**")
+            return await message.reply_text(f"🧐 رأي في افتارك: **{random.choice(rates)}**")
 
         elif cmd in ["افتاره", "البايو"]:
             if not message.reply_to_message or not message.reply_to_message.from_user:
                 return await message.reply_text("⚠️ يرجى الرد على رسالة العضو لجلب معلوماته.")
-            
+
             target_user = message.reply_to_message.from_user
-            
+
             if cmd == "افتاره":
                 try:
                     async for photo in client.get_chat_photos(target_user.id, limit=1):
@@ -170,7 +171,7 @@ async def utilities_master_handler(client: Client, message: Message):
         # 5. أوامر البحث والخدمات البرمجية المعتمدة على متغيرات المدخلات خلفها
         if cmd.startswith("صيح "):
             shout_text = cmd.replace("صيح ", "", 1).strip()
-            if shout_text: return await message.reply_text(f"🗣️ {shout_text.upper()} !!!")
+            if shout_text: return await message.reply_text(f"🗣️ {shout_text.upper()}!!!")
             return
 
         elif cmd.startswith("ارسل ") and " زاجل" in cmd:
@@ -182,3 +183,6 @@ async def utilities_master_handler(client: Client, message: Message):
 
         elif cmd.startswith("قوقل "):
             search_query = cmd.replace("قوقل ", "", 1).strip()
+
+    except Exception as e:
+        pass
