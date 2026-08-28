@@ -2,6 +2,7 @@ import os
 import sqlite3
 import telebot
 import time
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MAIN_DEV_ID = int(os.getenv("OWNER_ID"))
@@ -39,207 +40,131 @@ def get_groups():
     c=sqlite3.connect(DB_FILE).cursor(); c.execute("SELECT chat_id FROM groups"); r=[x[0] for x in c.fetchall()]; c.connection.close()
     return r
 
+def kb_private():
+    k = ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
+    k.row(KeyboardButton("⚙️ إعدادات البوت"), KeyboardButton("📢 أوامر الإذاعة"), KeyboardButton("📊 قائمة العام"))
+    k.row(KeyboardButton("👑 تغير المطور الاساسي"), KeyboardButton("🧹 مسح المطورين"))
+    k.row(KeyboardButton("🗑️ مسح اسم البوت"), KeyboardButton("❌ مسح قائمة العام"))
+    k.row(KeyboardButton("✏️ تغير اسم البوت"), KeyboardButton("👥 مسح المطورين الثانويين"))
+    k.row(KeyboardButton("📵 تعطيل التواصل"), KeyboardButton("💾 جلب النسخه الاحتياطيه"))
+    k.row(KeyboardButton("✅ تفعيل التواصل"), KeyboardButton("🔄 تحديث الملفات"))
+    k.row(KeyboardButton("🔴 تعطيل البوت الخدمي"), KeyboardButton("⚡ تفعيل البوت"))
+    k.row(KeyboardButton("▶️ تفعيل البوت الخدمي"))
+    k.row(KeyboardButton("⚙️ اظهار _ اخفاء _ قائمة اعداد البوت"))
+    k.row(KeyboardButton("👋 اضف ترحيب"), KeyboardButton("➕ رفع مطور"))
+    k.row(KeyboardButton("📝 اضف رد عام"), KeyboardButton("📜 الردود العامه"))
+    k.row(KeyboardButton("📢 تغير قناة التحديثات"))
+    k.row(KeyboardButton("🗑️ اخفاء الكيبورد"))
+    return k
+
 @bot.message_handler(commands=['start'], chat_types=['private'])
 def start_private(m):
     if not is_main_dev(m.from_user.id):
         return bot.reply_to(m, "❌ هذا البوت للمطور الاساسي فقط")
     c=sqlite3.connect(DB_FILE).cursor(); c.execute("SELECT text FROM welcome"); w=c.fetchone(); c.connection.close()
     welcome_text = w[0] if w else f"🙋‍♂️ اهلا بك في بوت {bot_name}"
-    help_text = f"""
-⚙️ اوامر بوت {bot_name}:
-`/settings` - اعدادات البوت
-`/broadcast` - شرح الاذاعة
-`/gbanned` - قائمة العام
-`/setowner` - تغير المطور الاساسي
-`/deldevs` - مسح المطورين
-`/setname` - تغير اسم البوت
-`/delname` - ارجاع اسم البوت
-`/delgbanned` - مسح قائمة العام
-`/contactoff` - تعطيل التواصل
-`/contacton` - تفعيل التواصل
-`/backup` - جلب النسخة الاحتياطية
-`/restart` - تحديث الملفات
-`/botstop` - تعطيل البوت
-`/botstart` - تفعيل البوت
-`/addwelcome` - اضافة ترحيب
-`/adddev` - رفع مطور
-`/addreply` - اضافة رد عام
-`/replies` - قائمة الردود
-`/setchannel` - تغير قناة التحديثات
-`/help` - اظهار الاوامر
-"""
-    bot.send_message(m.chat.id, welcome_text + "\n" + help_text, parse_mode="Markdown")
+    bot.send_message(m.chat.id, welcome_text, reply_markup=kb_private())
 
-@bot.message_handler(commands=['settings'], chat_types=['private'])
-def cmd_settings(m):
-    if not is_main_dev(m.from_user.id): return
-    g = len(get_groups())
-    ch = get_setting('channel')
-    bot.send_message(m.chat.id, f"⚙️ اسم البوت: {bot_name}\nالقروبات: {g}\nالمطورين: {len(get_devs())}\nقناة التحديثات: {ch}\nالحالة: {'شغال' if bot_status else 'متوقف'}")
+@bot.message_handler(func=lambda m: m.chat.type == 'private' and is_main_dev(m.from_user.id))
+def handle_dev(m):
+    global bot_name, contact_status, bot_status, MAIN_DEV_ID
+    t = m.text; uid = m.from_user.id
 
-@bot.message_handler(commands=['broadcast'], chat_types=['private'])
-def cmd_broadcast(m):
-    if not is_main_dev(m.from_user.id): return
-    bot.send_message(m.chat.id, "📢 اوامر الاذاعة:\n`ذيع + النص` = اذاعة نص\nارسل صورة + `ذيع` = اذاعة صورة\nسوي توجيه + `ذيع` = اذاعة توجيه", parse_mode="Markdown")
+    if t == "⚙️ إعدادات البوت":
+        g = len(get_groups())
+        ch = get_setting('channel')
+        bot.send_message(m.chat.id, f"⚙️ اسم البوت: {bot_name}\nالقروبات: {g}\nالمطورين: {len(get_devs())}\nقناة التحديثات: {ch}\nالحالة: {'شغال' if bot_status else 'متوقف'}")
 
-@bot.message_handler(commands=['gbanned'], chat_types=['private'])
-def cmd_gbanned(m):
-    if not is_main_dev(m.from_user.id): return
-    c=sqlite3.connect(DB_FILE).cursor(); c.execute("SELECT COUNT(*) FROM gbanned"); r=c.fetchone()[0]; c.connection.close()
-    bot.send_message(m.chat.id, f"📊 المحظورين عام: {r}")
+    elif t == "📢 أوامر الإذاعة":
+        bot.send_message(m.chat.id, "📢 اوامر الاذاعة:\n1. `ذيع + النص` = اذاعة نص\n2. ارسل صورة + اكتب `ذيع` = اذاعة صورة\n3. سوي توجيه لرسالة + اكتب `ذيع` = اذاعة توجيه", parse_mode="Markdown")
 
-@bot.message_handler(commands=['setowner'], chat_types=['private'])
-def cmd_setowner(m):
-    if not is_main_dev(m.from_user.id): return
-    waiting[m.from_user.id] = "change_owner"
-    bot.send_message(m.chat.id, "ارسل ايدي المطور الجديد")
+    elif t == "📊 قائمة العام":
+        c=sqlite3.connect(DB_FILE).cursor(); c.execute("SELECT COUNT(*) FROM gbanned"); r=c.fetchone()[0]; c.connection.close()
+        bot.send_message(m.chat.id, f"📊 المحظورين عام: {r}")
 
-@bot.message_handler(commands=['deldevs'], chat_types=['private'])
-def cmd_deldevs(m):
-    if not is_main_dev(m.from_user.id): return
-    c=sqlite3.connect(DB_FILE).cursor(); c.execute("DELETE FROM devs"); c.connection.commit(); c.connection.close()
-    bot.send_message(m.chat.id, "✅ تم مسح جميع المطورين الثانويين")
+    elif t == "👑 تغير المطور الاساسي":
+        waiting[uid] = "change_owner"; bot.send_message(m.chat.id, "ارسل ايدي المطور الجديد")
 
-@bot.message_handler(commands=['setname'], chat_types=['private'])
-def cmd_setname(m):
-    if not is_main_dev(m.from_user.id): return
-    waiting[m.from_user.id] = "change_name"
-    bot.send_message(m.chat.id, "ارسل الاسم الجديد")
+    elif t == "🧹 مسح المطورين" or t == "👥 مسح المطورين الثانويين":
+        c=sqlite3.connect(DB_FILE).cursor(); c.execute("DELETE FROM devs"); c.connection.commit(); c.connection.close()
+        bot.send_message(m.chat.id, "✅ تم مسح جميع المطورين الثانويين")
 
-@bot.message_handler(commands=['delname'], chat_types=['private'])
-def cmd_delname(m):
-    if not is_main_dev(m.from_user.id): return
-    global bot_name; bot_name = "𝐓𝐢𝐚"
-    bot.send_message(m.chat.id, "✅ تم ارجاع اسم البوت الى 𝐓𝐢𝐚")
+    elif t == "🗑️ مسح اسم البوت":
+        bot_name = "𝐓𝐢𝐚"
+        bot.send_message(m.chat.id, "✅ تم ارجاع اسم البوت الى 𝐓𝐢𝐚")
 
-@bot.message_handler(commands=['delgbanned'], chat_types=['private'])
-def cmd_delgbanned(m):
-    if not is_main_dev(m.from_user.id): return
-    c=sqlite3.connect(DB_FILE).cursor(); c.execute("DELETE FROM gbanned"); c.connection.commit(); c.connection.close()
-    bot.send_message(m.chat.id, "✅ تم مسح قائمة الحظر العام")
+    elif t == "❌ مسح قائمة العام":
+        c=sqlite3.connect(DB_FILE).cursor(); c.execute("DELETE FROM gbanned"); c.connection.commit(); c.connection.close()
+        bot.send_message(m.chat.id, "✅ تم مسح قائمة الحظر العام")
 
-@bot.message_handler(commands=['contactoff'], chat_types=['private'])
-def cmd_contactoff(m):
-    if not is_main_dev(m.from_user.id): return
-    global contact_status; contact_status = False
-    bot.send_message(m.chat.id, "📵 تم تعطيل التواصل")
+    elif t == "✏️ تغير اسم البوت":
+        waiting[uid] = "change_name"; bot.send_message(m.chat.id, "ارسل الاسم الجديد")
 
-@bot.message_handler(commands=['contacton'], chat_types=['private'])
-def cmd_contacton(m):
-    if not is_main_dev(m.from_user.id): return
-    global contact_status; contact_status = True
-    bot.send_message(m.chat.id, "✅ تم تفعيل التواصل")
+    elif t == "📵 تعطيل التواصل":
+        contact_status = False
+        bot.send_message(m.chat.id, "📵 تم تعطيل التواصل")
 
-@bot.message_handler(commands=['backup'], chat_types=['private'])
-def cmd_backup(m):
-    if not is_main_dev(m.from_user.id): return
-    bot.send_document(m.chat.id, open(DB_FILE, 'rb'), caption="💾 النسخة الاحتياطية")
+    elif t == "✅ تفعيل التواصل":
+        contact_status = True
+        bot.send_message(m.chat.id, "✅ تم تفعيل التواصل")
 
-@bot.message_handler(commands=['restart'], chat_types=['private'])
-def cmd_restart(m):
-    if not is_main_dev(m.from_user.id): return
-    bot.send_message(m.chat.id, "🔄 جاري التحديث..."); time.sleep(1); bot.send_message(m.chat.id, "✅ تم تحديث الملفات")
+    elif t == "💾 جلب النسخه الاحتياطيه":
+        bot.send_document(m.chat.id, open(DB_FILE, 'rb'), caption="💾 النسخة الاحتياطية")
 
-@bot.message_handler(commands=['botstop'], chat_types=['private'])
-def cmd_botstop(m):
-    if not is_main_dev(m.from_user.id): return
-    global bot_status; bot_status = False
-    bot.send_message(m.chat.id, "🔴 تم تعطيل البوت الخدمي")
+    elif t == "🔄 تحديث الملفات":
+        bot.send_message(m.chat.id, "🔄 جاري التحديث..."); time.sleep(1); bot.send_message(m.chat.id, "✅ تم تحديث الملفات")
 
-@bot.message_handler(commands=['botstart'], chat_types=['private'])
-def cmd_botstart(m):
-    if not is_main_dev(m.from_user.id): return
-    global bot_status; bot_status = True
-    bot.send_message(m.chat.id, "⚡ تم تفعيل البوت الخدمي")
+    elif t == "🔴 تعطيل البوت الخدمي":
+        bot_status = False
+        bot.send_message(m.chat.id, "🔴 تم تعطيل البوت الخدمي")
 
-@bot.message_handler(commands=['addwelcome'], chat_types=['private'])
-def cmd_addwelcome(m):
-    if not is_main_dev(m.from_user.id): return
-    waiting[m.from_user.id] = "add_welcome"
-    bot.send_message(m.chat.id, "ارسل نص الترحيب الجديد\nتقدر تستخدم: {name} للاسم")
+    elif t == "⚡ تفعيل البوت" or t == "▶️ تفعيل البوت الخدمي":
+        bot_status = True
+        bot.send_message(m.chat.id, "⚡ تم تفعيل البوت الخدمي")
 
-@bot.message_handler(commands=['adddev'], chat_types=['private'])
-def cmd_adddev(m):
-    if not is_main_dev(m.from_user.id): return
-    waiting[m.from_user.id] = "add_dev"
-    bot.send_message(m.chat.id, "ارسل ايدي المطور الثانوي")
+    elif t == "⚙️ اظهار _ اخفاء _ قائمة اعداد البوت":
+        bot.send_message(m.chat.id, "استخدم /start لاظهار الكيبورد مرة اخرى")
 
-@bot.message_handler(commands=['addreply'], chat_types=['private'])
-def cmd_addreply(m):
-    if not is_main_dev(m.from_user.id): return
-    waiting[m.from_user.id] = "add_g_reply"
-    bot.send_message(m.chat.id, "ارسل: الكلمة - الرد")
+    elif t == "➕ رفع مطور":
+        waiting[uid] = "add_dev"; bot.send_message(m.chat.id, "ارسل ايدي المطور الثانوي")
 
-@bot.message_handler(commands=['replies'], chat_types=['private'])
-def cmd_replies(m):
-    if not is_main_dev(m.from_user.id): return
-    c=sqlite3.connect(DB_FILE).cursor(); c.execute("SELECT word FROM g_reply"); r=c.fetchall(); c.connection.close()
-    if not r: bot.send_message(m.chat.id, "📜 لا توجد ردود عامة")
-    else:
-        text = "📜 **الردود العامة:**\n" + "\n".join([f"- `{x[0]}`" for x in r])
-        bot.send_message(m.chat.id, text, parse_mode="Markdown")
+    elif t == "👋 اضف ترحيب":
+        waiting[uid] = "add_welcome"; bot.send_message(m.chat.id, "ارسل نص الترحيب الجديد\nتقدر تستخدم: {name} للاسم")
 
-@bot.message_handler(commands=['setchannel'], chat_types=['private'])
-def cmd_setchannel(m):
-    if not is_main_dev(m.from_user.id): return
-    waiting[m.from_user.id] = "change_channel"
-    current = get_setting('channel')
-    bot.send_message(m.chat.id, f"📢 القناة الحالية: {current}\nارسل يوزر القناة الجديد مع @")
+    elif t == "📝 اضف رد عام":
+        waiting[uid] = "add_g_reply"; bot.send_message(m.chat.id, "ارسل: الكلمة - الرد")
 
-@bot.message_handler(commands=['help'], chat_types=['private'])
-def cmd_help(m):
-    if not is_main_dev(m.from_user.id): return
-    bot.send_message(m.chat.id, "اكتب /start لعرض كل الاوامر")
+    elif t == "📜 الردود العامه":
+        c=sqlite3.connect(DB_FILE).cursor(); c.execute("SELECT word FROM g_reply"); r=c.fetchall(); c.connection.close()
+        if not r: bot.send_message(m.chat.id, "📜 لا توجد ردود عامة")
+        else:
+            text = "📜 **الردود العامة:**\n" + "\n".join([f"- `{x[0]}`" for x in r])
+            bot.send_message(m.chat.id, text, parse_mode="Markdown")
 
-@bot.message_handler(func=lambda m: m.from_user.id in waiting, chat_types=['private'])
-def wait_handler(m):
-    global bot_name, MAIN_DEV_ID
-    act = waiting.pop(m.from_user.id)
+    elif t == "📢 تغير قناة التحديثات":
+        waiting[uid] = "change_channel"
+        current = get_setting('channel')
+        bot.send_message(m.chat.id, f"📢 القناة الحالية: {current}\nارسل يوزر القناة الجديد مع @")
 
-    if act == "change_owner":
-        MAIN_DEV_ID = int(m.text)
-        bot.send_message(m.chat.id, f"✅ تم تغير المطور الاساسي الى {m.text}\nلازم تعمل اعادة تشغيل للبوت")
+    elif t == "🗑️ اخفاء الكيبورد":
+        bot.send_message(m.chat.id, "تم اخفاء الكيبورد", reply_markup=ReplyKeyboardRemove())
 
-    elif act == "change_name":
-        bot_name = m.text
-        bot.send_message(m.chat.id, f"✅ تم تغير اسم البوت الى {m.text}")
+    elif t.startswith("ذيع "):
+        waiting[uid] = ["broadcast_text", t.replace("ذيع ", "", 1)]
+        do_broadcast(m.chat.id, uid)
 
-    elif act == "change_channel":
-        ch = m.text.strip()
-        if not ch.startswith("@"):
-            return bot.send_message(m.chat.id, "❌ لازم تبدا بـ @\nمثال: @channelname")
-        set_setting('channel', ch)
-        bot.send_message(m.chat.id, f"✅ تم تغير قناة التحديثات الى {ch}")
+@bot.message_handler(content_types=['photo', 'forward'], func=lambda m: m.chat.type == 'private' and is_main_dev(m.from_user.id))
+def broadcast_media(m):
+    uid = m.from_user.id
+    if m.content_type == 'photo' and m.caption and m.caption.startswith("ذيع"):
+        waiting[uid] = ["broadcast_photo", m.photo[-1].file_id, m.caption.replace("ذيع", "", 1)]
+        do_broadcast(m.chat.id, uid)
+    elif m.content_type == 'forward' and m.text and m.text.startswith("ذيع"):
+        waiting[uid] = ["broadcast_forward", m.forward_from_message_id, m.chat.id]
+        do_broadcast(m.chat.id, uid)
 
-    elif act == "add_welcome":
-        c=sqlite3.connect(DB_FILE).cursor(); c.execute("DELETE FROM welcome"); c.execute("INSERT INTO welcome VALUES (?)",(m.text,)); c.connection.commit(); c.connection.close()
-        bot.send_message(m.chat.id, "✅ تم حفظ الترحيب\nسيظهر عند /start")
-
-    elif act == "add_dev":
-        c=sqlite3.connect(DB_FILE).cursor(); c.execute("INSERT OR IGNORE INTO devs VALUES (?)",(int(m.text),)); c.connection.commit(); c.connection.close()
-        bot.send_message(m.chat.id, f"✅ تم رفع {m.text} كمطور ثانوي")
-
-    elif act == "add_g_reply":
-        try:
-            word, reply = m.text.split(" - ", 1)
-            c=sqlite3.connect(DB_FILE).cursor(); c.execute("INSERT OR REPLACE INTO g_reply VALUES (?,?)",(word, reply)); c.connection.commit(); c.connection.close()
-            bot.send_message(m.chat.id, f"✅ تم اضافة رد عام\nالكلمة: {word}")
-        except:
-            bot.send_message(m.chat.id, "❌ الصيغة خطأ\nارسل: الكلمة - الرد")
-
-@bot.message_handler(func=lambda m: m.chat.type == 'private' and is_main_dev(m.from_user.id) and m.text.startswith("ذيع "))
-def broadcast_text(m):
-    do_broadcast(m.chat.id, ["broadcast_text", m.text.replace("ذيع ", "", 1)])
-
-@bot.message_handler(content_types=['photo'], func=lambda m: m.chat.type == 'private' and is_main_dev(m.from_user.id) and m.caption and m.caption.startswith("ذيع"))
-def broadcast_photo(m):
-    do_broadcast(m.chat.id, ["broadcast_photo", m.photo[-1].file_id, m.caption.replace("ذيع", "", 1)])
-
-@bot.message_handler(content_types=['forward'], func=lambda m: m.chat.type == 'private' and is_main_dev(m.from_user.id) and m.text and m.text.startswith("ذيع"))
-def broadcast_forward(m):
-    do_broadcast(m.chat.id, ["broadcast_forward", m.forward_from_message_id, m.chat.id])
-
-def do_broadcast(chat_id, data):
+def do_broadcast(chat_id, uid):
+    data = waiting.pop(uid)
     groups = get_groups()
     count = 0
     bot.send_message(chat_id, f"🔄 جاري الاذاعة لـ {len(groups)} قروب...")
@@ -255,6 +180,49 @@ def do_broadcast(chat_id, data):
             count += 1
         except: pass
     bot.send_message(chat_id, f"✅ تم الاذاعة بنجاح لـ {count} قروب")
+
+@bot.message_handler(func=lambda m: m.from_user.id in waiting)
+def wait_handler(m):
+    global bot_name, MAIN_DEV_ID
+    act = waiting.get(m.from_user.id)
+    if not act: return
+
+    if act == "change_owner":
+        waiting.pop(m.from_user.id)
+        MAIN_DEV_ID = int(m.text)
+        bot.send_message(m.chat.id, f"✅ تم تغير المطور الاساسي الى {m.text}\nلازم تعمل اعادة تشغيل للبوت")
+
+    elif act == "change_name":
+        waiting.pop(m.from_user.id)
+        bot_name = m.text
+        bot.send_message(m.chat.id, f"✅ تم تغير اسم البوت الى {m.text}")
+
+    elif act == "change_channel":
+        waiting.pop(m.from_user.id)
+        ch = m.text.strip()
+        if not ch.startswith("@"):
+            return bot.send_message(m.chat.id, "❌ لازم تبدا بـ @\nمثال: @channelname")
+        set_setting('channel', ch)
+        bot.send_message(m.chat.id, f"✅ تم تغير قناة التحديثات الى {ch}")
+
+    elif act == "add_welcome":
+        waiting.pop(m.from_user.id)
+        c=sqlite3.connect(DB_FILE).cursor(); c.execute("DELETE FROM welcome"); c.execute("INSERT INTO welcome VALUES (?)",(m.text,)); c.connection.commit(); c.connection.close()
+        bot.send_message(m.chat.id, "✅ تم حفظ الترحيب\nسيظهر عند /start")
+
+    elif act == "add_dev":
+        waiting.pop(m.from_user.id)
+        c=sqlite3.connect(DB_FILE).cursor(); c.execute("INSERT OR IGNORE INTO devs VALUES (?)",(int(m.text),)); c.connection.commit(); c.connection.close()
+        bot.send_message(m.chat.id, f"✅ تم رفع {m.text} كمطور ثانوي")
+
+    elif act == "add_g_reply":
+        waiting.pop(m.from_user.id)
+        try:
+            word, reply = m.text.split(" - ", 1)
+            c=sqlite3.connect(DB_FILE).cursor(); c.execute("INSERT OR REPLACE INTO g_reply VALUES (?,?)",(word, reply)); c.connection.commit(); c.connection.close()
+            bot.send_message(m.chat.id, f"✅ تم اضافة رد عام\nالكلمة: {word}")
+        except:
+            bot.send_message(m.chat.id, "❌ الصيغة خطأ\nارسل: الكلمة - الرد")
 
 @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'])
 def group_handler(m):
