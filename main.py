@@ -12,6 +12,7 @@ waiting = {}
 bot_name = "بوتك"
 contact_status = True
 bot_status = True
+update_channel = "@yourchannel" # القناة الافتراضية
 
 def init_db():
     c = sqlite3.connect(DB_FILE).cursor()
@@ -20,8 +21,17 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS gbanned (user_id INTEGER PRIMARY KEY)")
     c.execute("CREATE TABLE IF NOT EXISTS welcome (text TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS g_reply (word TEXT PRIMARY KEY, reply TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)") # جدول الاعدادات
+    c.execute("INSERT OR IGNORE INTO settings VALUES ('channel', '@yourchannel')")
     c.connection.commit(); c.connection.close()
 init_db()
+
+def get_setting(key):
+    c=sqlite3.connect(DB_FILE).cursor(); c.execute("SELECT value FROM settings WHERE key=?",(key,)); r=c.fetchone(); c.connection.close()
+    return r[0] if r else None
+
+def set_setting(key, value):
+    c=sqlite3.connect(DB_FILE).cursor(); c.execute("INSERT OR REPLACE INTO settings VALUES (?,?)",(key,value)); c.connection.commit(); c.connection.close()
 
 def is_main_dev(u): return u == MAIN_DEV_ID
 def get_devs():
@@ -44,7 +54,7 @@ def kb_private():
     k.row(KeyboardButton("⚙️ اظهار _ اخفاء _ قائمة اعداد البوت"))
     k.row(KeyboardButton("👋 اضف ترحيب"), KeyboardButton("➕ رفع مطور"))
     k.row(KeyboardButton("📝 اضف رد عام"), KeyboardButton("📜 الردود العامه"))
-    k.row(KeyboardButton("📢 قناه تحديثات البوت"))
+    k.row(KeyboardButton("📢 تغير قناة التحديثات")) # الزر الجديد
     k.row(KeyboardButton("🗑️ اخفاء الكيبورد"))
     return k
 
@@ -63,7 +73,8 @@ def handle_dev(m):
 
     if t == "⚙️ إعدادات البوت":
         g = len(get_groups())
-        bot.send_message(m.chat.id, f"⚙️ اسم البوت: {bot_name}\nالقروبات: {g}\nالمطورين: {len(get_devs())}\nالحالة: {'شغال' if bot_status else 'متوقف'}")
+        ch = get_setting('channel')
+        bot.send_message(m.chat.id, f"⚙️ اسم البوت: {bot_name}\nالقروبات: {g}\nالمطورين: {len(get_devs())}\nقناة التحديثات: {ch}\nالحالة: {'شغال' if bot_status else 'متوقف'}")
 
     elif t == "📢 أوامر الإذاعة":
         bot.send_message(m.chat.id, "📢 اوامر الاذاعة:\n1. `ذيع + النص` = اذاعة نص\n2. ارسل صورة + اكتب `ذيع` = اذاعة صورة\n3. سوي توجيه لرسالة + اكتب `ذيع` = اذاعة توجيه", parse_mode="Markdown")
@@ -131,8 +142,10 @@ def handle_dev(m):
             text = "📜 **الردود العامة:**\n" + "\n".join([f"- `{x[0]}`" for x in r])
             bot.send_message(m.chat.id, text, parse_mode="Markdown")
 
-    elif t == "📢 قناه تحديثات البوت":
-        bot.send_message(m.chat.id, "📢 قناة التحديثات: @yourchannel")
+    elif t == "📢 تغير قناة التحديثات": # الامر الجديد
+        waiting[uid] = "change_channel";
+        current = get_setting('channel')
+        bot.send_message(m.chat.id, f"📢 القناة الحالية: {current}\nارسل يوزر القناة الجديد مع @")
 
     elif t == "🗑️ اخفاء الكيبورد":
         bot.send_message(m.chat.id, "تم اخفاء الكيبورد", reply_markup=ReplyKeyboardRemove())
@@ -184,6 +197,10 @@ def wait_handler(m):
         bot_name = m.text
         bot.send_message(m.chat.id, f"✅ تم تغير اسم البوت الى {m.text}")
 
+    elif act == "change_channel": # حفظ القناة الجديدة
+        set_setting('channel', m.text)
+        bot.send_message(m.chat.id, f"✅ تم تغير قناة التحديثات الى {m.text}")
+
     elif act == "add_welcome":
         c=sqlite3.connect(DB_FILE).cursor(); c.execute("DELETE FROM welcome"); c.execute("INSERT INTO welcome VALUES (?)",(m.text,)); c.connection.commit(); c.connection.close()
         bot.send_message(m.chat.id, "✅ تم حفظ الترحيب\nسيظهر عند /start")
@@ -202,12 +219,10 @@ def wait_handler(m):
 
 @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'])
 def group_handler(m):
-    # حفظ القروب تلقائي
     c=sqlite3.connect(DB_FILE).cursor()
     c.execute("INSERT OR IGNORE INTO groups VALUES (?)",(m.chat.id,))
     c.connection.commit(); c.connection.close()
 
-    # الردود العامة
     if bot_status and m.text:
         c=sqlite3.connect(DB_FILE).cursor(); c.execute("SELECT reply FROM g_reply WHERE word=?",(m.text,)); r=c.fetchone(); c.connection.close()
         if r: bot.reply_to(m, r[0])
