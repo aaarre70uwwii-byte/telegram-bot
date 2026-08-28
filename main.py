@@ -3,13 +3,13 @@ import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 print("======== بدء تشغيل البوت ========")
-print("BOT_TOK =", "موجود ✅" if os.getenv("BOT_TOK") else "فاضي ❌")
-print("==================================")
-
 TOKEN = os.getenv("BOT_TOK")
+
 if not TOKEN:
-    print("❌ وقف: BOT_TOK فاضي")
+    print("❌ خطأ: BOT_TOK غير موجود في المتغيرات")
     exit()
+else:
+    print("✅ BOT_TOK تم تحميله بنجاح")
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -29,8 +29,9 @@ def main_menu(page=1):
         k.row(InlineKeyboardButton("4", callback_data="page_4"),InlineKeyboardButton("5", callback_data="page_5"),InlineKeyboardButton("6", callback_data="page_6"))
     else:
         text = f"<b>✨ القسم {page} :𝐓𝐢𝐚</b>\n<b>━━━━━━━━━━━━</b>\nقريباً\n<b>━━━━━━━━━━━━</b>"
-        k.row(*[InlineKeyboardButton("فارغ", callback_data="empty") for _ in range(3)])
-        k.row(*[InlineKeyboardButton("فارغ", callback_data="empty") for _ in range(3)])
+        k.row(*[InlineKeyboardButton("-", callback_data="empty") for _ in range(3)])
+        k.row(*[InlineKeyboardButton("-", callback_data="empty") for _ in range(3)])
+
     k.row(InlineKeyboardButton("📢 تحديثات 𝐓𝐢𝐚", url="https://t.me/eeccvu"))
     next_page = page + 1 if page < 6 else 1
     prev_page = page - 1 if page > 1 else 6
@@ -43,7 +44,7 @@ def main_menu(page=1):
 def group_start(m):
     menu, text = main_menu(1)
     if m.text.strip() in ["تفعيل", "تفعيل الجروب"]:
-        text = f"<b>✅ تم تفعيل المجموعة بنجاح</b>\n\n{text}" # زي ما طلبت
+        text = f"<b>✅ تم تفعيل المجموعة بنجاح</b>\n\n{text}"
     bot.send_message(m.chat.id, text, reply_markup=menu, parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -52,10 +53,13 @@ def callback_handler(call):
         page = int(call.data.split("_")[1])
         menu, text = main_menu(page)
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=menu, parse_mode="HTML")
-    elif call.data == "empty": bot.answer_callback_query(call.id, "🔒 قريباً")
+    elif call.data == "empty":
+        bot.answer_callback_query(call.id, "🔒 قريباً")
     elif call.data == "hide":
-        try: bot.delete_message(call.message.chat.id, call.message.message_id)
-        except: pass
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except:
+            pass
     bot.answer_callback_query(call.id)
 
 print("✅ البوت اشتغل")
