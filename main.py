@@ -2,86 +2,123 @@ import telebot
 import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# يقرا اي اسم منهم عشان ما نغير في Railway
-TOKEN = os.getenv("BOT_TOKEN") or os.getenv("BOT_TOK") or os.getenv("TOKEN")
+# نفس اسماء المتغيرات اللي عندك
+TOKEN = os.getenv("BOT_TOK")
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
-OWNER_ID = os.getenv("OWNER_ID")
+OWNER_ID = os.getenv("OWNER_ID") # خليته بس لو احتجناه بعدين
 
 if not TOKEN:
-    print("❌ خطأ: ما لقيت التوكن. المتغيرات المتاحة:", list(os.environ.keys()))
+    print("❌ خطأ: BOT_TOK فاضي")
     exit()
 
 bot = telebot.TeleBot(TOKEN)
 API_ID = int(API_ID) if API_ID else 0
-OWNER_ID = int(OWNER_ID) if OWNER_ID else 0
 
 def is_admin(chat_id, user_id):
     try:
         member = bot.get_chat_member(chat_id, user_id)
+        # اي ادمن او المالك
         return member.status in ['administrator', 'creator']
     except:
         return False
 
 def main_menu(page=1):
     k = InlineKeyboardMarkup(row_width=3)
-    icons = ["💎", "👑", "⚡", "🔥", "🌟", "🖤"]
-    k.row(
-        InlineKeyboardButton(f"{icons[0]} القسم {page}-1", callback_data=f"p{page}_1"),
-        InlineKeyboardButton(f"{icons[1]} القسم {page}-2", callback_data=f"p{page}_2"),
-        InlineKeyboardButton(f"{icons[2]} القسم {page}-3", callback_data=f"p{page}_3"),
-    )
-    k.row(
-        InlineKeyboardButton(f"{icons[3]} القسم {page}-4", callback_data=f"p{page}_4"),
-        InlineKeyboardButton(f"{icons[4]} القسم {page}-5", callback_data=f"p{page}_5"),
-        InlineKeyboardButton(f"{icons[5]} القسم {page}-6", callback_data=f"p{page}_6"),
-    )
-    k.row(InlineKeyboardButton("📢 تحديثات 𝐓𝐢𝐚 @eeccvu", url="https://t.me/eeccvu"))
+
+    if page == 1:
+        text = """- ‌‌‏أهلاً بك عزيزي في قائمة الاوامر :𝐓𝐢𝐚
+━━━━━━━━━━━━
+◂ م1 : اوامر الادمنيه
+◂ م2 : اوامر الاعدادات
+◂ م3 : اوامر القفل - الفتح
+◂ م4 : اوامر التسليه
+◂ م5 : اوامر Dev
+◂ م6 : الاوامر الخدميه
+━━━━━━━━━━━━"""
+        k.row(
+            InlineKeyboardButton("1", callback_data="page_1"),
+            InlineKeyboardButton("2", callback_data="page_2"),
+            InlineKeyboardButton("3", callback_data="page_3"),
+        )
+        k.row(
+            InlineKeyboardButton("4", callback_data="page_4"),
+            InlineKeyboardButton("5", callback_data="page_5"),
+            InlineKeyboardButton("6", callback_data="page_6"),
+        )
+    else:
+        text = f"""<b>✨ القسم {page} :𝐓𝐢𝐚</b>
+<b>━━━━━━━━━━━━</b>
+قريباً سيتم اضافة اوامر القسم {page}
+<b>━━━━━━━━━━━━</b>"""
+        k.row(
+            InlineKeyboardButton("فارغ", callback_data="empty"),
+            InlineKeyboardButton("فارغ", callback_data="empty"),
+            InlineKeyboardButton("فارغ", callback_data="empty"),
+        )
+        k.row(
+            InlineKeyboardButton("فارغ", callback_data="empty"),
+            InlineKeyboardButton("فارغ", callback_data="empty"),
+            InlineKeyboardButton("فارغ", callback_data="empty"),
+        )
+
+    k.row(InlineKeyboardButton("📢 تحديثات 𝐓𝐢𝐚", url="https://t.me/eeccvu"))
+
     next_page = page + 1 if page < 6 else 1
     prev_page = page - 1 if page > 1 else 6
+
     k.row(
         InlineKeyboardButton("◀️ السابق", callback_data=f"page_{prev_page}"),
-        InlineKeyboardButton(f"📄 {page}/6", callback_data="info"),
+        InlineKeyboardButton("🏠 الرئيسية", callback_data="page_1"),
         InlineKeyboardButton("التالي ▶️", callback_data=f"page_{next_page}")
     )
-    k.row(InlineKeyboardButton("🗑️ اخفاء القائمة", callback_data="hide"))
-    return k
+    k.row(InlineKeyboardButton("🗑️ اخفاء الاوامر", callback_data="hide"))
+    return k, text
 
-@bot.message_handler(commands=['start','help'], chat_types=['group','supergroup'])
-@bot.message_handler(func=lambda m: m.text and m.text.strip() in ["تفعيل", "تفعيل الجروب"], chat_types=['group','supergroup'])
+@bot.message_handler(commands=['start','help','اوامر'], chat_types=['group','supergroup','channel'])
+@bot.message_handler(func=lambda m: m.text and m.text.strip() in ["تفعيل", "تفعيل الجروب", "الاوامر"], chat_types=['group','supergroup','channel'])
 def group_start(m):
+    # اي ادمن يقدر يستخدمه
     if not is_admin(m.chat.id, m.from_user.id):
         return bot.reply_to(m, "❌ | عذراً، هذا الامر للادمنية فقط")
-    text = f"""<b>✅ تم تفعيل الجروب بنجاح</b>
-<b>✨ هلا بقائمه اوامر 𝐓𝐢𝐚 ✨</b>
-<b>━━━━━━━━━━━━</b>
-مرحباً بك في لوحة التحكم الملكية
-اختر القسم المناسب من الازرار ادناه
-<b>━━━━━━━━━━━━</b>"""
-    bot.send_message(m.chat.id, text, reply_markup=main_menu(1), parse_mode="HTML")
+
+    menu, text = main_menu(1)
+    if m.text and m.text.strip() in ["تفعيل", "تفعيل الجروب"]:
+        text = f"<b>✅ تم تفعيل بنجاح</b>\n\n{text}"
+
+    bot.send_message(m.chat.id, text, reply_markup=menu, parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     chat_id = call.message.chat.id
     msg_id = call.message_id
+
+    # اي ادمن يقدر يضغط على الازرار
     if not is_admin(chat_id, call.from_user.id):
         return bot.answer_callback_query(call.id, "❌ | للادمنية فقط", show_alert=True)
+
     data = call.data
-    if data.startswith("p"):
-        bot.answer_callback_query(call.id, "🔒 قريباً", show_alert=True)
-    elif data.startswith("page_"):
+
+    if data.startswith("page_"):
         page = int(data.split("_")[1])
-        text = f"""<b>✨ هلا بقائمه اوامر 𝐓𝐢𝐚 ✨</b>
-<b>━━━━━━━━━━━━</b>
-مرحباً بك في لوحة التحكم الملكية
-اختر القسم المناسب من الازرار ادناه
-<b>━━━━━━━━━━━━</b>"""
-        bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=text, reply_markup=main_menu(page), parse_mode="HTML")
+        menu, text = main_menu(page)
+        bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=msg_id,
+            text=text,
+            reply_markup=menu,
+            parse_mode="HTML"
+        )
         bot.answer_callback_query(call.id)
-    elif data == "info":
-        bot.answer_callback_query(call.id, f"انت في الصفحة", show_alert=False)
+
+    elif data == "empty":
+        bot.answer_callback_query(call.id, "🔒 قريباً", show_alert=False)
+
     elif data == "hide":
-        bot.delete_message(chat_id, msg_id)
-        bot.answer_callback_query(call.id, "✅ تم اخفاء القائمة")
+        try:
+            bot.delete_message(chat_id, msg_id)
+            bot.answer_callback_query(call.id, "✅ تم اخفاء الاوامر")
+        except:
+            bot.answer_callback_query(call.id, "❌ لا يمكن الحذف")
 
 bot.polling(none_stop=True, interval=0)
