@@ -1,3 +1,1 @@
-pyrogram
-tgcrypto
-python-dotenv
+pytelegrambotapi==4.14.0
