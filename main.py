@@ -1,54 +1,229 @@
 import os
 import time
+import random
+import sqlite3
 import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
-# 1. قراءة جميع المتغيرات الأربعة من بيئة Railway
+# ========================================================================
+# 1. تهيئة وقراءة متغيرات بيئة Railway البيئية
+# ========================================================================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = os.getenv("OWNER_ID")
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 
-# 2. التحقق الذكي من وجود المتغيرات لمنع السيرفر من العمل صامتاً
-missing_vars = []
-if not BOT_TOKEN: missing_vars.append("BOT_TOKEN")
-if not OWNER_ID: missing_vars.append("OWNER_ID")
-if not API_ID: missing_vars.append("API_ID")
-if not API_HASH: missing_vars.append("API_HASH")
+if not BOT_TOKEN or not OWNER_ID:
+    raise ValueError("⚠️ خطأ حرجي: المتغيرات الأساسية BOT_TOKEN أو OWNER_ID مفقودة في إعدادات Railway!")
 
-if missing_vars:
-    raise ValueError(f"⚠️ خطأ: المتغيرات البيئية التالية مفقودة في إعدادات Railway: {', '.join(missing_vars)}")
-
-# 3. إنشاء كائن البوت الرئيسي مع تفعيل ميزة الاسترداد المدمجة للأخطاء الداخلية
+# إنشاء البوت مع معالج استثنائيات لامتصاص الأخطاء الداخلية ومنع التحطم
 bot = telebot.TeleBot(BOT_TOKEN, exception_handler=telebot.ExceptionHandler())
 
-# 4. استدعاء وتنشيط الملفات الفرعية للأوامر والكيبورد معاً
-try:
-    import main_menu
-    import dev_keyboard
+# ========================================================================
+# 2. إنشاء وتجهيز قاعدة البيانات الثابتة (SQLite)
+# ========================================================================
+DB_FILE = "bot_database.db"
 
-    # تفعيل الهاندلرز والتصاريح للملفين دون أي تداخل
-    main_menu.register_handlers(bot)
-    dev_keyboard.register_handlers(bot)
-    print("✅ تم استدعاء وتأمين ملف قائمة الأوامر (main_menu) وملف كيبورد المطور (dev_keyboard) بنجاح!")
-    
-except ImportError as e:
-    raise ImportError(f"⚠️ خطأ في البناء: تأكد من وجود ملفات main_menu.py و dev_keyboard.py بجانب هذا الملف الرئيسي. التفاصيل: {e}")
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS group_settings (
+        chat_id TEXT PRIMARY KEY, link TEXT, rules TEXT, welcome TEXT, download_enabled INTEGER
+    )""")
+    cursor.execute("CREATE TABLE IF NOT EXISTS global_restrictions (user_id TEXT PRIMARY KEY, type TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS group_roles (chat_id TEXT, user_id TEXT, role_name TEXT, PRIMARY KEY (chat_id, user_id))")
+    cursor.execute("CREATE TABLE IF NOT EXISTS chat_locks (chat_id TEXT, lock_name TEXT, is_locked INTEGER, PRIMARY KEY (chat_id, lock_name))")
+    conn.commit()
+    conn.close()
 
-# 5. حلقة التشغيل اللانهائية المقاومة للتحطم كلياً (Crash Protection)
-if __name__ == "__main__":
-    print("🚀 نظام التشغيل الآمن والمقاوم للتحطم مُفعل وجاهز للعمل على Railway!")
+init_db()
+
+# دالات إدارة قاعدة البيانات وحفظ الحالات تلقائياً
+def set_lock_status(chat_id, lock_name, is_locked):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO chat_locks VALUES (?, ?, ?)", (str(chat_id), lock_name, 1 if is_locked else 0))
+    conn.commit()
+    conn.close()
+
+def get_lock_status(chat_id, lock_name):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT is_locked FROM chat_locks WHERE chat_id=? AND lock_name=?", (str(chat_id), lock_name))
+    res = cursor.fetchone()
+    conn.close()
+    return res[0] == 1 if res else False
+
+def check_global_restriction(user_id, r_type):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT type FROM global_restrictions WHERE user_id=?", (str(user_id),))
+    res = cursor.fetchone()
+    conn.close()
+    return res[0] == r_type if res else False
+
+# مخزن الهمسات المؤقت في الذاكرة لضمان السرعة
+WHISPERS = {}
+
+# ========================================================================
+# 3. نصوص الصفحات والأقسام من 1 إلى 7
+# ========================================================================
+MAIN_MENU_TEXT = """- ‌‌‏أهلاً بك عزيزي في قائمة الاوامر :
+━━━━━━━━━━━━
+◂ م1 : اوامر الادمنيه
+◂ م2 : اوامر الاعدادات
+◂ م3 : اوامر القفل - الفتح
+◂ م4 : اوامر التسليه
+◂ م5 : اوامر Dev
+◂ م6 : الاوامر الخدميه 
+◂ م7 : اوامر الهمسات والميديا
+━━━━━━━━━━━━"""
+
+PAGES_TEXT = {
+    "1": """• أهلاً بك عزيزي في قائمة اوامر الادمنيه
+━━━━━━━━━━━━ 
+- اوامر الرفع والتنزيل :
+• رفع - تنزيل مالك اساسي | • رفع - تنزيل مالك
+• رفع - تنزيل مشرف | • رفع - تنزيل منشئ
+• رفع - تنزيل مدير | • رفع - تنزيل ادمن
+• رفع - تنزيل مميز | • تنزيل الكل
+
+- اوامر المسح :
+• مسح الكل | • مسح المنشئين | • مسح المدراء
+• مسح المالكين | • مسح الادمنيه | • مسح المميزين
+• مسح المحظورين | • مسح المكتومين | • مسح قائمه المنع
+• مسح الردود | • مسح + عدد | • مسح بالرد
+
+- اوامر الطرد والحظر :
+• تقييد + الوقت | • حظر | • طرد | • كتم
+• الغاء الحظر | • الغاء الكتم | • فك التقييد | • طرد البوتات
+━━━━━━━━━━━━""",
+    "2": """- اهلا بك في قائمة اوامر الاعدادات :
+━━━━━━━━━━━━ 
+• الرابط | • المالكين | • المنشئين | • الادمنيه | • المدراء
+• القوانين | • معلوماتي | • الحمايه | • الاعدادت | • المجموعه
+- اوامر وضع الاعدادات :
+• وضع الترحيب | • وضع قوانين | • ضـع رابط | • انشاء رابط
+- اوامر التحميل :
+• تفعيل - تعطيل التحميل | • بحث + الاسم | • تيك + الرابط | • ساوند + الرابط
+━━━━━━━━━━━━""",
+    "3": """- اهلا بك في قائمة القفل - التعطيل :
+━━━━━━━━━━━━ 
+• قفل - فتح جمثون | • قفل - فتح السب | • قفل - فتح الكتابه
+• قفل - فتح الفيديو | • قفل - فتح الصور | • قفل - فتح الملصقات 
+• قفل - فتح الروابط | • قفل - فتح التاك | • قفل - فتح البوتات 
+• قفل البوتات بالطرد | •️ قفل - فتح التكرار | • قفل - فتح التوجيه 
+• قفل - فتح الكل | • قفل - فتح الروابط بالتقييد
+- اوامر التفعيل - التعطيل :
+• تفعيل - تعطيل الاذكار | • تفعيل - تعطيل التسليه 
+• تفعيل - تعطيل الترحيب | • تفعيل - تعطيل الردود
+━━━━━━━━━━━━""",
+    "4": """• اهلا بك عزيزي في قائمة اوامر التسليه :
+━━━━━━━━━━━━
+- رتب تسلية تظهر بالايدي :
+• رفع - تنزيل (هطف، بثر، حمار، كلب، عتوي، لحجي، خروف، خفيف)
+• رفع بقلبي : تنزيل من قلبي
+- رتب المجموعه والعام :
+• رفع + اسم اختياري | • مسح رتب التسليه | • رتب التسليه
+• رفع عام + اسم اختياري | • رتب التسليه عام
+- أنظمة تفاعلية :
+• طلاق - زواج | • زوجي - زوجتي | • تتزوجني
+• اكتموه (تصويت كتم ديمقراطي)
+━━━━━━━━━━━━""",
+    "5": """- اهلا بك عزيزي Dev (قائمة المطور)
+━━━━━━━━━━━━
+• اضف رد تواصل | • ترحيب البوت | • ردود التواصل
+• اسم بوتك + غادر | • تعطيل - تفعيل الزاجل
+• رفع - تنزيل Dev = مطور ثانوي
+• فتح - قفل الاحصائيات | • فتح - قفل حظر العام
+• حظر - كتم عام | • قائمه العام | • الغاء عام
+• مسح المحظورين عام | • مسح المكتومين عام
+• اضف رد عام | • مسح الردود العامه 
+• تحديث | • اعاده تشغيل - reload
+━━━━━━━━━━━━""",
+    "6": """• أهلاً بك في القائمة الخدمية العامة (م6) :
+━━━━━━━━━━━━
+• نسبه الحب | • نسبه الغباء | • تحبه | • شرايك في افتاري
+• صيح | • صيح + اليوزر | • شبيهي | • افتاره بالرد | • البايو بالرد
+• قوقل + كلمة البحث | • تطبيق + الاسم | • تحميل لعبه + الاسم
+• معنى + اسمك | • العمر + عمرك | • زخرف + اسمك | • ترجم + النص
+• قران | • اذكار | • شعر ، قصائد | • اقتباسات | • ثريد | • ميمز
+━━━━━━━━━━━━""",
+    "7": """• دليل أوامر الهمسات والميديا المتقدمة (م7) :
+━━━━━━━━━━━━
+🔒 **نظام الهمسات السرية الفوري:**
+• `همسه` أو `همسة` : بالرد على العضو لكتابة همسة سرية له.
+• `همسه` + [النص] + [@يوزر_العضو] : لإرسال همسة مباشرة دون رد.
+
+📥 **أدوات تحويل الصيغ بالرد على الميديا:**
+• تحويل فيديو إلى صوت (بصمة).
+• تحويل ميديا إلى متحركة (Gif).
+━━━━━━━━━━━━"""
+}
+
+# ========================================================================
+# 4. دالات لوحات المفاتيح (Keyboards)
+# ========================================================================
+
+def get_dev_reply_keyboard():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, placeholder="لوحة تحكم المطور الأساسي ⚙️")
+    markup.row(KeyboardButton("⚙️ إعدادات البوت"), KeyboardButton("📣 أوامر الإذاعة"), KeyboardButton("📊 قائمة العام"))
+    markup.row(KeyboardButton("👑 تغيير المطور الأساسي"), KeyboardButton("🔔 مسح المطورين"))
+    markup.row(KeyboardButton("🗑️ مسح اسم البوت"), KeyboardButton("❌ مسح قائمة العام"))
+    markup.row(KeyboardButton("✏️ تغيير اسم البوت"), KeyboardButton("👥 مسح المطورين الثانويين"))
+    markup.row(KeyboardButton("📴 تعطيل التواصل"), KeyboardButton("📦 جلب النسخة الاحتياطية"))
+    markup.row(KeyboardButton("📲 تفعيل التواصل"), KeyboardButton("🔄 تحديث الملفات"))
+    markup.row(KeyboardButton("🔴 تعطيل البوت الخدمي"), KeyboardButton("⚡ تفعيل البوت"))
+    markup.row(KeyboardButton("▶️ تفعيل البوت الخدمي"), KeyboardButton("👋 أضف ترحيب"), KeyboardButton("📢 قناة تحديثات البوت"))
+    return markup
+
+def create_inline_keyboard(current_page=None):
+    markup = InlineKeyboardMarkup()
+    btn1 = InlineKeyboardButton("1", callback_data="page_1")
+    btn2 = InlineKeyboardButton("2", callback_data="page_2")
+    btn3 = InlineKeyboardButton("3", callback_data="page_3")
+    btn4 = InlineKeyboardButton("4", callback_data="page_4")
+    btn5 = InlineKeyboardButton("5", callback_data="page_5")
+    btn6 = InlineKeyboardButton("6", callback_data="page_6")
+    btn7 = InlineKeyboardButton("7", callback_data="page_7")
     
-    while True:
+    markup.row(btn1, btn2, btn3, btn4)
+    markup.row(btn5, btn6, btn7)
+    
+    if current_page:
         try:
-            print("🤖 البوت متصل الآن بنجاح ويستقبل الأوامر...")
-            # infinity_polling يجبر البوت على إعادة الاتصال ذاتياً عند تحديثات خوادم تليجرام
-            bot.infinity_polling(
-                timeout=60, 
-                long_polling_timeout=30, 
-                restart_on_status_update=True
-            )
-        except Exception as e:
-            # عند حدوث أي خطأ شبكة خارجي أو انقطاع اتصال مؤقت
-            print(f"⚠️ تحذير: حدث خطأ غير متوقع في الاتصال: {e}")
-            print("🔄 جاري إعادة تشغيل السورس تلقائياً خلال 5 ثوانٍ دون توقف حاوية Railway...")
-            time.sleep(5)  # وقت انتظار أمان لمنع حظر التوكن من قِبل تليجرام
+            current_num = int(current_page)
+            prev_num = 7 if current_num == 1 else current_num - 1
+            next_num = 1 if current_num == 7 else current_num + 1
+            markup.row(InlineKeyboardButton("⬅️ السابق", callback_data=f"page_{prev_num}"), InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu"), InlineKeyboardButton("التالي ➡️", callback_data=f"page_{next_num}"))
+        except ValueError: pass
+            
+    markup.row(InlineKeyboardButton("تحديثات 𝐓𝐢α", url="https://t.me"))
+    return markup
+
+# ========================================================================
+# 5. معالجة وتدقيق العمليات والرادارات الحية وقفل الميديا
+# ========================================================================
+
+def is_user_admin(chat_id, user_id):
+    try:
+        if str(user_id) == str(OWNER_ID) or check_global_restriction(user_id, "secondary_dev"):
+            return True
+        member = bot.get_chat_member(chat_id, user_id)
+        return member.status in ['administrator', 'creator']
+    except Exception: return False
+
+@bot.message_handler(func=lambda message: message.text == "الاوامر" and message.chat.type in ["group", "supergroup"])
+def cmd_menu_groups(message):
+    bot.reply_to(message, MAIN_MENU_TEXT, reply_markup=create_inline_keyboard(), parse_mode="Markdown")
+
+@bot.channel_post_handler(func=lambda message: message.text == "الاوامر")
+def cmd_menu_channels(message):
+    bot.send_message(message.chat.id, MAIN_MENU_TEXT, reply_markup=create_inline_keyboard(), parse_mode="Markdown")
+
+@bot.message_handler(func=lambda message: message.text in ["مطور", "المطور", "/dev"] and message.chat.type == "private")
+def dev_private_keyboard(message):
+    if str(message.from_user.id) == str(OWNER_ID):
+        bot.send_message(message.chat.id, "👑 أهلاً بك يا مطوري؛ تم تثبيت لوحة التحكم بنجاح أسفل الشاشة:", reply_markup=get_dev_reply_keyboard())
+
