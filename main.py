@@ -16,7 +16,7 @@ API_HASH = os.getenv("API_HASH")
 if not BOT_TOKEN or not OWNER_ID:
     raise ValueError("⚠️ خطأ حرجي: المتغيرات الأساسية BOT_TOKEN أو OWNER_ID مفقودة في إعدادات Railway!")
 
-# إنشاء البوت مع معالج استثنائيات لامتصاص الأخطاء الداخلية ومنع التحطم
+# إنشاء البوت مع معالج استثنائيات لامتصاص الأخطاء الداخلية ومنع التحطم كلياً
 bot = telebot.TeleBot(BOT_TOKEN, exception_handler=telebot.ExceptionHandler())
 
 # ========================================================================
@@ -39,7 +39,7 @@ def init_db():
 
 init_db()
 
-# دالات إدارة قاعدة البيانات وحفظ الحالات تلقائياً
+# دالات مساعدة لإدارة وإدخال الحالات تلقائياً في قاعدة البيانات
 def set_lock_status(chat_id, lock_name, is_locked):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -63,11 +63,11 @@ def check_global_restriction(user_id, r_type):
     conn.close()
     return res[0] == r_type if res else False
 
-# مخزن الهمسات المؤقت في الذاكرة لضمان السرعة
+# مخزن الهمسات المؤقت في الذاكرة السريعة
 WHISPERS = {}
 
 # ========================================================================
-# 3. نصوص الصفحات والأقسام من 1 إلى 7
+# 3. نصوص الصفحات والأقسام الكاملة من 1 إلى 7
 # ========================================================================
 MAIN_MENU_TEXT = """- ‌‌‏أهلاً بك عزيزي في قائمة الاوامر :
 ━━━━━━━━━━━━
@@ -203,7 +203,7 @@ def create_inline_keyboard(current_page=None):
     return markup
 
 # ========================================================================
-# 5. معالجة وتدقيق العمليات والرادارات الحية وقفل الميديا
+# 5. معالجة وتدقيق صلاحيات الإشراف والتحكم
 # ========================================================================
 
 def is_user_admin(chat_id, user_id):
@@ -214,16 +214,16 @@ def is_user_admin(chat_id, user_id):
         return member.status in ['administrator', 'creator']
     except Exception: return False
 
-@bot.message_handler(func=lambda message: message.text == "الاوامر" and message.chat.type in ["group", "supergroup"])
+# أ) المجموعات والقنوات
+@bot.message_handler(func=lambda message: message.text in ["الاوامر", "قائمة الاوامر"] and message.chat.type in ["group", "supergroup"])
 def cmd_menu_groups(message):
     bot.reply_to(message, MAIN_MENU_TEXT, reply_markup=create_inline_keyboard(), parse_mode="Markdown")
 
-@bot.channel_post_handler(func=lambda message: message.text == "الاوامر")
+@bot.channel_post_handler(func=lambda message: message.text in ["الاوامر", "قائمة الاوامر"])
 def cmd_menu_channels(message):
     bot.send_message(message.chat.id, MAIN_MENU_TEXT, reply_markup=create_inline_keyboard(), parse_mode="Markdown")
 
-@bot.message_handler(func=lambda message: message.text in ["مطور", "المطور", "/dev"] and message.chat.type == "private")
-def dev_private_keyboard(message):
-    if str(message.from_user.id) == str(OWNER_ID):
-        bot.send_message(message.chat.id, "👑 أهلاً بك يا مطوري؛ تم تثبيت لوحة التحكم بنجاح أسفل الشاشة:", reply_markup=get_dev_reply_keyboard())
+@bot.message_handler(func=lambda message: message.text in ["تفعيل", "تفعيل الاوامر"] and message.chat.type in ["group", "supergroup"])
+def activate_system(message):
+    bot.reply_to(message, "⚙️ تم تفعيل البوت وتشغيل أنظمة المجموعات بنجاح! أرسل الآن كلمة `الاوامر` لفتح اللوحة الشفافة.", parse_mode="Markdown")
 
