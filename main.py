@@ -4,10 +4,12 @@ import sqlite3
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# === قراءة الإعدادات من المتغيرات البرمجية ===
-BOT_TOKEN = os.getenv("BOT_TOKEN", "ضع_توكن_البوت_هنا")
-MAIN_DEV_ID = int(os.getenv("MAIN_DEV_ID", 123456789))  # ضع آيدي حسابك التليجرام هنا
-BOT_NAME = "سورس"  # اسم البوت الافتراضي للمغادرة
+# === قراءة الإعدادات من المتغيرات البرمجية حق Railway ===
+BOT_TOKEN = os.getenv("BOT_TOKEN") # نفس اللي في الصورة
+MAIN_DEV_ID = int(os.getenv("OWNER_ID", 123456789)) # استخدمنا OWNER_ID بدل MAIN_DEV_ID
+API_ID = os.getenv("API_ID") # موجودة بس ما نستخدمها في telebot بس خليتها عشان ما نحذف شي
+API_HASH = os.getenv("API_HASH") # نفس الشي
+BOT_NAME = "سورس" # اسم البوت الافتراضي للمغادرة
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -40,7 +42,7 @@ init_db()
 def is_chat_activated(chat_id):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("SELECT 1 FROM activated_chats WHERE chat_id = ?", (chat_id,))
+    cursor.execute("SELECT 1 FROM activated_chats WHERE chat_id =?", (chat_id,))
     result = cursor.fetchone()
     conn.close()
     return result is not None
@@ -59,7 +61,7 @@ def activate_chat(chat_id):
 def deactivate_chat(chat_id):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM activated_chats WHERE chat_id = ?", (chat_id,))
+    cursor.execute("DELETE FROM activated_chats WHERE chat_id =?", (chat_id,))
     conn.commit()
     conn.close()
 
@@ -67,11 +69,11 @@ def deactivate_chat(chat_id):
 def get_balance(user_id):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("SELECT balance FROM bank WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT balance FROM bank WHERE user_id =?", (user_id,))
     result = cursor.fetchone()
     conn.close()
     if result:
-        return int(result[0])  # استخراج العنصر الرقمي الأول من الصف
+        return int(result[0]) # استخراج العنصر الرقمي الأول من الصف
     return 0
 
 def add_balance(user_id, amount):
@@ -79,13 +81,13 @@ def add_balance(user_id, amount):
     new_balance = current + amount
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO bank (user_id, balance) VALUES (?, ?)", (user_id, new_balance))
+    cursor.execute("INSERT OR REPLACE INTO bank (user_id, balance) VALUES (?,?)", (user_id, new_balance))
     conn.commit()
     conn.close()
     return new_balance
 
 # قاعدة بيانات مؤقتة للهمسات فقط
-whisper_database = {}   
+whisper_database = {}
 
 # قوائم ألعاب مدمجة
 KAT_QUESTIONS = [
@@ -166,6 +168,27 @@ M4_TEXT = "🎮 **قائمة اوامر التسليه (م4) :**\n━━━━�
 M5_TEXT = "👑 **قائمة أوامر المطور الأساسي (م5) :**\n━━━━━━━━━━━━━━━\n• ذيع + ايدي المجموعه (بالرد لإرسال إذاعة)\n• تحديث | اعاده تشغيل - reload\n• حظر عام | كتم عام | رفع وتنزيل Dev"
 M6_TEXT = "🛠️ **قائمة الاوامر الخدميه (م6) :**\n━━━━━━━━━━━━━━━\n• همسه (بالرد على شخص لرسالة سرية)\n• معنى + اسمك | العمر + عمرك\n• ترجمة | قران | اذكار | اقتباسات | ميمز | افلام"
 
+# === معالج ازرار م1 الى م6 - اضافة جديدة ===
+@bot.callback_query_handler(func=lambda call: call.data.startswith("show_m"))
+def handle_group_buttons(call):
+    chat_id = call.message.chat.id
+    msg_id = call.message.message_id
+    data = call.data
+
+    if data == "show_m1":
+        bot.edit_message_text(M1_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
+    elif data == "show_m2":
+        bot.edit_message_text(M2_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
+    elif data == "show_m3":
+        bot.edit_message_text(M3_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
+    elif data == "show_m4":
+        bot.edit_message_text(M4_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
+    elif data == "show_m5":
+        bot.edit_message_text(M5_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
+    elif data == "show_m6":
+        bot.edit_message_text(M6_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
+
+    bot.answer_callback_query(call.id)
 
 # === 3. معالج الخاص (لوحة المطور بالخاص تعمل تلقائياً) ===
 @bot.message_handler(commands=['start', 'panel'], chat_types=['private'])
@@ -175,10 +198,9 @@ def private_panel(message):
         return
     bot.send_message(
         message.chat.id,
-        f"🙋‍♂️ أهلاً بك عزيزي Dev في الخاص\n🛠️ هذه لوحة التحكم الخاصة بك للتحكم بالبنية التحتية لسورس البوت:",
+        f"🙋‍♂️ أهلاً بك عزي Dev في الخاص\n🛠️ هذه لوحة التحكم الخاصة بك للتحكم بالبنية التحتية لسورس البوت:",
         reply_markup=get_private_dev_keyboard()
     )
-
 
 # === 4. المعالج المركزي للجروبات والقنوات ===
 @bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup', 'channel'])
@@ -222,7 +244,7 @@ def handle_group_messages(message):
             return
         bot.send_message(
             chat_id,
-            "الاوامر\n- أهلاً بك عزيزي في قائمة الاوامر :\n━━━━━━━━━━━━━━━\n🔹 م1 : اوامر الادمنيه\n🔹 م2 : اوامر الاعدادات\n🔹 م3 : اوامر القفل - الفتح\n🔹 م4 : اوامر التسليه\n🔹 م5 : اوامر Dev\n🔹 م6 : الاوامر الخدميه\n━━━━━━━━━━━━━━━",
+            "الاوامر\n- أهلاً بك عزي في قائمة الاوامر :\n━━━━━━━━━━━━━━━\n🔹 م1 : اوامر الادمنيه\n🔹 م2 : اوامر الاعدادات\n🔹 م3 : اوامر القفل - الفتح\n🔹 م4 : اوامر التسليه\n🔹 م5 : اوامر Dev\n🔹 م6 : الاوامر الخدميه\n━━━━━━━━━━━━━━━",
             reply_markup=get_group_commands_keyboard(),
             reply_to_message_id=message.message_id
         )
@@ -248,3 +270,22 @@ def handle_group_messages(message):
 
     # الأيدي بالصورة وافتاري
     elif text in ["الايدي بالصوره", "افتاري"]:
+        try:
+            photos = bot.get_user_profile_photos(user_id, limit=1)
+            if photos.total_count > 0:
+                file_id = photos.photos[0][0].file_id
+                bal = get_balance(user_id)
+                caption = f"🆔 الايدي: `{user_id}`\n💰 الرصيد: `{bal}` ريال"
+                bot.send_photo(chat_id, file_id, caption=caption, parse_mode="Markdown")
+            else:
+                bot.reply_to(message, "❌ ما عندك صورة بروفايل")
+        except Exception as e:
+            bot.reply_to(message, "⚠️ صار خطأ في جلب الصورة")
+
+    else:
+        pass
+
+# === تشغيل البوت ===
+if __name__ == "__main__":
+    print("البوت شغال...")
+    bot.polling(none_stop=True)
