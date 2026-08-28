@@ -1,4 +1,13 @@
+import telebot
+import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+TOKEN = os.getenv("BOT_TOK")
+bot = telebot.TeleBot(TOKEN)
+
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+OWNER_ID = int(os.getenv("OWNER_ID"))
 
 def is_admin(chat_id, user_id):
     try:
@@ -23,7 +32,6 @@ def main_menu(page=1):
         InlineKeyboardButton(f"{icons[5]} القسم {page}-6", callback_data=f"p{page}_6"),
     )
 
-    # زر تحديثات 𝐓𝐢𝐚 @eeccvu
     k.row(InlineKeyboardButton("📢 تحديثات 𝐓𝐢𝐚 @eeccvu", url="https://t.me/eeccvu"))
 
     next_page = page + 1 if page < 6 else 1
@@ -38,12 +46,15 @@ def main_menu(page=1):
     k.row(InlineKeyboardButton("🗑️ اخفاء القائمة", callback_data="hide"))
     return k
 
+# امر التفعيل التلقائي + /start + /help
 @bot.message_handler(commands=['start','help'], chat_types=['group','supergroup'])
+@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["تفعيل", "تفعيل الجروب"], chat_types=['group','supergroup'])
 def group_start(m):
     if not is_admin(m.chat.id, m.from_user.id):
         return bot.reply_to(m, "❌ | عذراً، هذا الامر للادمنية فقط")
 
-    text = f"""<b>✨ هلا بقائمه اوامر 𝐓𝐢𝐚 ✨</b>
+    text = f"""<b>✅ تم تفعيل الجروب بنجاح</b>
+<b>✨ هلا بقائمه اوامر 𝐓𝐢𝐚 ✨</b>
 <b>━━━━━━━━━━━━</b>
 مرحباً بك في لوحة التحكم الملكية
 اختر القسم المناسب من الازرار ادناه
@@ -60,13 +71,13 @@ def callback_handler(call):
 
     data = call.data
 
-    if data.startswith("p"): # الازرار الفخمه
+    if data.startswith("p"):
         bot.answer_callback_query(call.id, "🔒 قريباً", show_alert=True)
 
-    elif data.startswith("page_"): # التالي والرجوع
+    elif data.startswith("page_"):
         page = int(data.split("_")[1])
         text = f"""<b>✨ هلا بقائمه اوامر 𝐓𝐢𝐚 ✨</b>
-<b>━━━━━━━━━━━━━━━━━━━━</b>
+<b>━━━━━━━━━━━━</b>
 مرحباً بك في لوحة التحكم الملكية
 اختر القسم المناسب من الازرار ادناه
 <b>━━━━━━━━━━━━</b>"""
@@ -79,9 +90,11 @@ def callback_handler(call):
         )
         bot.answer_callback_query(call.id)
 
-    elif data == "info": # زر الصفحة
+    elif data == "info":
         bot.answer_callback_query(call.id, f"انت في الصفحة", show_alert=False)
 
-    elif data == "hide": # اخفاء
+    elif data == "hide":
         bot.delete_message(chat_id, msg_id)
         bot.answer_callback_query(call.id, "✅ تم اخفاء القائمة")
+
+bot.polling(none_stop=True)
