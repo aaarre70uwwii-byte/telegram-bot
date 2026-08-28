@@ -1,291 +1,96 @@
 import os
-import random
 import sqlite3
 import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-# === قراءة الإعدادات من المتغيرات البرمجية حق Railway ===
-BOT_TOKEN = os.getenv("BOT_TOKEN") # نفس اللي في الصورة
-MAIN_DEV_ID = int(os.getenv("OWNER_ID", 123456789)) # استخدمنا OWNER_ID بدل MAIN_DEV_ID
-API_ID = os.getenv("API_ID") # موجودة بس ما نستخدمها في telebot بس خليتها عشان ما نحذف شي
-API_HASH = os.getenv("API_HASH") # نفس الشي
-BOT_NAME = "سورس" # اسم البوت الافتراضي للمغادرة
-
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MAIN_DEV_ID = int(os.getenv("OWNER_ID"))
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# === 🛠️ إعداد وتجهيز قاعدة بيانات SQLite3 دائمية ===
 DB_FILE = "bot_database.db"
+waiting = {}
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    # جدول حفظ الجروبات المفعلة
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS activated_chats (
-            chat_id INTEGER PRIMARY KEY
-        )
-    """)
-    # جدول حفظ أرصدة بنك الأعضاء
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS bank (
-            user_id INTEGER PRIMARY KEY,
-            balance INTEGER DEFAULT 0
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-# استدعاء دالة بناء وإنشاء ملف قاعدة البيانات فوراً عند بدء التشغيل
+    c = sqlite3.connect(DB_FILE).cursor()
+    c.execute("CREATE TABLE IF NOT EXISTS devs (user_id INTEGER PRIMARY KEY)")
+    c.execute("CREATE TABLE IF NOT EXISTS activated (chat_id INTEGER PRIMARY KEY)")
+    c.connection.commit(); c.connection.close()
 init_db()
 
-# دوال التعامل مع قاعدة البيانات بأمان كامل (تفتح وتقفل تلقائياً)
-def is_chat_activated(chat_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT 1 FROM activated_chats WHERE chat_id =?", (chat_id,))
-    result = cursor.fetchone()
-    conn.close()
-    return result is not None
+def is_main_dev(u): return u == MAIN_DEV_ID
+def is_dev(u):
+    c=sqlite3.connect(DB_FILE).cursor(); c.execute("SELECT user_id FROM devs"); r=[x[0] for x in c.fetchall()]; c.connection.close()
+    return u == MAIN_DEV_ID or u in r
 
-def activate_chat(chat_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    try:
-        cursor.execute("INSERT OR IGNORE INTO activated_chats (chat_id) VALUES (?)", (chat_id,))
-        conn.commit()
-    except Exception:
-        pass
-    finally:
-        conn.close()
-
-def deactivate_chat(chat_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM activated_chats WHERE chat_id =?", (chat_id,))
-    conn.commit()
-    conn.close()
-
-# [تم الإصلاح السطري الفوري] دالة جلب الرصيد تستخرج الرقم من الـ Tuple بأمان كامل
-def get_balance(user_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT balance FROM bank WHERE user_id =?", (user_id,))
-    result = cursor.fetchone()
-    conn.close()
-    if result:
-        return int(result[0]) # استخراج العنصر الرقمي الأول من الصف
-    return 0
-
-def add_balance(user_id, amount):
-    current = get_balance(user_id)
-    new_balance = current + amount
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO bank (user_id, balance) VALUES (?,?)", (user_id, new_balance))
-    conn.commit()
-    conn.close()
-    return new_balance
-
-# قاعدة بيانات مؤقتة للهمسات فقط
-whisper_database = {}
-
-# قوائم ألعاب مدمجة
-KAT_QUESTIONS = [
-    "شخص مستحيل تنسى ملامحه؟",
-    "تفضل العزلة والهدوء أو الصخب والجمعات؟",
-    "شنو الشيء اللي يغير مزاجك بثواني؟",
-    "لو اتيحت لك فرصة لتغيير اسمك، شنو تختار؟"
-]
-
-NAME_MEANINGS = {
-    "أحمد": "من صفات الحمد، وهو الشخص كثير الحمد والشكر لله.",
-    "محمد": "المحمود الخصال، المثني عليه، المشكور.",
-    "فاطمة": "التي فُطمت عن الرضاعة، وتدل على النضج والستر.",
-    "علي": "الشريف، المرتفع، ذو المكانة العالية."
-}
-
-# دالة فحص المطور الأساسي لحماية الأوامر
-def is_main_dev(user_id):
-    return user_id == MAIN_DEV_ID
-
-# دالة التحقق مما إذا كان المستخدم أدمن أو منشئ (مالك) في المجموعة
-def is_admin_or_owner(chat_id, user_id):
-    if is_main_dev(user_id):
-        return True
+def is_admin_or_dev(chat_id, user_id):
+    if is_dev(user_id): return True
     try:
         member = bot.get_chat_member(chat_id, user_id)
         return member.status in ['administrator', 'creator']
-    except Exception:
-        return False
+    except: return False
 
-# === 1. كيبورد الخاص التفاعلي للمطور ===
-def get_private_dev_keyboard():
-    markup = InlineKeyboardMarkup()
-    markup.row(
-        InlineKeyboardButton("📊 قائمة العام", callback_data="dev_general_list"),
-        InlineKeyboardButton("💬 ردود التواصل", callback_data="dev_contact_replies"),
-        InlineKeyboardButton("🔄 تحديث البوت", callback_data="dev_update")
-    )
-    markup.row(
-        InlineKeyboardButton("⚙️ فتح ردود MY", callback_data="dev_open_my"),
-        InlineKeyboardButton("🔒 قفل ردود MY", callback_data="dev_close_my")
-    )
-    markup.row(
-        InlineKeyboardButton("📈 فتح الإحصائيات", callback_data="dev_open_stats"),
-        InlineKeyboardButton("📉 قفل الإحصائيات", callback_data="dev_close_stats")
-    )
-    markup.row(
-        InlineKeyboardButton("🚫 مسح المحظورين عام", callback_data="dev_clear_banned"),
-        InlineKeyboardButton("🔇 مسح المكتومين عام", callback_data="dev_clear_muted")
-    )
-    markup.row(
-        InlineKeyboardButton("👑 مسح المالكين الأساسيين", callback_data="dev_clear_owners"),
-        InlineKeyboardButton("🖼️ مسح صورة الترحيب", callback_data="dev_clear_welcome_pic")
-    )
-    markup.row(
-        InlineKeyboardButton("♻️ إعادة تشغيل - Reload", callback_data="dev_reload")
-    )
-    return markup
+# === 1. كيبورد المطور للخاص = يطلع مكان الكتابة ===
+def kb_private():
+    k = ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
+    k.add(KeyboardButton("⚙️ إعدادات البوت"), KeyboardButton("📢 أوامر الإذاعة"), KeyboardButton("📊 قائمة العام"))
+    k.add(KeyboardButton("👑 تغير المطور الاساسي"), KeyboardButton("🧹 مسح المطورين"))
+    k.add(KeyboardButton("➕ رفع Dev"), KeyboardButton("➖ تنزيل Dev"))
+    k.add(KeyboardButton("🔴 تعطيل البوت الخدمي"), KeyboardButton("⚡ تفعيل البوت"))
+    k.add(KeyboardButton("🗑️ اخفاء الكيبورد"))
+    return k
 
-# === 2. كيبورد الأرقام التفاعلي للجروبات (م1-م6) ===
-def get_group_commands_keyboard():
-    markup = InlineKeyboardMarkup()
-    markup.row(InlineKeyboardButton("1", callback_data="show_m1"))
-    markup.row(
-        InlineKeyboardButton("2", callback_data="show_m2"),
-        InlineKeyboardButton("3", callback_data="show_m3"),
-        InlineKeyboardButton("4", callback_data="show_m4"),
-        InlineKeyboardButton("5", callback_data="show_m5"),
-        InlineKeyboardButton("6", callback_data="show_m6")
-    )
-    return markup
+# === 2. كيبورد المطور للقروبات = يطلع مكان الكتابة ===
+def kb_dev_group():
+    k = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    k.add(KeyboardButton("اهلا بك عزيزي Dev"))
+    k.add(KeyboardButton("اضف رد تواصل"), KeyboardButton("حذف رد تواصل"))
+    k.add(KeyboardButton("رفع Dev"), KeyboardButton("تنزيل Dev"))
+    k.add(KeyboardButton("ذيع + ايدي المجموعه"), KeyboardButton("حظر - كتم عام"))
+    k.add(KeyboardButton("تحديث"), KeyboardButton("اعاده تشغيل - reload"))
+    k.add(KeyboardButton("🗑️ اخفاء الكيبورد"))
+    return k
 
-# === نصوص القوائم التفاعلية لجروبات (م1 إلى م6) ===
-M1_TEXT = "🔹 **قائمة اوامر الادمنيه (م1) :**\n━━━━━━━━━━━━━━━\n• رفع - تنزيل: مالك، منشئ، مدير، مشرف، ادمن\n• مسح: الكل، المحظورين، المكتومين، الردود\n• حظر | طرد | كتم | تقييد | فك التقييد"
-M2_TEXT = "⚙️ **قائمة اوامر الاعدادات (م2) :**\n━━━━━━━━━━━━━━━\n• رؤية: الرابط، المالكين، القوانين، المجموعه\n• وضع: ضع الترحيب، ضع قوانين، اضف امر\n• تحميل: تفعيل/تعطيل التحميل (يوتيوب، تيك توك، ساوند)"
-M3_TEXT = "🔒 **قائمة القفل والتعطيل (م3) :**\n━━━━━━━━━━━━━━━\n• قفل/فتح: الكتابه، الروابط، الصور، البوتات، التكرار\n• تفعيل/تعطيل: الاذكار، التسليه، الردود، الايدي بالصوره"
-M4_TEXT = "🎮 **قائمة اوامر التسليه (م4) :**\n━━━━━━━━━━━━━━━\n• كت / كت تويت (لعبة الأسئلة العشوائية)\n• راتب / فلوسي (نظام البنك التفاعلي)\n• افتاري / الايدي بالصوره\n• رفع وتنزيل رتب التسلية (هطف، بثر، خروف، كلب)\n• زواج | طلاق | تتزوجني"
-M5_TEXT = "👑 **قائمة أوامر المطور الأساسي (م5) :**\n━━━━━━━━━━━━━━━\n• ذيع + ايدي المجموعه (بالرد لإرسال إذاعة)\n• تحديث | اعاده تشغيل - reload\n• حظر عام | كتم عام | رفع وتنزيل Dev"
-M6_TEXT = "🛠️ **قائمة الاوامر الخدميه (م6) :**\n━━━━━━━━━━━━━━━\n• همسه (بالرد على شخص لرسالة سرية)\n• معنى + اسمك | العمر + عمرك\n• ترجمة | قران | اذكار | اقتباسات | ميمز | افلام"
+# === الخاص ===
+@bot.message_handler(commands=['start'], chat_types=['private'])
+def start_private(m):
+    if not is_main_dev(m.from_user.id):
+        return bot.reply_to(m, "❌ للمطور الاساسي فقط")
+    bot.send_message(m.chat.id, "🙋‍♂️ اهلا بك عزي Dev\n🛠️ لوحة التحكم:", reply_markup=kb_private())
 
-# === معالج ازرار م1 الى م6 - اضافة جديدة ===
-@bot.callback_query_handler(func=lambda call: call.data.startswith("show_m"))
-def handle_group_buttons(call):
-    chat_id = call.message.chat.id
-    msg_id = call.message.message_id
-    data = call.data
+# === القروبات ===
+@bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'])
+def group(m):
+    t=m.text; uid=m.from_user.id; cid=m.chat.id
+    if not t: return
 
-    if data == "show_m1":
-        bot.edit_message_text(M1_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
-    elif data == "show_m2":
-        bot.edit_message_text(M2_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
-    elif data == "show_m3":
-        bot.edit_message_text(M3_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
-    elif data == "show_m4":
-        bot.edit_message_text(M4_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
-    elif data == "show_m5":
-        bot.edit_message_text(M5_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
-    elif data == "show_m6":
-        bot.edit_message_text(M6_TEXT, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_group_commands_keyboard())
+    # تفعيل للادمن
+    if t == "تفعيل":
+        if not is_admin_or_dev(cid, uid): return
+        c=sqlite3.connect(DB_FILE).cursor(); c.execute("INSERT OR IGNORE INTO activated VALUES (?)",(cid,)); c.connection.commit(); c.connection.close()
+        return bot.reply_to(m, "🟢 تم تفعيل البوت")
 
-    bot.answer_callback_query(call.id)
+    # امر اظهار الكيبورد للمطور فقط
+    if t == "كيبورد المطور":
+        if not is_main_dev(uid): return
+        return bot.send_message(cid, "🛠️ تم تفعيل كيبورد المطور", reply_markup=kb_dev_group())
 
-# === 3. معالج الخاص (لوحة المطور بالخاص تعمل تلقائياً) ===
-@bot.message_handler(commands=['start', 'panel'], chat_types=['private'])
-def private_panel(message):
-    if not is_main_dev(message.from_user.id):
-        bot.reply_to(message, "❌ هذا البوت مخصص للمطور الأساسي فقط.")
-        return
-    bot.send_message(
-        message.chat.id,
-        f"🙋‍♂️ أهلاً بك عزي Dev في الخاص\n🛠️ هذه لوحة التحكم الخاصة بك للتحكم بالبنية التحتية لسورس البوت:",
-        reply_markup=get_private_dev_keyboard()
-    )
+    if not is_main_dev(uid): return
 
-# === 4. المعالج المركزي للجروبات والقنوات ===
-@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup', 'channel'])
-def handle_group_messages(message):
-    text = message.text
-    if not text:
-        return
+    # اوامر الكيبورد
+    if t == "اهلا بك عزي Dev": bot.reply_to(m, "نورت يا مطور ❤️")
+    elif t == "رفع Dev": waiting[uid] = "add_dev"; bot.reply_to(m, "ارسل ايدي المطور")
+    elif t == "تنزيل Dev": waiting[uid] = "del_dev"; bot.reply_to(m, "ارسل ايدي المطور")
+    elif t == "ذيع + ايدي المجموعه": waiting[uid] = "broadcast"; bot.reply_to(m, "ارسل: الايدي - الرسالة")
+    elif t == "🗑️ اخفاء الكيبورد": bot.send_message(cid, "تم اخفاء الكيبورد", reply_markup=ReplyKeyboardRemove())
 
-    user_id = message.from_user.id
-    chat_id = message.chat.id
+@bot.message_handler(func=lambda m: m.from_user.id in waiting)
+def wait_handler(m):
+    act = waiting.pop(m.from_user.id)
+    if act == "add_dev":
+        c=sqlite3.connect(DB_FILE).cursor(); c.execute("INSERT OR IGNORE INTO devs VALUES (?)",(int(m.text),)); c.connection.commit(); c.connection.close()
+        bot.send_message(m.chat.id, f"✅ تم رفع {m.text}")
+    elif act == "del_dev":
+        c=sqlite3.connect(DB_FILE).cursor(); c.execute("DELETE FROM devs WHERE user_id=?",(int(m.text),)); c.connection.commit(); c.connection.close()
+        bot.send_message(m.chat.id, f"❌ تم تنزيل {m.text}")
 
-    # أمر التفعيل الحصري للإدارة والمالكين
-    if text == "تفعيل":
-        if not is_admin_or_owner(chat_id, user_id):
-            return
-        if is_chat_activated(chat_id):
-            bot.reply_to(message, "⚙️ البوت مفعل مسبقاً في هذه المجموعة ومسجّل في قاعدة البيانات.")
-        else:
-            activate_chat(chat_id)
-            bot.reply_to(message, "🟢 تم تفعيل البوت وحفظ المجموعة في قاعدة البيانات الدائمة! جميع المزايا نشطة الآن.")
-        return
-
-    # أمر التعطيل الحصري للإدارة والمالكين
-    if text == "تعطيل":
-        if not is_admin_or_owner(chat_id, user_id):
-            return
-        if is_chat_activated(chat_id):
-            deactivate_chat(chat_id)
-            bot.reply_to(message, "🔴 تم تعطيل البوت ومسح المجموعة من قاعدة البيانات بنجاح.")
-        else:
-            bot.reply_to(message, "⚠️ البوت غير مفعّل في هذه المجموعة من الأساس.")
-        return
-
-    # الفحص الصارم من ملف الـ DB؛ إذا لم يكن الجروب مفعلاً يتجاهل البوت الرسائل تماماً
-    if not is_chat_activated(chat_id):
-        return
-
-    # أمر قائمة الأوامر التفاعلية بالجروبات
-    if text == "الاوامر":
-        if not is_admin_or_owner(chat_id, user_id):
-            return
-        bot.send_message(
-            chat_id,
-            "الاوامر\n- أهلاً بك عزي في قائمة الاوامر :\n━━━━━━━━━━━━━━━\n🔹 م1 : اوامر الادمنيه\n🔹 م2 : اوامر الاعدادات\n🔹 م3 : اوامر القفل - الفتح\n🔹 م4 : اوامر التسليه\n🔹 م5 : اوامر Dev\n🔹 م6 : الاوامر الخدميه\n━━━━━━━━━━━━━━━",
-            reply_markup=get_group_commands_keyboard(),
-            reply_to_message_id=message.message_id
-        )
-        return
-
-    # لعبة (كت تويت)
-    if text in ["كت", "كت تويت"]:
-        bot.reply_to(message, f"💬 **كت تويت :**\n━━━━━━━━━━━━\n{random.choice(KAT_QUESTIONS)}")
-
-    # لعبة (معنى الأسماء)
-    elif text.startswith("معنى "):
-        name = text.replace("معنى ", "").strip()
-        bot.reply_to(message, f"📖 **معنى اسم ({name}) :**\n━━━━━━━━━━━━\n{NAME_MEANINGS.get(name, 'عذراً، هذا الاسم غير متوفر في قاموسي حالياً.')}")
-
-    # نظام البنك (تعديل الرصيد داخل SQLite3 بأمان)
-    elif text == "راتب":
-        reward = random.randint(50, 500)
-        new_bal = add_balance(user_id, reward)
-        bot.reply_to(message, f"💰 تم نزول راتبك اليومي بقيمة **{reward}** ريال!\n💳 رصيدك الإجمالي المحفوظ في البنك: **{new_bal}** ريال.")
-    elif text == "flosy" or text == "فلوسي":
-        bal = get_balance(user_id)
-        bot.reply_to(message, f"💳 رصيدك الحالي المحفوظ آمن في البنك هو: **{bal}** ريال.")
-
-    # الأيدي بالصورة وافتاري
-    elif text in ["الايدي بالصوره", "افتاري"]:
-        try:
-            photos = bot.get_user_profile_photos(user_id, limit=1)
-            if photos.total_count > 0:
-                file_id = photos.photos[0][0].file_id
-                bal = get_balance(user_id)
-                caption = f"🆔 الايدي: `{user_id}`\n💰 الرصيد: `{bal}` ريال"
-                bot.send_photo(chat_id, file_id, caption=caption, parse_mode="Markdown")
-            else:
-                bot.reply_to(message, "❌ ما عندك صورة بروفايل")
-        except Exception as e:
-            bot.reply_to(message, "⚠️ صار خطأ في جلب الصورة")
-
-    else:
-        pass
-
-# === تشغيل البوت ===
 if __name__ == "__main__":
-    print("البوت شغال...")
     bot.polling(none_stop=True)
