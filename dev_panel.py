@@ -11,6 +11,25 @@ OWNER_ID = 7488375443
 
 DB_FILE = "bot_database.db"
 
+# ===== ضفت الجدول والدالة دي عشان التفعيل =====
+def init_group_status():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("CREATE TABLE IF NOT EXISTS group_status (chat_id INTEGER PRIMARY KEY, status INTEGER)")
+    conn.commit()
+    conn.close()
+
+init_group_status() # شغل الجدول اول ما الملف يفتح
+
+def check_group(chat_id): # << دي اللي كان ناقصه
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT status FROM group_status WHERE chat_id =?", (chat_id,))
+    result = c.fetchone()
+    conn.close()
+    return result and result[0] == 1
+# ==============================================
+
 def get_dev_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
     markup.row(KeyboardButton("⚙️ إعدادات البوت"), KeyboardButton("📢 أوامر الإذاعة"), KeyboardButton("📋 قائمة العام"))
@@ -37,10 +56,36 @@ def register_handlers(bot):
         global bot_status; bot_status = True
         bot.send_message(m.chat.id, "✅ تم تفعيل البوت")
 
-    @bot.message_handler(func=lambda m: m.text == "🔴 تعطيل البوت الخدمي")
+    @bot.message_handler(func=lambda m: m.text == "🔴 تعطيل البوت الخدمي" and m.chat.type == "private")
     def disable(m):
         global bot_status; bot_status = False
         bot.send_message(m.chat.id, "🔴 تم تعطيل البوت")
+
+    # ===== ضفت دول عشان تفعيل الجروب =====
+    @bot.message_handler(func=lambda m: m.text == "▶️ تفعيل البوت الخدمي")
+    def enable_group(m):
+        if m.chat.type in ["group", "supergroup"]:
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+            c.execute("INSERT OR REPLACE INTO group_status VALUES (?, 1)", (m.chat.id,))
+            conn.commit()
+            conn.close()
+            bot.send_message(m.chat.id, "✅ تم تفعيل البوت في هذه المجموعة")
+        else:
+            bot.send_message(m.chat.id, "الامر ده للجروبات فقط")
+
+    @bot.message_handler(func=lambda m: m.text == "🔴 تعطيل البوت الخدمي" and m.chat.type in ["group", "supergroup"])
+    def disable_group(m):
+        if m.chat.type in ["group", "supergroup"]:
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+            c.execute("INSERT OR REPLACE INTO group_status VALUES (?, 0)", (m.chat.id,))
+            conn.commit()
+            conn.close()
+            bot.send_message(m.chat.id, "🔴 تم تعطيل البوت في هذه المجموعة")
+        else:
+            bot.send_message(m.chat.id, "الامر ده للجروبات فقط")
+    # =======================================
 
     @bot.message_handler(func=lambda m: m.text == "📢 تغير قناة البوت")
     def ask_channel(m):
@@ -89,7 +134,6 @@ def register_handlers(bot):
             except: pass
         bot.send_message(m.chat.id, "✅ تمت الاذاعة")
 
-    # باقي الازرار رد سريع عشان نعرف انها شغالة
-    @bot.message_handler(func=lambda m: m.text in ["📋 قائمة العام","👑 تغيير المطور الاساسي","✨ مسح المطورين","🗂️ مسح اسم البوت","❌ مسح قائمة العام","✏️ تغيير اسم البوت","👥 مسح المطورين الثانويين","📵 تعطيل التواصل","📦 جلب النسخة الاحتياطيه","📲 تفعيل التواصل","🔄 تحديث الملفات","▶️ تفعيل البوت الخدمي","⚙️ 0_اظهار _ اخفاء _ قائمة اعداد البوت"])
+    @bot.message_handler(func=lambda m: m.text in ["📋 قائمة العام","👑 تغيير المطور الاساسي","✨ مسح المطورين","🗂️ مسح اسم البوت","❌ مسح قائمة العام","✏️ تغيير اسم البوت","👥 مسح المطورين الثانويين","📵 تعطيل التواصل","📦 جلب النسخة الاحتياطيه","📲 تفعيل التواصل","🔄 تحديث الملفات","⚙️ 0_اظهار _ اخفاء _ قائمة اعداد البوت"])
     def other(m):
         bot.send_message(m.chat.id, f"تم الضغط على: {m.text}\n✅ الزر شغال")
