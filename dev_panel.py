@@ -1,171 +1,95 @@
-import os
 import sqlite3
-import time
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-
-DB_FILE = "bot_database.db"
-waiting = {}
-
-# ===== قراءة الاعدادات من الداتا بيز اول ما يشتغل =====
-def load_settings():
-    c = sqlite3.connect(DB_FILE).cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
-    c.execute("SELECT value FROM settings WHERE key='owner'"); r = c.fetchone()
-    owner = int(r[0]) if r else 7488375443
-
-    c.execute("SELECT value FROM settings WHERE key='bot_status'"); r = c.fetchone()
-    bot_status = r[0] == 'True' if r else True
-
-    c.execute("SELECT value FROM settings WHERE key='contact_status'"); r = c.fetchone()
-    contact_status = r[0] == 'True' if r else True
-    c.connection.close()
-    return owner, bot_status, contact_status
-
-MAIN_DEV_ID, bot_status, contact_status = load_settings()
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 DEV_DATA = {
-    "channel": "@TiaUpdates",
-    "bot_name": "𝐓𝐢𝐚",
-    "welcome": "🙋‍♂️ اهلا بك في بوت 𝐓𝐢𝐚"
+    "welcome": "اهلا بيك يا مطور 👑\nهذا بوت Tia",
+    "bot_name": "Tia",
+    "channel": "https://t.me/your_channel" # حط رابط قناتك هنا
 }
-# ======================================================
+bot_status = True
+OWNER_ID = 7488375443
+
+DB_FILE = "bot_database.db"
 
 def get_dev_keyboard():
-    k = ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
-    k.row(KeyboardButton("⚙️ إعدادات البوت"), KeyboardButton("📣 أوامر الإذاعة"), KeyboardButton("📊 قائمة العام"))
-    k.row(KeyboardButton("👑 تغير المطور الاساسي"), KeyboardButton("🧹 مسح المطورين"))
-    k.row(KeyboardButton("🗑️ مسح اسم البوت"), KeyboardButton("❌ مسح قائمة العام"))
-    k.row(KeyboardButton("✏️ تغير اسم البوت"), KeyboardButton("👥 مسح المطورين الثانويين"))
-    k.row(KeyboardButton("📵 تعطيل التواصل"), KeyboardButton("💾 جلب النسخه الاحتياطيه"))
-    k.row(KeyboardButton("✅ تفعيل التواصل"), KeyboardButton("🔄 تحديث الملفات"))
-    k.row(KeyboardButton("🔴 تعطيل البوت الخدمي"), KeyboardButton("⚡ تفعيل البوت"))
-    k.row(KeyboardButton("▶️ تفعيل البوت الخدمي"))
-    k.row(KeyboardButton("⚙️ اظهار _ اخفاء • قائمة اعداد البوت"))
-    k.row(KeyboardButton("👋 اضف ترحيب"))
-    k.row(KeyboardButton("📢 قناة تحديثات البوت"))
-    k.row(KeyboardButton("🗑️ اخفاء الكيبورد"))
-    return k
-
-def get_setting(key):
-    c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); c.execute("SELECT value FROM settings WHERE key=?",(key,)); r=c.fetchone(); c.connection.close()
-    return r[0] if r else DEV_DATA.get(key, "@TiaUpdates")
-
-def set_setting(key, value):
-    c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); c.execute("INSERT OR REPLACE INTO settings VALUES (?,?)",(key,value)); c.connection.commit(); c.connection.close()
-
-def get_stats():
-    c=sqlite3.connect(DB_FILE).cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS groups (chat_id INTEGER PRIMARY KEY)")
-    c.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)")
-    c.execute("SELECT COUNT(*) FROM groups"); groups=c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM users"); users=c.fetchone()[0]
-    c.connection.close()
-    return users, groups
-
-def broadcast_message(bot, text):
-    c=sqlite3.connect(DB_FILE).cursor()
-    c.execute("SELECT user_id FROM users"); users=[x[0] for x in c.fetchall()]
-    c.execute("SELECT chat_id FROM groups"); groups=[x[0] for x in c.fetchall()]
-    c.connection.close()
-    success = 0; fail = 0
-    for chat_id in users + groups:
-        try:
-            bot.send_message(chat_id, f"📢 **اذاعة من {DEV_DATA['bot_name']}**\n\n{text}", parse_mode="Markdown")
-            success += 1; time.sleep(0.1)
-        except: fail += 1
-    return success, fail
-
-def get_welcome():
-    c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS welcome_msg (text TEXT)"); c.execute("SELECT text FROM welcome_msg"); r=c.fetchone(); c.connection.close()
-    return r[0] if r else DEV_DATA["welcome"]
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
+    markup.row(KeyboardButton("⚙️ إعدادات البوت"), KeyboardButton("📢 أوامر الإذاعة"), KeyboardButton("📋 قائمة العام"))
+    markup.row(KeyboardButton("👑 تغيير المطور الاساسي"), KeyboardButton("✨ مسح المطورين"))
+    markup.row(KeyboardButton("🗂️ مسح اسم البوت"), KeyboardButton("❌ مسح قائمة العام"))
+    markup.row(KeyboardButton("✏️ تغيير اسم البوت"), KeyboardButton("👥 مسح المطورين الثانويين"))
+    markup.row(KeyboardButton("📵 تعطيل التواصل"), KeyboardButton("📦 جلب النسخة الاحتياطيه"))
+    markup.row(KeyboardButton("📲 تفعيل التواصل"), KeyboardButton("🔄 تحديث الملفات"))
+    markup.row(KeyboardButton("🔴 تعطيل البوت الخدمي"), KeyboardButton("⚡ تفعيل البوت"))
+    markup.row(KeyboardButton("▶️ تفعيل البوت الخدمي"))
+    markup.row(KeyboardButton("⚙️ 0_اظهار _ اخفاء _ قائمة اعداد البوت"))
+    markup.row(KeyboardButton("👋 اضف ترحيب"), KeyboardButton("📢 تغير قناة البوت"))
+    markup.row(KeyboardButton("📢 قناه تحديثات البوت"))
+    return markup
 
 def register_handlers(bot):
+    global bot_status
 
-    @bot.message_handler(func=lambda m: m.chat.type == 'private' and m.from_user.id == MAIN_DEV_ID)
-    def handle_dev(m):
-        global waiting, contact_status, bot_status, DEV_DATA, MAIN_DEV_ID
-        t = m.text
+    @bot.message_handler(func=lambda m: str(m.from_user.id)!= str(OWNER_ID))
+    def not_owner(m): pass
 
-        if t == "⚙️ إعدادات البوت":
-            users, groups = get_stats()
-            status = f"⚙️ **إعدادات {DEV_DATA['bot_name']}:**\n\n🤖 الاسم: {DEV_DATA['bot_name']}\n📢 القناة: {get_setting('channel')}\n👥 المستخدمين: {users}\n👨‍👩‍👧‍👦 القروبات: {groups}\n📵 التواصل: {'مفعل' if contact_status else 'معطل'}\n⚡ البوت: {'شغال' if bot_status else 'متوقف'}"
-            bot.send_message(m.chat.id, status, parse_mode="Markdown")
+    @bot.message_handler(func=lambda m: m.text == "⚡ تفعيل البوت")
+    def enable(m):
+        global bot_status; bot_status = True
+        bot.send_message(m.chat.id, "✅ تم تفعيل البوت")
 
-        elif t == "📊 قائمة العام":
-            users, groups = get_stats()
-            bot.send_message(m.chat.id, f"📊 **إحصائيات {DEV_DATA['bot_name']}:**\n\n👥 المستخدمين: {users}\n👨‍👩‍👧‍👦 القروبات: {groups}\n📨 الاجمالي: {users+groups}")
+    @bot.message_handler(func=lambda m: m.text == "🔴 تعطيل البوت الخدمي")
+    def disable(m):
+        global bot_status; bot_status = False
+        bot.send_message(m.chat.id, "🔴 تم تعطيل البوت")
 
-        elif t == "📣 أوامر الإذاعة":
-            sent = bot.send_message(m.chat.id, "📣 ارسل نص الاذاعة الان:\n*سيرسل لكل القروبات والخاص*")
-            bot.register_next_step_handler(sent, lambda msg: process_broadcast(bot, msg))
+    @bot.message_handler(func=lambda m: m.text == "📢 تغير قناة البوت")
+    def ask_channel(m):
+        msg = bot.send_message(m.chat.id, "ارسل رابط القناة الجديد:\nمثال: https://t.me/xxxx")
+        bot.register_next_step_handler(msg, save_channel)
 
-        elif t == "👑 تغير المطور الاساسي":
-            sent = bot.send_message(m.chat.id, "👑 ارسل ايدي المطور الجديد:")
-            bot.register_next_step_handler(sent, process_change_owner)
+    def save_channel(m):
+        DEV_DATA["channel"] = m.text
+        bot.send_message(m.chat.id, f"✅ تم تغير قناة البوت الى:\n{m.text}")
 
-        elif t == "🧹 مسح المطورين" or t == "👥 مسح المطورين الثانويين":
-            c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS devs (user_id INTEGER PRIMARY KEY)"); c.execute("DELETE FROM devs"); c.connection.commit(); c.connection.close()
-            bot.send_message(m.chat.id, "✅ تم مسح جميع المطورين الثانويين")
+    @bot.message_handler(func=lambda m: m.text == "👋 اضف ترحيب")
+    def ask_welcome(m):
+        msg = bot.send_message(m.chat.id, "ارسل رسالة الترحيب الجديدة")
+        bot.register_next_step_handler(msg, save_welcome)
 
-        elif t == "🗑️ مسح اسم البوت":
-            DEV_DATA["bot_name"] = "𝐓𝐢𝐚"
-            bot.send_message(m.chat.id, "✅ تم ارجاع اسم البوت الى 𝐓𝐢𝐚")
+    def save_welcome(m):
+        conn = sqlite3.connect(DB_FILE); c = conn.cursor()
+        c.execute("UPDATE welcome_msg SET text =?", (m.text,)); conn.commit(); conn.close()
+        bot.send_message(m.chat.id, "✅ تم تغير رسالة الترحيب")
 
-        elif t == "❌ مسح قائمة العام":
-            c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS gbanned (user_id INTEGER PRIMARY KEY)"); c.execute("DELETE FROM gbanned"); c.connection.commit(); c.connection.close()
-            bot.send_message(m.chat.id, "✅ تم مسح قائمة الحظر العام")
+    @bot.message_handler(func=lambda m: m.text == "📊 الاحصائيات")
+    def stats(m):
+        conn = sqlite3.connect(DB_FILE); c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM users"); users = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM groups"); groups = c.fetchone()[0]; conn.close()
+        bot.send_message(m.chat.id, f"📊 الاحصائيات:\nالمستخدمين: {users}\nالمجموعات: {groups}")
 
-        elif t == "✏️ تغير اسم البوت":
-            sent = bot.send_message(m.chat.id, "✏️ ارسل اسم البوت الجديد:")
-            bot.register_next_step_handler(sent, process_change_name)
+    @bot.message_handler(func=lambda m: m.text == "📢 قناه تحديثات البوت")
+    def show_channel(m):
+        bot.send_message(m.chat.id, f"📢 قناة البوت:\n{DEV_DATA['channel']}")
 
-        elif t == "📵 تعطيل التواصل":
-            contact_status = False; set_setting('contact_status', 'False'); bot.send_message(m.chat.id, "📵 تم تعطيل التواصل")
-        elif t == "✅ تفعيل التواصل":
-            contact_status = True; set_setting('contact_status', 'True'); bot.send_message(m.chat.id, "✅ تم تفعيل التواصل")
-        elif t == "💾 جلب النسخه الاحتياطيه": bot.send_document(m.chat.id, open(DB_FILE, 'rb'), caption="💾 النسخة الاحتياطية")
-        elif t == "🔄 تحديث الملفات": bot.send_message(m.chat.id, "🔄 جاري التحديث..."); time.sleep(1); bot.send_message(m.chat.id, "✅ تم تحديث الملفات")
-        elif t == "🔴 تعطيل البوت الخدمي":
-            bot_status = False; set_setting('bot_status', 'False'); bot.send_message(m.chat.id, "🔴 تم تعطيل البوت الخدمي")
-        elif t == "⚡ تفعيل البوت" or t == "▶️ تفعيل البوت الخدمي":
-            bot_status = True; set_setting('bot_status', 'True'); bot.send_message(m.chat.id, "⚡ تم تفعيل البوت الخدمي")
-        elif t == "⚙️ اظهار _ اخفاء • قائمة اعداد البوت": bot.send_message(m.chat.id, "استخدم /start لاظهار الكيبورد", reply_markup=ReplyKeyboardRemove())
-        elif t == "👋 اضف ترحيب":
-            sent = bot.send_message(m.chat.id, "👋 ارسل نص الترحيب الجديد:\nتقدر تستخدم {name} للاسم")
-            bot.register_next_step_handler(sent, process_change_welcome)
-        elif t == "📢 قناة تحديثات البوت":
-            current = get_setting('channel')
-            sent = bot.send_message(m.chat.id, f"📢 القناة الحالية: `{current}`\n\nارسل يوزر القناة الجديد مع @", parse_mode="Markdown")
-            bot.register_next_step_handler(sent, process_change_channel)
-        elif t == "🗑️ اخفاء الكيبورد":
-            bot.send_message(m.chat.id, "✅ تم اخفاء الكيبورد", reply_markup=ReplyKeyboardRemove())
+    @bot.message_handler(func=lambda m: m.text == "⚙️ إعدادات البوت")
+    def settings(m):
+        bot.send_message(m.chat.id, "⚙️ اهلا في اعدادات البوت\nاختار من الازرار اللي تحت")
 
-    def process_broadcast(bot, message):
-        bot.send_message(message.chat.id, "📢 جاري الارسال... انتظر")
-        success, fail = broadcast_message(bot, message.text)
-        bot.send_message(message.chat.id, f"✅ **تمت الاذاعة**\n\n📨 وصل: {success}\n❌ فشل: {fail}")
+    @bot.message_handler(func=lambda m: m.text == "📢 أوامر الإذاعة")
+    def broadcast(m):
+        msg = bot.send_message(m.chat.id, "ارسل الرسالة للاذاعة للكل")
+        bot.register_next_step_handler(msg, do_broadcast)
 
-    def process_change_owner(message):
-        global MAIN_DEV_ID
-        try:
-            MAIN_DEV_ID = int(message.text)
-            set_setting('owner', str(MAIN_DEV_ID)) # << حفظناه
-            bot.send_message(message.chat.id, f"✅ تم تغير المطور الاساسي الى `{message.text}`\n⚠️ اعمل اعادة تشغيل للبوت", parse_mode="Markdown")
-        except: bot.send_message(message.chat.id, "❌ الايدي خطأ")
+    def do_broadcast(m):
+        conn = sqlite3.connect(DB_FILE); c = conn.cursor()
+        c.execute("SELECT user_id FROM users"); users = c.fetchall(); conn.close()
+        for u in users:
+            try: bot.send_message(u[0], f"📢 إذاعة:\n{m.text}")
+            except: pass
+        bot.send_message(m.chat.id, "✅ تمت الاذاعة")
 
-    def process_change_name(message):
-        DEV_DATA["bot_name"] = message.text
-        bot.send_message(message.chat.id, f"✅ تم تغير اسم البوت الى: {message.text}")
-
-    def process_change_welcome(message):
-        c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS welcome_msg (text TEXT)"); c.execute("DELETE FROM welcome_msg"); c.execute("INSERT INTO welcome_msg VALUES (?)",(message.text,)); c.connection.commit(); c.connection.close() # << صلحناه
-        DEV_DATA["welcome"] = message.text
-        bot.send_message(message.chat.id, "✅ تم حفظ الترحيب الجديد")
-
-    def process_change_channel(message):
-        ch = message.text.strip()
-        if not ch.startswith("@"):
-            return bot.send_message(message.chat.id, "❌ لازم تبدا بـ @\nمثال: @TiaUpdates")
-        set_setting('channel', ch)
-        DEV_DATA["channel"] = ch
-        bot.send_message(message.chat.id, f"✅ تم تغير قناة البوت الى: {ch}")
+    # باقي الازرار رد سريع عشان نعرف انها شغالة
+    @bot.message_handler(func=lambda m: m.text in ["📋 قائمة العام","👑 تغيير المطور الاساسي","✨ مسح المطورين","🗂️ مسح اسم البوت","❌ مسح قائمة العام","✏️ تغيير اسم البوت","👥 مسح المطورين الثانويين","📵 تعطيل التواصل","📦 جلب النسخة الاحتياطيه","📲 تفعيل التواصل","🔄 تحديث الملفات","▶️ تفعيل البوت الخدمي","⚙️ 0_اظهار _ اخفاء _ قائمة اعداد البوت"])
+    def other(m):
+        bot.send_message(m.chat.id, f"تم الضغط على: {m.text}\n✅ الزر شغال")
