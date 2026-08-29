@@ -87,10 +87,10 @@ def register_menu_handlers(bot):
                 m4.register_fun_handlers(bot)
                 m4.fun_menu(bot, call.message)
                 
-            elif data == "exec_m5":
+            elif data == "exec_m5": # << كود المطور المعدل
                 import dev_commands as m5
-                m5.register_dev_handlers(bot)
-                m5.dev_menu(bot, call.message)
+                m5.register_handlers(bot) # سجل الهاندلر
+                bot.send_message(chat_id, "⚙️ اهلا بك في لوحة تحكم المطور", reply_markup=m5.get_dev_keyboard())
                 
             elif data == "exec_m6":
                 import service_commands as m6
