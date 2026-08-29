@@ -4,14 +4,14 @@ import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 # ====== هنا الاستدعاء للملفين ======
-from dev_commands import register_handlers as register_dev_handlers, DEV_DATA, get_dev_keyboard # << عدلنا الاسم
+from dev_commands import register_handlers as register_dev_handlers, DEV_DATA, get_dev_keyboard, bot_status
 from main_menu import register_menu_handlers
 # =====================================
 
 BOT_TOKEN = os.getenv("BOT_TOKEN") # "حط_التوكن_هنا"
 OWNER_ID = 7488375443 # << ايديك
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
+bot = telebot.TeleBot(BOT_TOKEN)
 DB_FILE = "bot_database.db"
 
 def init_db():
@@ -34,6 +34,13 @@ def get_welcome():
     conn = sqlite3.connect(DB_FILE); c = conn.cursor(); c.execute("SELECT text FROM welcome_msg"); result = c.fetchone(); conn.close()
     return result[0] if result else DEV_DATA["welcome"]
 
+# ====== حماية تعطيل البوت ======
+@bot.message_handler(func=lambda m: True)
+def check_status(m):
+    if not bot_status and str(m.from_user.id)!= str(OWNER_ID):
+        return # يطنش اي رسالة لو البوت متعطل
+# ===============================
+
 init_db()
 
 @bot.message_handler(commands=['start'])
@@ -45,12 +52,12 @@ def cmd_start(message):
     welcome_text = get_welcome()
 
     if str(message.from_user.id) == str(OWNER_ID) and message.chat.type == "private":
-        bot.send_message(message.chat.id, welcome_text, reply_markup=get_dev_keyboard())
+        bot.send_message(message.chat.id, welcome_text, reply_markup=get_dev_keyboard(), parse_mode="Markdown")
     elif message.chat.type == "private":
-        bot.send_message(message.chat.id, welcome_text)
+        bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown")
     else:
         markup = ReplyKeyboardMarkup(resize_keyboard=True).row(KeyboardButton("الاوامر"))
-        bot.send_message(message.chat.id, welcome_text, reply_markup=markup)
+        bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
 @bot.message_handler(content_types=['new_chat_members'])
 def handle_new_member(message):
