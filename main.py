@@ -34,11 +34,13 @@ def get_welcome():
     conn = sqlite3.connect(DB_FILE); c = conn.cursor(); c.execute("SELECT text FROM welcome_msg"); result = c.fetchone(); conn.close()
     return result[0] if result else DEV_DATA["welcome"]
 
-# ====== حماية تعطيل البوت ======
+# ====== حماية تعطيل البوت - صلحتها ======
 @bot.message_handler(func=lambda m: True)
 def check_status(m):
+    global bot_status
     if not bot_status and str(m.from_user.id)!= str(OWNER_ID):
-        return # يطنش اي رسالة لو البوت متعطل
+        pass # يطنش اي رسالة لو البوت متعطل لغير المطور
+    # لازم نخليه يكمل عشان يوصل للهاندلرات الثانية
 # ===============================
 
 init_db()
