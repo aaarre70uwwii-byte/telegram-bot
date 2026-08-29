@@ -3,14 +3,14 @@ import sqlite3
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
-# ====== هنا الاستدعاء للملفين ======
-from dev_commands import register_handlers as register_dev_handlers, DEV_DATA, get_dev_keyboard, bot_status
-from main_menu import register_menu_handlers
+# ====== 1. الاستدعاء للملفين ======
+from dev_panel import DEV_DATA, get_dev_keyboard, is_group_active # جبنا دالة التحقق
+import dev_panel
+import main_menu
 # =====================================
 
-BOT_TOKEN = os.getenv("BOT_TOKEN") # "حط_التوكن_هنا"
-OWNER_ID = 7488375443 # << ايديك
-
+BOT_TOKEN = os.getenv("BOT_TOKEN") # حطه في Railway Variables
+OWNER_ID = 7488375443 # << غيره لايديك
 bot = telebot.TeleBot(BOT_TOKEN)
 DB_FILE = "bot_database.db"
 
@@ -31,8 +31,18 @@ def save_group(chat_id):
     conn = sqlite3.connect(DB_FILE); c = conn.cursor(); c.execute("INSERT OR IGNORE INTO groups VALUES (?)", (chat_id,)); conn.commit(); conn.close()
 
 def get_welcome():
-    conn = sqlite3.connect(DB_FILE); c = conn.cursor(); c.execute("SELECT text FROM welcome_msg"); result = c.fetchone(); conn.close()
+    conn = sqlite3.connect(DB_FILE); c = conn.cursor(); c.execute("SELECT text FROM welcome_msg LIMIT 1"); result = c.fetchone(); conn.close()
     return result[0] if result else DEV_DATA["welcome"]
+
+# ====== 2. دالة التحقق من تفعيل الجروب ======
+def check_group_status(message):
+    if message.chat.type in ["group", "supergroup"]:
+        if str(message.from_user.id)!= str(OWNER_ID): # المطور مستثنى
+            if not is_group_active(message.chat.id):
+                bot.reply_to(message, "🔴 البوت معطل في هذه المجموعة\nفعلني من لوحة المطور")
+                return False
+    return True
+# ============================================
 
 init_db()
 
@@ -45,23 +55,26 @@ def cmd_start(message):
     welcome_text = get_welcome()
 
     if str(message.from_user.id) == str(OWNER_ID) and message.chat.type == "private":
-        bot.send_message(message.chat.id, welcome_text, reply_markup=get_dev_keyboard(), parse_mode="Markdown")
-    elif message.chat.type == "private":
-        bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown")
+        bot.send_message(message.chat.id, welcome_text, reply_markup=get_dev_keyboard())
     else:
         markup = ReplyKeyboardMarkup(resize_keyboard=True).row(KeyboardButton("الاوامر"))
-        bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode="Markdown")
+        bot.send_message(message.chat.id, welcome_text, reply_markup=markup)
+
+@bot.message_handler(func=lambda m: m.text == "الاوامر")
+def show_commands_btn(m):
+    if not check_group_status(m): return # يتحقق قبل ما يفتح القائمة
+    text, markup = main_menu.create_main_menu(1)
+    bot.send_message(m.chat.id, text, reply_markup=markup)
 
 @bot.message_handler(content_types=['new_chat_members'])
 def handle_new_member(message):
     if message.chat.type in ["group", "supergroup"]:
         save_group(message.chat.id)
 
-# ====== هنا تشغيل الهاندلرات من الملفين ======
-register_dev_handlers(bot) # يشغل dev_commands.py
-register_menu_handlers(bot) # يشغل main_menu.py
+# ====== 3. تشغيل الهاندلرات من الملفين ======
+dev_panel.register_handlers(bot)
+main_menu.register_menu_handlers(bot)
 # =============================================
 
-if __name__ == "__main__":
-    print(f"البوت {DEV_DATA['bot_name']} شغال ✅")
-    bot.infinity_polling(skip_pending=True)
+print(f"✅ البوت {DEV_DATA['bot_name']} شغال")
+bot.infinity_polling(skip_pending=True)
