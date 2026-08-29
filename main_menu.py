@@ -1,91 +1,103 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-MAIN_MENU_TEXT = """- ‌‌‏أهلاً بك عزي في قائمة الاوامر :
+def create_main_menu(page=1):
+    markup = InlineKeyboardMarkup(row_width=3)
+    
+    if page == 1:
+        text = """- ‌‌‏أهلاً بك عزي في قائمة الاوامر :
 ━━━━━━━━━━━━
 ◂ م1 : اوامر الادمنيه
-◂ م2 : اوامر الاعدادات
+◂ م2 : اوامر الاعدادات  
 ◂ م3 : اوامر القفل - الفتح
+━━━━━━━━━━━━"""
+        markup.row(
+            InlineKeyboardButton("م1 الادمن", callback_data="exec_m1"),
+            InlineKeyboardButton("م2 الاعدادات", callback_data="exec_m2"),
+            InlineKeyboardButton("م3 الحماية", callback_data="exec_m3"),
+        )
+    
+    elif page == 2:
+        text = """- ‌‌‏أهلاً بك عزي في قائمة الاوامر :
+━━━━━━━━━━━━
 ◂ م4 : اوامر التسليه
 ◂ م5 : اوامر Dev
 ◂ م6 : الاوامر الخدميه
 ━━━━━━━━━━━━"""
+        markup.row(
+            InlineKeyboardButton("م4 التسلية", callback_data="exec_m4"),
+            InlineKeyboardButton("م5 المطور", callback_data="exec_m5"),
+            InlineKeyboardButton("م6 الخدمية", callback_data="exec_m6"),
+        )
 
-PAGES_TEXT = {
-    "1": "◂ **اوامر الادمنيه:**\n\nهنا تضع أوامر الإدارة (طرد، حظر، كتم...)",
-    "2": "◂ **اوامر الاعدادات:**\n\nهنا تضع أوامر إعدادات المجموعة أو البوت",
-    "3": "◂ **اوامر القفل - الفتح:**\n\nهنا تضع أوامر قفل وفتح الميديا، الروابط الخ...",
-    "4": "◂ **اوامر التسليه:**\n\nهنا تضع ألعاب وأوامر التسلية والترفيه",
-    "5": "◂ **اوامر Dev:**\n\nأوامر خاصة بمطور البوت فقط وموجودة بملف المطور",
-    "6": "◂ **الاوامر الخدميه:**\n\nهنا تضع الأوامر العامة والخدمية للمستخدمين"
-}
+    nav = []
+    if page == 2: 
+        nav.append(InlineKeyboardButton("⬅️ السابق", callback_data="page_1"))
+    if page == 1: 
+        nav.append(InlineKeyboardButton("التالي ➡️", callback_data="page_2"))
+    nav.append(InlineKeyboardButton("🗑️ اخفاء", callback_data="hide"))
+    markup.row(*nav)
+    
+    return text, markup
 
-def create_keyboard(current_page=None):
-    markup = InlineKeyboardMarkup()
-    btn1 = InlineKeyboardButton("1", callback_data="page_1")
-    btn2 = InlineKeyboardButton("2", callback_data="page_2")
-    btn3 = InlineKeyboardButton("3", callback_data="page_3")
-    btn4 = InlineKeyboardButton("4", callback_data="page_4")
-    btn5 = InlineKeyboardButton("5", callback_data="page_5")
-    btn6 = InlineKeyboardButton("6", callback_data="page_6")
+def register_menu_handlers(bot):
 
-    markup.row(btn1)
-    markup.row(btn2, btn3, btn4, btn5, btn6)
+    @bot.message_handler(commands=['menu', 'القائمه', 'الاوامر'])
+    def show_menu(m):
+        text, markup = create_main_menu(1)
+        bot.send_message(m.chat.id, text, reply_markup=markup, parse_mode="Markdown")
 
-    if current_page:
+    @bot.callback_query_handler(func=lambda call: True)
+    def menu_callback(call):
         try:
-            current_num = int(current_page)
-            prev_num = 6 if current_num == 1 else current_num - 1
-            next_num = 1 if current_num == 6 else current_num + 1
+            chat_id = call.message.chat.id
+            msg_id = call.message.message_id
+            data = call.data
 
-            btn_prev = InlineKeyboardButton("⬅️ السابق", callback_data=f"page_{prev_num}")
-            btn_main = InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")
-            btn_next = InlineKeyboardButton("التالي ➡️", callback_data=f"page_{next_num}")
-            markup.row(btn_prev, btn_main, btn_next)
-        except ValueError:
-            pass
+            # ===== التنقل =====
+            if data == "page_1":
+                text, markup = create_main_menu(1)
+                bot.edit_message_text(text, chat_id, msg_id, reply_markup=markup, parse_mode="Markdown")
+            
+            elif data == "page_2":
+                text, markup = create_main_menu(2)
+                bot.edit_message_text(text, chat_id, msg_id, reply_markup=markup, parse_mode="Markdown")
+            
+            # ===== الاخفاء =====
+            elif data == "hide":
+                bot.delete_message(chat_id, msg_id)
 
-    btn_channel = InlineKeyboardButton("تحديثات 𝐓𝐢𝐚", url="https://t.me")
-    markup.row(btn_channel)
-
-    btn_empty1 = InlineKeyboardButton(" 🔘 ", callback_data="empty")
-    btn_empty2 = InlineKeyboardButton(" 🔘 ", callback_data="empty")
-    markup.row(btn_empty1, btn_empty2)
-    return markup
-
-def register_handlers(bot):
-
-    # تشتغل بالقروبات فقط
-    @bot.message_handler(func=lambda message: message.text == "الاوامر" and message.chat.type in ["group", "supergroup"])
-    def send_commands_group(message):
-        bot.reply_to(message, MAIN_MENU_TEXT, reply_markup=create_keyboard(), parse_mode="Markdown")
-
-    @bot.message_handler(func=lambda message: message.text == "تفعيل")
-    def activate_cmd(message):
-        try: bot.reply_to(message, "تم تفعيل بنجاح")
-        except Exception: pass
-
-    @bot.message_handler(func=lambda message: message.text == "اخفاء الاوامر")
-    def hide_commands(message):
-        try:
-            if message.reply_to_message:
-                bot.delete_message(message.chat.id, message.reply_to_message.message_id)
-            bot.delete_message(message.chat.id, message.message_id)
-        except Exception: pass
-
-    @bot.callback_query_handler(func=lambda call: call.data in ["main_menu", "empty"] or call.data.startswith("page_"))
-    def callback_listener(call):
-        try:
-            if call.data == "main_menu":
-                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
-                                      text=MAIN_MENU_TEXT, reply_markup=create_keyboard(), parse_mode="Markdown")
-                bot.answer_callback_query(call.id)
-            elif call.data.startswith("page_"):
-                page_num = call.data.split("_")[1]
-                page_text = PAGES_TEXT.get(page_num, "قسم فارغ")
-                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
-                                      text=page_text, reply_markup=create_keyboard(current_page=page_num), parse_mode="Markdown")
-                bot.answer_callback_query(call.id)
-            elif call.data == "empty":
-                bot.answer_callback_query(call.id, text="هذا الزر فارغ مخصص للتصميم فقط!", show_alert=False)
+            # ===== استدعاء الملفات مباشرة =====
+            elif data == "exec_m1":
+                import m1
+                m1.register_admin_handlers(bot)
+                m1.admin_menu(bot, call.message)
+                
+            elif data == "exec_m2":
+                import m2
+                m2.register_settings_handlers(bot)
+                m2.settings_menu(bot, call.message)
+                
+            elif data == "exec_m3":
+                import m3
+                m3.register_lock_handlers(bot)
+                m3.lock_menu(bot, call.message)
+                
+            elif data == "exec_m4":
+                import m4
+                m4.register_fun_handlers(bot)
+                m4.fun_menu(bot, call.message)
+                
+            elif data == "exec_m5":
+                import dev_commands as m5
+                m5.register_dev_handlers(bot)
+                m5.dev_menu(bot, call.message)
+                
+            elif data == "exec_m6":
+                import service_commands as m6
+                m6.register_service_handlers(bot)
+                m6.service_menu(bot, call.message)
+            
+            bot.answer_callback_query(call.id)
         except Exception as e:
-            print(f"Error in main_menu callback: {e}")
+            print(f"خطأ في القائمة: {e}")
+            bot.answer_callback_query(call.id, "حدث خطأ")
