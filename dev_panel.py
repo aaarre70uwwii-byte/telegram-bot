@@ -5,26 +5,27 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 DEV_DATA = {
     "channel": "https://t.me",
     "bot_name": "Tia Bot",
-    "welcome": "أهلاً بك عزيزي في البوت! 👋"
+    "welcome": "أهلاً بك عزي في البوت! 👋"
 }
+
+# خليتها برا عشان main.py يستدعيها مباشرة
+def get_dev_keyboard():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False, placeholder="لوحة تحكم المطور الأساسي ⚙️")
+    markup.row(KeyboardButton("⚙️ إعدادات البوت"), KeyboardButton("📣 أوامر الإذاعة"), KeyboardButton("📊 قائمة العام"))
+    markup.row(KeyboardButton("👑 تغيير المطور الأساسي"), KeyboardButton("🔔 مسح المطورين"))
+    markup.row(KeyboardButton("🗑️ مسح اسم البوت"), KeyboardButton("❌ مسح قائمة العام"))
+    markup.row(KeyboardButton("✏️ تغيير اسم البوت"), KeyboardButton("👥 مسح المطورين الثانويين"))
+    markup.row(KeyboardButton("📴 تعطيل التواصل"), KeyboardButton("📦 جلب النسخة الاحتياطية"))
+    markup.row(KeyboardButton("📲 تفعيل التواصل"), KeyboardButton("🔄 تحديث الملفات"))
+    markup.row(KeyboardButton("🔴 تعطيل البوت الخدمي"), KeyboardButton("⚡ تفعيل البوت"))
+    markup.row(KeyboardButton("▶️ تفعيل البوت الخدمي"))
+    markup.row(KeyboardButton("⚙️ إظهار _ إخفاء • قائمة إعداد البوت"))
+    markup.row(KeyboardButton("👋 أضف ترحيب"))
+    markup.row(KeyboardButton("📢 قناة تحديثات البوت"))
+    return markup
 
 def register_handlers(bot):
     
-    def get_dev_keyboard():
-        markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False, placeholder="لوحة تحكم المطور الأساسي ⚙️")
-        markup.row(KeyboardButton("⚙️ إعدادات البوت"), KeyboardButton("📣 أوامر الإذاعة"), KeyboardButton("📊 قائمة العام"))
-        markup.row(KeyboardButton("👑 تغيير المطور الأساسي"), KeyboardButton("🔔 مسح المطورين"))
-        markup.row(KeyboardButton("🗑️ مسح اسم البوت"), KeyboardButton("❌ مسح قائمة العام"))
-        markup.row(KeyboardButton("✏️ تغيير اسم البوت"), KeyboardButton("👥 مسح المطورين الثانويين"))
-        markup.row(KeyboardButton("📴 تعطيل التواصل"), KeyboardButton("📦 جلب النسخة الاحتياطية"))
-        markup.row(KeyboardButton("📲 تفعيل التواصل"), KeyboardButton("🔄 تحديث الملفات"))
-        markup.row(KeyboardButton("🔴 تعطيل البوت الخدمي"), KeyboardButton("⚡ تفعيل البوت"))
-        markup.row(KeyboardButton("▶️ تفعيل البوت الخدمي"))
-        markup.row(KeyboardButton("⚙️ إظهار _ إخفاء • قائمة إعداد البوت"))
-        markup.row(KeyboardButton("👋 أضف ترحيب"))
-        markup.row(KeyboardButton("📢 قناة تحديثات البوت"))
-        return markup
-
     # استدعاء الكيبورد بالخاص للمطور فقط عند كتابة كلمة مطور
     @bot.message_handler(func=lambda message: message.text in ["مطور", "المطور", "/dev"] and message.chat.type == "private")
     def send_dev_menu(message):
