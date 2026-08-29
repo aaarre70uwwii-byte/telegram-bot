@@ -4,13 +4,13 @@ import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 # ====== 1. الاستدعاء للملفين ======
-from dev_panel import DEV_DATA, get_dev_keyboard, is_group_active # جبنا دالة التحقق
+from dev_panel import DEV_DATA, get_dev_keyboard, check_group # غيرت الاسم هنا
 import dev_panel
 import main_menu
 # =====================================
 
-BOT_TOKEN = os.getenv("BOT_TOKEN") # حطه في Railway Variables
-OWNER_ID = 7488375443 # << غيره لايديك
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = os.getenv("OWNER_ID") # خليه يجي من Railway احسن
 bot = telebot.TeleBot(BOT_TOKEN)
 DB_FILE = "bot_database.db"
 
@@ -37,8 +37,8 @@ def get_welcome():
 # ====== 2. دالة التحقق من تفعيل الجروب ======
 def check_group_status(message):
     if message.chat.type in ["group", "supergroup"]:
-        if str(message.from_user.id)!= str(OWNER_ID): # المطور مستثنى
-            if not is_group_active(message.chat.id):
+        if str(message.from_user.id)!= str(OWNER_ID):
+            if not check_group(message.chat.id): # وغيرت الاسم هنا
                 bot.reply_to(message, "🔴 البوت معطل في هذه المجموعة\nفعلني من لوحة المطور")
                 return False
     return True
@@ -62,7 +62,7 @@ def cmd_start(message):
 
 @bot.message_handler(func=lambda m: m.text == "الاوامر")
 def show_commands_btn(m):
-    if not check_group_status(m): return # يتحقق قبل ما يفتح القائمة
+    if not check_group_status(m): return
     text, markup = main_menu.create_main_menu(1)
     bot.send_message(m.chat.id, text, reply_markup=markup)
 
@@ -71,10 +71,8 @@ def handle_new_member(message):
     if message.chat.type in ["group", "supergroup"]:
         save_group(message.chat.id)
 
-# ====== 3. تشغيل الهاندلرات من الملفين ======
 dev_panel.register_handlers(bot)
 main_menu.register_menu_handlers(bot)
-# =============================================
 
 print(f"✅ البوت {DEV_DATA['bot_name']} شغال")
 bot.infinity_polling(skip_pending=True)
