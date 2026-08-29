@@ -5,14 +5,30 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemo
 
 DB_FILE = "bot_database.db"
 waiting = {}
-MAIN_DEV_ID = 7488375443 # << ايديك
+
+# ===== قراءة الاعدادات من الداتا بيز اول ما يشتغل =====
+def load_settings():
+    c = sqlite3.connect(DB_FILE).cursor()
+    c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+    c.execute("SELECT value FROM settings WHERE key='owner'"); r = c.fetchone()
+    owner = int(r[0]) if r else 7488375443
+
+    c.execute("SELECT value FROM settings WHERE key='bot_status'"); r = c.fetchone()
+    bot_status = r[0] == 'True' if r else True
+
+    c.execute("SELECT value FROM settings WHERE key='contact_status'"); r = c.fetchone()
+    contact_status = r[0] == 'True' if r else True
+    c.connection.close()
+    return owner, bot_status, contact_status
+
+MAIN_DEV_ID, bot_status, contact_status = load_settings()
+
 DEV_DATA = {
-    "channel": "@TiaUpdates", # تقدر تغيره من الزر
-    "bot_name": "𝐓𝐢𝐚", # << اسم البوت
+    "channel": "@TiaUpdates",
+    "bot_name": "𝐓𝐢𝐚",
     "welcome": "🙋‍♂️ اهلا بك في بوت 𝐓𝐢𝐚"
 }
-contact_status = True
-bot_status = True
+# ======================================================
 
 def get_dev_keyboard():
     k = ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
@@ -32,7 +48,7 @@ def get_dev_keyboard():
 
 def get_setting(key):
     c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); c.execute("SELECT value FROM settings WHERE key=?",(key,)); r=c.fetchone(); c.connection.close()
-    return r[0] if r else DEV_DATA["channel"]
+    return r[0] if r else DEV_DATA.get(key, "@TiaUpdates")
 
 def set_setting(key, value):
     c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); c.execute("INSERT OR REPLACE INTO settings VALUES (?,?)",(key,value)); c.connection.commit(); c.connection.close()
@@ -55,15 +71,19 @@ def broadcast_message(bot, text):
     for chat_id in users + groups:
         try:
             bot.send_message(chat_id, f"📢 **اذاعة من {DEV_DATA['bot_name']}**\n\n{text}", parse_mode="Markdown")
-            success += 1; time.sleep(0.1) # عشان ما يعمل حظر
+            success += 1; time.sleep(0.1)
         except: fail += 1
     return success, fail
+
+def get_welcome():
+    c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS welcome_msg (text TEXT)"); c.execute("SELECT text FROM welcome_msg"); r=c.fetchone(); c.connection.close()
+    return r[0] if r else DEV_DATA["welcome"]
 
 def register_handlers(bot):
 
     @bot.message_handler(func=lambda m: m.chat.type == 'private' and m.from_user.id == MAIN_DEV_ID)
     def handle_dev(m):
-        global waiting, contact_status, bot_status, DEV_DATA
+        global waiting, contact_status, bot_status, DEV_DATA, MAIN_DEV_ID
         t = m.text
 
         if t == "⚙️ إعدادات البوت":
@@ -99,12 +119,16 @@ def register_handlers(bot):
             sent = bot.send_message(m.chat.id, "✏️ ارسل اسم البوت الجديد:")
             bot.register_next_step_handler(sent, process_change_name)
 
-        elif t == "📵 تعطيل التواصل": contact_status = False; bot.send_message(m.chat.id, "📵 تم تعطيل التواصل")
-        elif t == "✅ تفعيل التواصل": contact_status = True; bot.send_message(m.chat.id, "✅ تم تفعيل التواصل")
+        elif t == "📵 تعطيل التواصل":
+            contact_status = False; set_setting('contact_status', 'False'); bot.send_message(m.chat.id, "📵 تم تعطيل التواصل")
+        elif t == "✅ تفعيل التواصل":
+            contact_status = True; set_setting('contact_status', 'True'); bot.send_message(m.chat.id, "✅ تم تفعيل التواصل")
         elif t == "💾 جلب النسخه الاحتياطيه": bot.send_document(m.chat.id, open(DB_FILE, 'rb'), caption="💾 النسخة الاحتياطية")
         elif t == "🔄 تحديث الملفات": bot.send_message(m.chat.id, "🔄 جاري التحديث..."); time.sleep(1); bot.send_message(m.chat.id, "✅ تم تحديث الملفات")
-        elif t == "🔴 تعطيل البوت الخدمي": bot_status = False; bot.send_message(m.chat.id, "🔴 تم تعطيل البوت الخدمي")
-        elif t == "⚡ تفعيل البوت" or t == "▶️ تفعيل البوت الخدمي": bot_status = True; bot.send_message(m.chat.id, "⚡ تم تفعيل البوت الخدمي")
+        elif t == "🔴 تعطيل البوت الخدمي":
+            bot_status = False; set_setting('bot_status', 'False'); bot.send_message(m.chat.id, "🔴 تم تعطيل البوت الخدمي")
+        elif t == "⚡ تفعيل البوت" or t == "▶️ تفعيل البوت الخدمي":
+            bot_status = True; set_setting('bot_status', 'True'); bot.send_message(m.chat.id, "⚡ تم تفعيل البوت الخدمي")
         elif t == "⚙️ اظهار _ اخفاء • قائمة اعداد البوت": bot.send_message(m.chat.id, "استخدم /start لاظهار الكيبورد", reply_markup=ReplyKeyboardRemove())
         elif t == "👋 اضف ترحيب":
             sent = bot.send_message(m.chat.id, "👋 ارسل نص الترحيب الجديد:\nتقدر تستخدم {name} للاسم")
@@ -125,7 +149,8 @@ def register_handlers(bot):
         global MAIN_DEV_ID
         try:
             MAIN_DEV_ID = int(message.text)
-            bot.send_message(message.chat.id, f"✅ تم تغير المطور الاساسي الى `{message.text}`\n⚠️ لازم تعمل اعادة تشغيل للبوت", parse_mode="Markdown")
+            set_setting('owner', str(MAIN_DEV_ID)) # << حفظناه
+            bot.send_message(message.chat.id, f"✅ تم تغير المطور الاساسي الى `{message.text}`\n⚠️ اعمل اعادة تشغيل للبوت", parse_mode="Markdown")
         except: bot.send_message(message.chat.id, "❌ الايدي خطأ")
 
     def process_change_name(message):
@@ -133,7 +158,7 @@ def register_handlers(bot):
         bot.send_message(message.chat.id, f"✅ تم تغير اسم البوت الى: {message.text}")
 
     def process_change_welcome(message):
-        c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS welcome (text TEXT)"); c.execute("DELETE FROM welcome"); c.execute("INSERT INTO welcome VALUES (?)",(message.text,)); c.connection.commit(); c.connection.close()
+        c=sqlite3.connect(DB_FILE).cursor(); c.execute("CREATE TABLE IF NOT EXISTS welcome_msg (text TEXT)"); c.execute("DELETE FROM welcome_msg"); c.execute("INSERT INTO welcome_msg VALUES (?)",(message.text,)); c.connection.commit(); c.connection.close() # << صلحناه
         DEV_DATA["welcome"] = message.text
         bot.send_message(message.chat.id, "✅ تم حفظ الترحيب الجديد")
 
