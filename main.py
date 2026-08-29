@@ -4,12 +4,12 @@ import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 # ====== هنا الاستدعاء للملفين ======
-from dev_panel import register_handlers as register_dev_handlers, DEV_DATA, get_dev_keyboard
-from main_menu import register_handlers as register_menu_handlers
+from dev_commands import register_handlers as register_dev_handlers, DEV_DATA, get_dev_keyboard # << عدلنا الاسم
+from main_menu import register_menu_handlers
 # =====================================
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = os.getenv("OWNER_ID")
+BOT_TOKEN = os.getenv("BOT_TOKEN") # "حط_التوكن_هنا"
+OWNER_ID = 7488375443 # << ايديك
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 DB_FILE = "bot_database.db"
@@ -58,7 +58,7 @@ def handle_new_member(message):
         save_group(message.chat.id)
 
 # ====== هنا تشغيل الهاندلرات من الملفين ======
-register_dev_handlers(bot) # يشغل dev_panel.py
+register_dev_handlers(bot) # يشغل dev_commands.py
 register_menu_handlers(bot) # يشغل main_menu.py
 # =============================================
 
