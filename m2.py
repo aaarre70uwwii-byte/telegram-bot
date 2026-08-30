@@ -33,6 +33,11 @@ def set_setting(chat_id, key, value):
     cursor.execute("INSERT OR REPLACE INTO group_settings VALUES (?,?,?)", (chat_id, key, value))
     conn.commit()
 
+def get_list(chat_id, key):
+    cursor.execute("SELECT value FROM group_settings WHERE chat_id =? AND key =?", (chat_id, key))
+    res = cursor.fetchone()
+    return res[0].split(",") if res and res[0] else []
+
 def register_settings_handlers(bot):
 
     @bot.message_handler(func=lambda m: m.chat.type in ["group", "supergroup"])
@@ -49,22 +54,12 @@ def register_settings_handlers(bot):
         if text.startswith("همس "):
             parts = text.split(" ", 2)
             if len(parts) < 3: return bot.reply_to(m, "⚠️ الطريقة: `همس @username النص`", parse_mode="Markdown")
-
             username = parts[1].replace("@", "")
             whisper_text = parts[2]
             sender_name = m.from_user.first_name
-
             try:
-                members = bot.get_chat_administrators(chat_id)
-                target_id = None
-                for member in members:
-                    if member.user.username and member.user.username.lower() == username.lower():
-                        target_id = member.user.id
-                        break
-                if not target_id:
-                    target_user = bot.get_chat_member(chat_id, username)
-                    target_id = target_user.user.id
-
+                target_user = bot.get_chat_member(chat_id, username)
+                target_id = target_user.user.id
                 bot.send_message(target_id, f"""🔒 **همسة جديدة من {sender_name}**
 
 في قروب: {m.chat.title}
@@ -79,13 +74,11 @@ def register_settings_handlers(bot):
             welcome = get_setting(chat_id, "welcome_text", "معطل")
             link = get_setting(chat_id, "group_link", "غير محدد")
             rules = get_setting(chat_id, "rules", "غير محدد")
-
             settings_text = f"""⚙️ **اعدادات {m.chat.title}:**
 
 👋 الترحيب: `{welcome}`
 🔗 الرابط: {link}
 📜 القوانين: {rules}"""
-
             try:
                 bot.send_message(sender_id, settings_text, parse_mode="Markdown")
                 bot.reply_to(m, "📩 تم ارسال الاعدادات لك في الخاص")
@@ -96,19 +89,16 @@ def register_settings_handlers(bot):
         elif text == "الاعدادات":
             bot.reply_to(m, """- اهلا بك في قائمة اوامر الاعدادات :
 ━━━━━━━━━━━━
-
 - اوامر رؤية الاعدادات :
 - الرابط • المالكين • المنشئين
 - الادمنيه • المدراء • المميزين
 - المحظورين • القوانين • المكتومين
 - معلوماتي • الحمايه • المجموعه
 - الاعدادات خاص
-
 - اوامر وضع الاعدادات :
 - اضف رابط • مسح الرابط • انشاء رابط
 - ضع الترحيب • ضع قوانين • ضع رابط
-- تعيين الايدي
-
+- تعيين الايدي [النص]
 - اوامر الهمس:
 - همس @username النص
 ━━━━━━━━━━━━""", parse_mode="Markdown")
@@ -117,6 +107,34 @@ def register_settings_handlers(bot):
         elif text == "الرابط":
             link = get_setting(chat_id, "group_link", "لا يوجد رابط محفوظ")
             bot.reply_to(m, f"🔗 رابط المجموعة:\n{link}")
+
+        elif text == "المالكين":
+            owners = get_list(chat_id, "owners")
+            bot.reply_to(m, f"👑 المالكين: {len(owners)}" if owners else "لا يوجد مالكين مضافين")
+
+        elif text == "المنشئين":
+            creators = get_list(chat_id, "creators")
+            bot.reply_to(m, f"📝 المنشئين: {len(creators)}" if creators else "لا يوجد منشئين مضافين")
+
+        elif text == "الادمنيه":
+            admins = get_list(chat_id, "admins")
+            bot.reply_to(m, f"🛡️ الادمنيه: {len(admins)}" if admins else "لا يوجد ادمنيه مضافين")
+
+        elif text == "المدراء":
+            mods = get_list(chat_id, "mods")
+            bot.reply_to(m, f"👮 المدراء: {len(mods)}" if mods else "لا يوجد مدراء مضافين")
+
+        elif text == "المميزين":
+            vip = get_list(chat_id, "vip")
+            bot.reply_to(m, f"⭐ المميزين: {len(vip)}" if vip else "لا يوجد مميزين مضافين")
+
+        elif text == "المحظورين":
+            banned = get_list(chat_id, "banned")
+            bot.reply_to(m, f"🚷 المحظورين: {len(banned)}" if banned else "لا يوجد محظورين")
+
+        elif text == "المكتومين":
+            muted = get_list(chat_id, "muted")
+            bot.reply_to(m, f"🔇 المكتومين: {len(muted)}" if muted else "لا يوجد مكتومين")
 
         elif text == "معلوماتي":
             my_rank, my_level = get_user_rank(bot, chat_id, sender_id)
@@ -137,6 +155,9 @@ def register_settings_handlers(bot):
         elif text == "القوانين":
             rules = get_setting(chat_id, "rules", "لا توجد قوانين محددة")
             bot.reply_to(m, f"📜 **قوانين المجموعة:**\n{rules}")
+
+        elif text == "الحمايه":
+            bot.reply_to(m, "🛡️ الحماية: استخدم اوامر القفل من قائمة m3")
 
         # ===== وضع الاعدادات - للادمن فقط =====
         elif not is_admin:
@@ -179,5 +200,10 @@ def register_settings_handlers(bot):
             else:
                 bot.reply_to(m, "⚠️ مثال: `ضع رابط https://t.me/...`")
 
-        elif text == "تعيين الايدي":
-            bot.reply_to(m, "⚙️ تم تفعيل وضع تعيين شكل الايدي. قريبا")
+        elif text.startswith("تعيين الايدي"):
+            id_text = text.replace("تعيين الايدي", "").strip()
+            if id_text:
+                set_setting(chat_id, "id_template", id_text)
+                bot.reply_to(m, f"✅ تم تعيين شكل الايدي:\n`{id_text}`", parse_mode="Markdown")
+            else:
+                bot.reply_to(m, "⚠️ مثال: `تعيين الايدي الاسم: {name}\nالايدي: {id}`", parse_mode="Markdown")
