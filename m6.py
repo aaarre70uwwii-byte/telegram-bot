@@ -1,6 +1,7 @@
 import sqlite3
 import random
 import requests
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 DB_NAME = "service_data.db"
 
@@ -14,53 +15,71 @@ def init_db():
 
 init_db()
 
+def get_service_keyboard():
+    markup = InlineKeyboardMarkup(row_width=3)
+    markup.add(
+        InlineKeyboardButton("❤️ نسب", callback_data="ser_ratio"),
+        InlineKeyboardButton("📨 زاجل", callback_data="ser_zajel"),
+        InlineKeyboardButton("🎁 اهداء", callback_data="ser_gift")
+    )
+    markup.add(
+        InlineKeyboardButton("📚 محتوى", callback_data="ser_content"),
+        InlineKeyboardButton("🔍 بحث", callback_data="ser_search"),
+        InlineKeyboardButton("⬇️ تحميل", callback_data="ser_download")
+    )
+    return markup
+
 def register_service_handlers(bot):
 
-    # ===== قائمة الاوامر =====
+    content_db = {
+        "افلام": ["فيلم 1: Inception", "فيلم 2: Interstellar", "فيلم 3: The Dark Knight"],
+        "قران": ["اية الكرسي: الله لا اله الا هو الحي القيوم", "سورة الاخلاص: قل هو الله احد"],
+        "اذكار": ["سبحان الله", "الحمدلله", "الله اكبر"],
+        "شعر": ["اذا الشعب يوما اراد الحياة", "قفا نبك من ذكرى حبيب ومنزل"],
+        "اقتباسات": ["الصبر مفتاح الفرج", "من جد وجد ومن سار على الدرب وصل"],
+        "ثريد": ["ثريد: 10 اسرار عن البرمجة"],
+        "قصص": ["قصة: كان هناك ولد ذكي"],
+        "اطربني": ["🎵 اغنية عربية", "🎵 اغنية اجنبية"],
+        "اغاني": ["اغنية 1", "اغنية 2"],
+        "هيدرات": ["صورة هيدر 1"],
+        "جداريات": ["جدارية 1"],
+        "ميمز": ["ميمز مضحك 1"],
+        "ايدت": ["ايدت انمي 1"],
+        "قيفات": ["قيف رومنسي 1", "قيف كيبوب 1"],
+        "افتارات": ["افتار بنات 1", "افتار عيال 1"],
+    }
+
     @bot.message_handler(commands=['الخدميه'], chat_types=['group','supergroup','private'])
+    @bot.message_handler(func=lambda m: m.text == "الخدمية", chat_types=['group','supergroup','private'])
     def service_menu(m):
-        bot.reply_to(m, """- اهلا بك عزي
-- اوامر الخدميه :
-━━━━━━━━━━━━
-• نسبه الحب
-• نسبه الغباء - بالرد
-• تحبه - بالرد
-• ارسل + الكلام + اليوزر زاجل
-• صيح
-• صيح + اليوزر
-• شبيهي - شبيهتي
-• اهديه بالرد
-• اهديه + يوزر الشخص
-• شرايك في افتاري
-• افتاره بالرد
-• البايو بالرد
-• افلام
-• نسبه انوثتها - بالرد
-• نسبه رجولته - بالرد
-• البوت السحري
-• قوقل + كلام البحث
-• تطبيق + اسم التطبيق
-• تحميل لعبه + اسم اللعبه
-• معنى + اسمك
-• العمر + عمرك
-• زخرف + اسمك
-• ترجم عربي + الكلام
-• ترجم انقليزي + الكلام
-• قران - اذكار - شعر - اقتباسات
-• ثريد - قصص - اطربني - اغاني
-• هيدرات - جداريات - ميمز - ايدت
-• قيفات - افتارات
-• نادي المطور
-• من ضافني
-━━━━━━━━━━━━
-**التحميل:**
-ساوند + الرابط
-تيك + الرابط
-تويتر + الرابط
-━━━━━━━━━━━━""")
+        bot.reply_to(m, "⚙️ **قائمة الخدمية**\nاختار القسم:", parse_mode="Markdown", reply_markup=get_service_keyboard())
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("ser_"))
+    def service_buttons(call):
+        if call.data == "ser_ratio":
+            bot.answer_callback_query(call.id, "اكتب: نسبة الحب / نسبة الغباء بالرد", show_alert=True)
+        elif call.data == "ser_zajel":
+            bot.answer_callback_query(call.id, "اكتب: ارسل الكلام @اليوزر زاجل", show_alert=True)
+        elif call.data == "ser_gift":
+            bot.answer_callback_query(call.id, "اكتب: اهديه بالرد او اهديه @اليوزر", show_alert=True)
+        elif call.data == "ser_content":
+            markup = InlineKeyboardMarkup(row_width=3)
+            for key in ["قران","اذكار","شعر","اقتباسات","افلام","ميمز"]:
+                markup.add(InlineKeyboardButton(key, callback_data=f"content_{key}"))
+            bot.edit_message_text("📚 اختار المحتوى:", call.message.chat.id, call.message_id, reply_markup=markup)
+        elif call.data == "ser_search":
+            bot.answer_callback_query(call.id, "اكتب: قوقل + البحث او ترجم عربي + النص", show_alert=True)
+        elif call.data == "ser_download":
+            bot.answer_callback_query(call.id, "اكتب: ساوند + الرابط او تيك + الرابط", show_alert=True)
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("content_"))
+    def send_content(call):
+        key = call.data.replace("content_", "")
+        bot.answer_callback_query(call.id, random.choice(content_db.get(key, ["فاضي"])), show_alert=True)
 
     @bot.message_handler(func=lambda m: True, chat_types=['group','supergroup','private'])
     def process_service(m):
+        if not m.text: return
         text = m.text.strip()
         chat_id = m.chat.id
         user = m.from_user
@@ -68,16 +87,16 @@ def register_service_handlers(bot):
         # ===== نسب =====
         if text == "نسبه الحب":
             num = random.randint(1,100)
-            bot.reply_to(m, f"نسبه حبك هي: {num}% ❤️")
+            bot.reply_to(m, f"❤️ نسبه حبك هي: {num}%")
         if text.startswith("نسبه الغباء") and m.reply_to_message:
             num = random.randint(1,100)
-            bot.reply_to(m, f"نسبه غباء {m.reply_to_message.from_user.first_name} هي: {num}% 😂")
+            bot.reply_to(m, f"😂 نسبه غباء {m.reply_to_message.from_user.first_name} هي: {num}%")
         if text.startswith("نسبه انوثتها") and m.reply_to_message:
             num = random.randint(1,100)
-            bot.reply_to(m, f"نسبه انوثه {m.reply_to_message.from_user.first_name} هي: {num}% 👩")
+            bot.reply_to(m, f"👩 نسبه انوثه {m.reply_to_message.from_user.first_name} هي: {num}%")
         if text.startswith("نسبه رجولته") and m.reply_to_message:
             num = random.randint(1,100)
-            bot.reply_to(m, f"نسبه رجوله {m.reply_to_message.from_user.first_name} هي: {num}% 👨")
+            bot.reply_to(m, f"👨 نسبه رجوله {m.reply_to_message.from_user.first_name} هي: {num}%")
 
         # ===== تحبه =====
         if text == "تحبه" and m.reply_to_message:
@@ -93,22 +112,22 @@ def register_service_handlers(bot):
 
         # ===== الصياح =====
         if text == "صيح":
-            bot.reply_to(m, f"اااااااه {user.first_name} ليش تصيح 😂")
-        if text.startswith("صيح"):
+            bot.reply_to(m, f"ااه {user.first_name} ليش تصيح 😂")
+        if text.startswith("صيح "):
             username = text.split(" ", 1)[1]
             bot.reply_to(m, f"ااه {username} ليش تصيح 😂")
 
         # ===== الشبيه =====
         if text == "شبيهي":
-            bot.reply_to(m, f"شبيهك هو {random.choice(['احمد', 'محمد', 'علي'])}")
+            bot.reply_to(m, f"شبيهك هو {random.choice(['احمد', 'محمد', 'علي', 'خالد'])}")
         if text == "شبيهتي":
-            bot.reply_to(m, f"شبيهتك هي {random.choice(['فاطمة', 'سارة', 'نور'])}")
+            bot.reply_to(m, f"شبيهتك هي {random.choice(['فاطمة', 'سارة', 'نور', 'ريم'])}")
 
         # ===== الاهداء =====
         if text == "اهديه" and m.reply_to_message:
-            gifts = ["🌹 وردة", "💍 خاتم", "🍫 شوكولاته"]
+            gifts = ["🌹 وردة", "💍 خاتم", "🍫 شوكولاته", "🎁 هدية"]
             bot.reply_to(m, f"اهديت {m.reply_to_message.from_user.first_name} {random.choice(gifts)}")
-        if text.startswith("اهديه"):
+        if text.startswith("اهديه "):
             username = text.split(" ", 1)[1]
             bot.reply_to(m, f"اهديت {username} 🌹")
 
@@ -118,52 +137,31 @@ def register_service_handlers(bot):
         if text == "افتاره" and m.reply_to_message:
             try:
                 photos = bot.get_user_profile_photos(m.reply_to_message.from_user.id, limit=1)
-                bot.send_photo(m.chat.id, photos.photos[0][0].file_id, caption="افتاره")
+                bot.send_photo(m.chat.id, photos.photos[0][0].file_id, caption="📸 افتاره")
             except: bot.reply_to(m, "ماعنده صورة")
         if text == "البايو" and m.reply_to_message:
             try:
                 info = bot.get_chat(m.reply_to_message.from_user.id)
-                bot.reply_to(m, f"البايو: {info.bio if info.bio else 'فاضي'}")
+                bot.reply_to(m, f"📝 البايو: {info.bio if info.bio else 'فاضي'}")
             except: bot.reply_to(m, "ماقدر اجيب البايو")
 
         # ===== محتوى عشوائي =====
-        content = {
-            "افلام": ["فيلم 1", "فيلم 2", "فيلم 3"],
-            "قران": ["اية الكرسي", "سورة الملك"],
-            "اذكار": ["سبحان الله", "الحمدلله"],
-            "شعر": ["اذا الشعب يوما اراد الحياة"],
-            "اقتباسات": ["الصبر مفتاح الفرج"],
-            "ثريد": ["ثريد عن البرمجة"],
-            "قصص": ["قصة قصيرة"],
-            "اطربني": ["اغنية 1", "اغنية 2"],
-            "اغاني": ["اغنية عربية", "اغنية اجنبية"],
-            "هيدرات": ["هيدر 1"],
-            "جداريات": ["جدارية 1"],
-            "ميمز": ["ميمز 1"],
-            "ايدت": ["ايدت 1"],
-        }
-        if text in content:
-            bot.reply_to(m, random.choice(content[text]))
-
-        # ===== قيفات وافتارات =====
-        if "قيفات" in text:
-            bot.reply_to(m, "ارسل: قيفات اطفال - قيفات رومنسيه - قيفات كيبوب")
-        if "افتارات" in text:
-            bot.reply_to(m, "ارسل: افتارات بنات - افتارات عيال - افتارات انمي")
+        if text in content_db:
+            bot.reply_to(m, random.choice(content_db[text]))
 
         # ===== ادوات =====
-        if text.startswith("قوقل"):
+        if text.startswith("قوقل "):
             query = text.split(" ", 1)[1]
-            bot.reply_to(m, f"ابحث في قوقل: https://google.com/search?q={query}")
-        if text.startswith("ترجم عربي"):
+            bot.reply_to(m, f"🔍 ابحث في قوقل: https://google.com/search?q={query}")
+        if text.startswith("ترجم عربي "):
             txt = text.split(" ", 2)[2]
-            bot.reply_to(m, f"الترجمة: {txt} [ترجمة وهمية]")
-        if text.startswith("ترجم انقليزي"):
+            bot.reply_to(m, f"🇸🇦 الترجمة: {txt} [ترجمة وهمية]")
+        if text.startswith("ترجم انقليزي "):
             txt = text.split(" ", 2)[2]
-            bot.reply_to(m, f"Translation: {txt} [fake]")
-        if text.startswith("زخرف"):
+            bot.reply_to(m, f"🇺🇸 Translation: {txt} [fake]")
+        if text.startswith("زخرف "):
             name = text.split(" ", 1)[1]
-            bot.reply_to(m, f"زخرفة: 『{name}』『★{name}★』")
+            bot.reply_to(m, f"✨ زخرفة: 『{name}』『★{name}★』『❥{name}❥』")
 
         # ===== نادي المطور =====
         if text == "نادي المطور":
@@ -171,12 +169,13 @@ def register_service_handlers(bot):
 
         # ===== من ضافني =====
         if text == "من ضافني":
-            bot.reply_to(m, "هذي الميزة تحتاج تخزين من اول ما دخلت")
+            bot.reply_to(m, "⚠️ هذي الميزة تحتاج تخزين من اول ما دخلت")
 
         # ===== التحميل =====
-        if text.startswith("ساوند") or text.startswith("تيك") or text.startswith("تويتر"):
-            bot.reply_to(m, "جاري تحميل الرابط... الميزة تحتاج مكتبة خارجية")
+        if text.startswith("ساوند ") or text.startswith("تيك ") or text.startswith("تويتر "):
+            link = text.split(" ", 1)[1]
+            bot.reply_to(m, f"⬇️ جاري تحميل: {link}\nملاحظة: تحتاج مكتبة yt-dlp للتحميل الفعلي")
 
         # ===== تحويل الصيغ =====
         if text.startswith("تحويل") and m.reply_to_message:
-            bot.reply_to(m, "تم التحويل... تحتاج مكتبة ffmpeg")
+            bot.reply_to(m, "🔄 تم التحويل... تحتاج مكتبة ffmpeg")
