@@ -71,16 +71,14 @@ def handle_callbacks(bot, call):
         show_main_menu(bot, call.message, page=1, edit=True)
         
     elif call.data == "m1":
-        m1.register_admin_handlers(bot)
-        نص = """✅ تم تفعيل اوامر الادمنيه
+        نص = """✅ قائمة اوامر الادمنيه
 استخدمها بالرد على العضو:
 رفع - تنزيل - حظر - طرد - كتم
 مسح 10 - رتبتي - تنزيل الكل"""
         bot.edit_message_text(نص, call.message.chat.id, call.message_id)
         
     elif call.data == "m2":
-        m2.register_settings_handlers(bot)
-        نص = """✅ تم تفعيل اوامر الاعدادات
+        نص = """✅ قائمة اوامر الاعدادات
 اهم الاوامر:
 الاعدادات - الرابط - معلوماتي - المجموعه
 ضع الترحيب - ضع قوانين - انشاء رابط
@@ -88,29 +86,25 @@ def handle_callbacks(bot, call):
         bot.edit_message_text(نص, call.message.chat.id, call.message_id)
 
     elif call.data == "m3":
-        m3.register_lock_handlers(bot)
-        نص = """✅ تم تفعيل اوامر القفل - الفتح
+        نص = """✅ قائمة اوامر القفل - الفتح
 ارسل: الحماية
 لرؤية كل اوامر القفل"""
         bot.edit_message_text(نص, call.message.chat.id, call.message_id)
 
     elif call.data == "m4":
-        m4.register_fun_handlers(bot)
-        نص = """✅ تم تفعيل اوامر التسليه
+        نص = """✅ قائمة اوامر التسليه
 ارسل: التسلية
 لرؤية كل الاوامر"""
         bot.edit_message_text(نص, call.message.chat.id, call.message_id)
         
     elif call.data == "m5":
-        m5.register_handlers(bot)
-        نص = """✅ تم تفعيل اوامر Dev
+        نص = """✅ قائمة اوامر Dev
 ارسل: المطور2
 لعرض قائمة المطور"""
         bot.edit_message_text(نص, call.message.chat.id, call.message_id)
         
     elif call.data == "m6":
-        m6.register_service_handlers(bot)
-        نص = """✅ تم تفعيل الاوامر الخدميه
+        نص = """✅ قائمة الاوامر الخدميه
 ارسل: الخدميه
 لعرض كل الاوامر"""
         bot.edit_message_text(نص, call.message.chat.id, call.message_id)
