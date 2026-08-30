@@ -1,103 +1,119 @@
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot import types
+import m1  # <-- اوامر الادمنيه
+import m2  # <-- اوامر الاعدادات
+import m3  # <-- اوامر القفل
+import m4  # <-- اوامر التسليه
+import m5  # <-- اوامر المطور
+import m6  # <-- الاوامر الخدميه
 
-def create_main_menu(page=1):
-    markup = InlineKeyboardMarkup(row_width=3)
+def show_main_menu(bot, message, page=1, edit=False):
+    """تظهر القائمة بصفحات"""
     
     if page == 1:
-        text = """- ‌‌‏أهلاً بك عزي في قائمة الاوامر :
-━━━━━━━━━━━━
-◂ م1 : اوامر الادمنيه
-◂ م2 : اوامر الاعدادات  
-◂ م3 : اوامر القفل - الفتح
-━━━━━━━━━━━━"""
-        markup.row(
-            InlineKeyboardButton("م1 الادمن", callback_data="exec_m1"),
-            InlineKeyboardButton("م2 الاعدادات", callback_data="exec_m2"),
-            InlineKeyboardButton("م3 الحماية", callback_data="exec_m3"),
+        نص = """- أهلاً بك عزي في قائمة الاوامر :
+━━━━━━━━━━
+م1 : اوامر الادمنيه ◀
+م2 : اوامر الاعدادات ◀
+م3 : اوامر القفل - الفتح ◀
+━━━━━━━━━━
+الصفحة 1/2
+💛 تحديثات : Tia 💛"""
+        
+        keyboard = types.InlineKeyboardMarkup(row_width=3)
+        keyboard.add(
+            types.InlineKeyboardButton("1", callback_data="m1"),
+            types.InlineKeyboardButton("2", callback_data="m2"),
+            types.InlineKeyboardButton("3", callback_data="m3")
+        )
+        keyboard.add(
+            types.InlineKeyboardButton("التالي »", callback_data="page_2"),
+            types.InlineKeyboardButton("القائمه الرئيسيه", callback_data="main")
         )
     
     elif page == 2:
-        text = """- ‌‌‏أهلاً بك عزي في قائمة الاوامر :
-━━━━━━━━━━━━
-◂ م4 : اوامر التسليه
-◂ م5 : اوامر Dev
-◂ م6 : الاوامر الخدميه
-━━━━━━━━━━━━"""
-        markup.row(
-            InlineKeyboardButton("م4 التسلية", callback_data="exec_m4"),
-            InlineKeyboardButton("م5 المطور", callback_data="exec_m5"),
-            InlineKeyboardButton("م6 الخدمية", callback_data="exec_m6"),
+        نص = """- أهلاً بك عزي في قائمة الاوامر :
+━━━━━━━━━━
+م4 : اوامر التسليه ◀
+م5 : اوامر Dev ◀
+م6 : الاوامر الخدميه ◀
+━━━━━━━━━━
+الصفحة 2/2
+💛 تحديثات : Tia 💛"""
+        
+        keyboard = types.InlineKeyboardMarkup(row_width=3)
+        keyboard.add(
+            types.InlineKeyboardButton("4", callback_data="m4"),
+            types.InlineKeyboardButton("5", callback_data="m5"),
+            types.InlineKeyboardButton("6", callback_data="m6")
         )
-
-    nav = []
-    if page == 2: 
-        nav.append(InlineKeyboardButton("⬅️ السابق", callback_data="page_1"))
-    if page == 1: 
-        nav.append(InlineKeyboardButton("التالي ➡️", callback_data="page_2"))
-    nav.append(InlineKeyboardButton("🗑️ اخفاء", callback_data="hide"))
-    markup.row(*nav)
+        keyboard.add(
+            types.InlineKeyboardButton("« السابق", callback_data="page_1"),
+            types.InlineKeyboardButton("القائمه الرئيسيه", callback_data="main")
+        )
     
-    return text, markup
+    keyboard.add(types.InlineKeyboardButton("اخفاء الاوامر", callback_data="hide"))
 
-def register_menu_handlers(bot):
+    if edit:
+        bot.edit_message_text(نص, message.chat.id, message.message_id, reply_markup=keyboard)
+    else:
+        bot.send_message(message.chat.id, نص, reply_markup=keyboard)
 
-    @bot.message_handler(commands=['menu', 'القائمه', 'الاوامر'])
-    def show_menu(m):
-        text, markup = create_main_menu(1)
-        bot.send_message(m.chat.id, text, reply_markup=markup, parse_mode="Markdown")
+def handle_callbacks(bot, call):
+    bot.answer_callback_query(call.id)
+    
+    if call.data == "page_2":
+        show_main_menu(bot, call.message, page=2, edit=True)
+        
+    elif call.data == "page_1":
+        show_main_menu(bot, call.message, page=1, edit=True)
+        
+    elif call.data == "main":
+        show_main_menu(bot, call.message, page=1, edit=True)
+        
+    elif call.data == "m1":
+        m1.register_admin_handlers(bot)
+        نص = """✅ تم تفعيل اوامر الادمنيه
+استخدمها بالرد على العضو:
+رفع - تنزيل - حظر - طرد - كتم
+مسح 10 - رتبتي - تنزيل الكل"""
+        bot.edit_message_text(نص, call.message.chat.id, call.message_id)
+        
+    elif call.data == "m2":
+        m2.register_settings_handlers(bot)
+        نص = """✅ تم تفعيل اوامر الاعدادات
+اهم الاوامر:
+الاعدادات - الرابط - معلوماتي - المجموعه
+ضع الترحيب - ضع قوانين - انشاء رابط
+همس @username النص"""
+        bot.edit_message_text(نص, call.message.chat.id, call.message_id)
 
-    @bot.callback_query_handler(func=lambda call: True)
-    def menu_callback(call):
-        try:
-            chat_id = call.message.chat.id
-            msg_id = call.message.message_id
-            data = call.data
+    elif call.data == "m3":
+        m3.register_lock_handlers(bot)
+        نص = """✅ تم تفعيل اوامر القفل - الفتح
+ارسل: الحماية
+لرؤية كل اوامر القفل"""
+        bot.edit_message_text(نص, call.message.chat.id, call.message_id)
 
-            # ===== التنقل =====
-            if data == "page_1":
-                text, markup = create_main_menu(1)
-                bot.edit_message_text(text, chat_id, msg_id, reply_markup=markup, parse_mode="Markdown")
-            
-            elif data == "page_2":
-                text, markup = create_main_menu(2)
-                bot.edit_message_text(text, chat_id, msg_id, reply_markup=markup, parse_mode="Markdown")
-            
-            # ===== الاخفاء =====
-            elif data == "hide":
-                bot.delete_message(chat_id, msg_id)
-
-            # ===== استدعاء الملفات مباشرة =====
-            elif data == "exec_m1":
-                import m1
-                m1.register_admin_handlers(bot)
-                m1.admin_menu(bot, call.message)
-                
-            elif data == "exec_m2":
-                import m2
-                m2.register_settings_handlers(bot)
-                m2.settings_menu(bot, call.message)
-                
-            elif data == "exec_m3":
-                import m3
-                m3.register_lock_handlers(bot)
-                m3.lock_menu(bot, call.message)
-                
-            elif data == "exec_m4":
-                import m4
-                m4.register_fun_handlers(bot)
-                m4.fun_menu(bot, call.message)
-                
-            elif data == "exec_m5": # << كود المطور المعدل
-                import dev_commands as m5
-                m5.register_handlers(bot) # سجل الهاندلر
-                bot.send_message(chat_id, "⚙️ اهلا بك في لوحة تحكم المطور", reply_markup=m5.get_dev_keyboard())
-                
-            elif data == "exec_m6":
-                import service_commands as m6
-                m6.register_service_handlers(bot)
-                m6.service_menu(bot, call.message)
-            
-            bot.answer_callback_query(call.id)
-        except Exception as e:
-            print(f"خطأ في القائمة: {e}")
-            bot.answer_callback_query(call.id, "حدث خطأ")
+    elif call.data == "m4":
+        m4.register_fun_handlers(bot)
+        نص = """✅ تم تفعيل اوامر التسليه
+ارسل: التسلية
+لرؤية كل الاوامر"""
+        bot.edit_message_text(نص, call.message.chat.id, call.message_id)
+        
+    elif call.data == "m5":
+        m5.register_handlers(bot)
+        نص = """✅ تم تفعيل اوامر Dev
+ارسل: المطور2
+لعرض قائمة المطور"""
+        bot.edit_message_text(نص, call.message.chat.id, call.message_id)
+        
+    elif call.data == "m6":
+        m6.register_service_handlers(bot)
+        نص = """✅ تم تفعيل الاوامر الخدميه
+ارسل: الخدميه
+لعرض كل الاوامر"""
+        bot.edit_message_text(نص, call.message.chat.id, call.message_id)
+        
+    elif call.data == "hide":
+        bot.delete_message(call.message.chat.id, call.message_id)
