@@ -42,14 +42,12 @@ def register_admin_handlers(bot):
 
         sender_rank, sender_level = get_user_rank(bot, chat_id, sender_id)
         if sender_level < 2 and any(x in text for x in ["رفع", "تنزيل", "حظر", "طرد", "كتم", "مسح"]):
-            return
+            return bot.reply_to(m, "❌ هذا الامر للمشرفين فما فوق")
 
-        # ===== امر الرتبة =====
         if text == "رتبتي":
             my_rank, my_level = get_user_rank(bot, chat_id, sender_id)
             bot.reply_to(m, f"• اسمك: {m.from_user.first_name}\n• رتبتك: **{my_rank}**\n• المستوى: {my_level}\n• المجموع: {chat_id}", parse_mode="Markdown")
 
-        # ===== الرفع التدريجي =====
         elif text == "رفع":
             if not m.reply_to_message: return bot.reply_to(m, "💡 استخدم الأمر بالرد على العضو")
             target_id = m.reply_to_message.from_user.id
@@ -91,19 +89,19 @@ def register_admin_handlers(bot):
             conn.commit()
             bot.reply_to(m, "• تم مسح جميع الرتب المرفوعة 🛑")
 
-        # ===== المسح =====
         elif text.startswith("مسح "):
-            if sender_level < 2: return
-            count = text.split(" ")[1]
-            if count.isdigit():
-                count = int(count)
+            if sender_level < 2: return bot.reply_to(m, "❌ ليس لديك صلاحية")
+            parts = text.split(" ")
+            if len(parts) > 1 and parts[1].isdigit():
+                count = int(parts[1])
                 if count > 100: return bot.reply_to(m, "⚠️ اقصى شي 100 رسالة")
-                for i in range(count + 1):
+                try: bot.delete_message(chat_id, m.message_id)
+                except: pass
+                for i in range(1, count + 1):
                     try: bot.delete_message(chat_id, m.message_id - i)
                     except: pass
-                bot.reply_to(m, f"✅ تم مسح {count} رسالة")
+                bot.send_message(chat_id, f"✅ تم مسح {count} رسالة")
 
-        # ===== العقوبات =====
         elif text in ["حظر", "طرد", "كتم", "الغاء الكتم", "الغاء الحظر"]:
             if not m.reply_to_message: return bot.reply_to(m, "💡 رد على العضو")
             target_id = m.reply_to_message.from_user.id
@@ -123,4 +121,5 @@ def register_admin_handlers(bot):
                 bot.reply_to(m, f"🔇 تم كتم {target_name}")
             elif text in ["الغاء الكتم", "الغاء الحظر"]:
                 bot.unban_chat_member(chat_id, target_id)
+                bot.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
                 bot.reply_to(m, f"✅ تم فك الحظر عن {target_name}")
