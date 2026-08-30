@@ -53,6 +53,26 @@ def register_handlers(bot, owner_id):
     def is_owner(m):
         return str(m.from_user.id) == OWNER_ID and m.chat.type == "private"
 
+    # ===== الامر الجديد للمطور =====
+    @bot.message_handler(commands=['المطور'])
+    def dev_panel_cmd(m):
+        if is_owner(m):
+            user = m.from_user
+            username = f"@{user.username}" if user.username else "مافي يوزر"
+            bot_name = get_value('bot_name')
+
+            نص = f"""<b>◄ لوحة تحكم المطور ►</b>
+━━━━━━━━━━
+<b>الاسم:</b> {user.first_name}
+<b>اليوزر:</b> {username}
+<b>الايدي:</b> <code>{user.id}</code>
+<b>اسم البوت:</b> {bot_name}
+━━━━━━━━━━
+اختر من الكيبورد تحت 👇"""
+            bot.send_message(m.chat.id, نص, reply_markup=get_dev_keyboard(), parse_mode="HTML")
+        else:
+            bot.send_message(m.chat.id, "❌ هذا الامر للمطور فقط")
+
     @bot.message_handler(func=lambda m: m.chat.type == "private" and not is_owner(m))
     def not_owner(m):
         bot.send_message(m.chat.id, "❌ هذا الامر للمطور فقط")
