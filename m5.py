@@ -7,7 +7,6 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 DB_NAME = "dev_data.db"
 GROUPS_FILE = "groups.txt"
 
-# ====== عشان main.py ======
 DEV_DATA = {
     "bot_name": "𝐓𝐢𝐚",
     "welcome": "✨ أهلاً بك في بوت 𝐓𝐢𝐚 ✨",
@@ -18,10 +17,9 @@ bot_status = True
 def get_dev_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
     markup.row(KeyboardButton("📊 قائمة العام"), KeyboardButton("📢 اذاعة"), KeyboardButton("🔄 تحديث"))
-    markup.row(KeyboardButton("👤 رفع مطور"), KeyboardButton("👤 تنزيل مطور"), KeyboardButton("📩 رسالة"))
-    markup.row(KeyboardButton("✅ تفعيل البوت"), KeyboardButton("🔴 تعطيل البوت"))
+    markup.row(KeyboardButton("👤 رفع مطور"), KeyboardButton("👤 تنزيل مطور"))
+    markup.row(KeyboardButton("✅ تفعيل البوت"), KeyboardButton("🔴 تعطيل البوت"), KeyboardButton("♻️ اعادة تشغيل"))
     return markup
-# ===========================
 
 def init_db():
     conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
@@ -34,9 +32,9 @@ def init_db():
     conn.commit(); conn.close()
 init_db()
 
-MAIN_DEV = 7488375443
-DEV_PHOTO = "https://t.me/YourPhoto"
-DEV_USERNAME = "@YourUsername"
+MAIN_DEV = 7488375443  # غيره لايديك
+DEV_PHOTO = "https://t.me/YourPhoto" # حط صورة المطور
+DEV_USERNAME = "@YourUsername" # حط يوزرك
 DEV_NAME = "المطور الاساسي"
 
 def is_dev(user_id):
@@ -58,8 +56,8 @@ def register_handlers(bot):
 
     @bot.message_handler(commands=['المطور2'], chat_types=['group','supergroup','private'])
     def dev_menu(m):
-        if not is_dev(m.from_user.id): return
-        bot.reply_to(m, "- اهلا بك عزي Dev\n━━━━━━━━━━━━\n- اضف رد تواصل\n- حذف رد تواصل\n- ردود التواصل\n- ترحيب البوت\n- مسح صوره الترحيب\n- تعطيل - تفعيل الزاجل\n- فتح - قفل ردود MY\n- فتح - قفل الاحصائيات\n- فتح - قفل حظر العام\n━━━━━━━━━━━━\n- رفع Dev - تنزيل Dev\n- مسح المالكين الاساسيين\n- حظر عام - الغاء عام\n- كتم عام - الغاء كتم عام\n- قائمه العام - مسح المحظورين عام\n- مسح المكتومين عام\n━━━━━━━━━━━━\n- اذاعه + بالرد\n- اسم بوتك + غادر\n- تحديث - اعاده تشغيل\n━━━━━━━━━━━━\n- ضع كليشه م1 الى م6 - مسح كليشه م1\n━━━━━━━━━━━━", reply_markup=get_dev_keyboard())
+        if not is_dev(m.from_user.id): return bot.reply_to(m, "❌ هذا الامر للمطور فقط")
+        bot.reply_to(m, "- اهلا بك عزي Dev\n━━━━━━━━━━━━\n- رفع Dev - تنزيل Dev\n- حظر عام - الغاء عام\n- كتم عام - الغاء كتم عام\n- قائمه العام - مسح المحظورين عام\n- اذاعه + بالرد\n- تحديث - اعاده تشغيل\n━━━━━━━━━━━━", reply_markup=get_dev_keyboard())
 
     @bot.message_handler(commands=['المطور'], chat_types=['group','supergroup','private'])
     def show_dev_info(m):
@@ -70,7 +68,7 @@ def register_handlers(bot):
     @bot.message_handler(chat_types=['group','supergroup'])
     def save_group_id(m): save_group(m.chat.id)
 
-    @bot.message_handler(func=lambda m: is_dev(m.from_user.id))
+    @bot.message_handler(func=lambda m: is_dev(m.from_user.id) and m.text)
     def process_dev(m):
         global bot_status
         text = m.text.strip(); user_id = m.from_user.id; chat_id = m.chat.id
@@ -90,28 +88,25 @@ def register_handlers(bot):
 
         if text == "✅ تفعيل البوت": bot_status = True; bot.reply_to(m, "✅ تم تفعيل البوت")
         if text == "🔴 تعطيل البوت": bot_status = False; bot.reply_to(m, "🔴 تم تعطيل البوت")
-        if text == "📊 قائمة العام": bot.reply_to(m, "جاري جلب قائمة العام...")
+        if text == "📊 قائمة العام":
+            groups = get_all_groups(); bot.reply_to(m, f"📊 عدد القروبات: {len(groups)}")
 
+        if text == "📢 اذاعة" or text == "اذاعه": bot.reply_to(m, "📢 ارسل الرسالة اللي تريد تذيعها بالرد")
         if text.startswith("ذيع") and m.reply_to_message:
-            groups = get_all_groups(); count = 0;
-            for g in groups: # صلحت الاندنت هنا
+            groups = get_all_groups(); count = 0
+            for g in groups:
                 try: bot.forward_message(g, m.chat.id, m.reply_to_message.message_id); count += 1
                 except: pass
             bot.reply_to(m, f"📢 تمت الاذاعة لـ {count} قروب")
 
         if "غادر" in text: bot.reply_to(m, "👋 تم المغادرة"); bot.leave_chat(chat_id)
         if text == "تحديث": bot.reply_to(m, "🔄 جاري التحديث..."); os.system("git pull")
-        if text == "اعاده تشغيل" or text == "reload": bot.reply_to(m, "♻️ جاري اعادة التشغيل..."); os.execv(sys.executable, ['python'] + sys.argv)
-
-        if text.startswith("ضع كليشه "):
-            parts = text.split(" ", 2)
-            if len(parts) == 3: name, value = parts[1], parts[2]; conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("INSERT OR REPLACE INTO clips VALUES (?,?)", (name, value)); conn.commit(); conn.close(); bot.reply_to(m, f"✅ تم حفظ {name}")
-        if text.startswith("مسح كليشه "): name = text.split(" ", 2)[2]; conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("DELETE FROM clips WHERE name =?", (name,)); conn.commit(); conn.close(); bot.reply_to(m, f"🗑️ تم مسح {name}")
+        if text == "اعاده تشغيل" or text == "♻️ اعادة تشغيل": bot.reply_to(m, "♻️ جاري اعادة التشغيل..."); os.execv(sys.executable, ['python'] + sys.argv)
 
     @bot.message_handler(func=lambda m: True, chat_types=['group','supergroup'])
     def dev_auto_reply(m):
         if not m.text: return
         dev_names = ["المطور", "المبرمج", "dev", "الادمن الاساسي", DEV_USERNAME.lower()]
         if any(name in m.text.lower() for name in dev_names):
-            replies = [f"نعم؟ المطور {DEV_USERNAME} موجود 😎", f"تحتاج المطور؟ كلمه على {DEV_USERNAME}", f"المطور مشغول شوي، راسله {DEV_USERNAME}", f"ايش فيه؟ المطور {DEV_USERNAME} يسمعك"]
+            replies = [f"نعم؟ المطور {DEV_USERNAME} موجود 😎", f"تحتاج المطور؟ كلمه على {DEV_USERNAME}"]
             bot.reply_to(m, random.choice(replies))
