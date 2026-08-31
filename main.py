@@ -2,9 +2,12 @@ import os
 import json
 import telebot
 from telebot import types
+import m1 # استدعاء ملف الادمنيه
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
+
+m1.register_admin_handlers(bot) # تفعيل كل اوامر m1
 
 FILE = "active_groups.json"
 
@@ -41,7 +44,7 @@ def get_menu(page=1):
         btn4 = types.InlineKeyboardButton("4", callback_data="menu_4")
         btn5 = types.InlineKeyboardButton("5", callback_data="menu_5")
         btn6 = types.InlineKeyboardButton("6", callback_data="menu_6")
-        keyboard.row(btn3, btn2, btn1)
+        keyboard.row(btn1, btn2, btn3)
         keyboard.row(btn4, btn5, btn6)
 
     elif page == 2:
@@ -60,7 +63,7 @@ def get_menu(page=1):
         btn4 = types.InlineKeyboardButton("10", callback_data="menu_10")
         btn5 = types.InlineKeyboardButton("11", callback_data="menu_11")
         btn6 = types.InlineKeyboardButton("12", callback_data="menu_12")
-        keyboard.row(btn3, btn2, btn1)
+        keyboard.row(btn1, btn2, btn3)
         keyboard.row(btn4, btn5, btn6)
 
     # ازرار التنقل
@@ -118,10 +121,27 @@ def cb(c):
             pass
         bot.answer_callback_query(c.id)
 
-    # الازرار 1-12
+    # زر 1 = يفعل كل اوامر m1
+    elif c.data == "menu_1":
+        bot.answer_callback_query(c.id, "✅ تم تفعيل اوامر الادمنيه")
+        bot.send_message(chat_id, """**تم تفعيل اوامر الادمنيه** 🛡️
+تقدر الحين تستخدم الاوامر التالية:
+
+• `رفع` - بالرد على العضو
+• `تنزيل` - بالرد على العضو
+• `تنزيل الكل`
+• `مسح 10` - امسح رسائل
+• `حظر` - بالرد
+• `طرد` - بالرد
+• `كتم` - بالرد
+• `الغاء الكتم` - بالرد
+• `الغاء الحظر` - بالرد
+• `رتبتي`""", parse_mode="Markdown")
+
+    # باقي الازرار
     elif c.data.startswith("menu_"):
         num = c.data.split("_")[1]
-        bot.answer_callback_query(c.id, f"تم الضغط على زر {num}")
+        bot.answer_callback_query(c.id, f"قريباً: قائمة {num}")
 
     # تحديثات
     elif c.data == "update":
