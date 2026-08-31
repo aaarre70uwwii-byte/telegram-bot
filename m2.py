@@ -1,43 +1,53 @@
-import sqlite3
-from telebot import types # <-- ضيف هذا السطر
+import json
+import os
+from telebot import types
 
-DB_FILE = "group_management.db"
-conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-cursor = conn.cursor()
+SETTINGS_FILE = "group_settings.json"
+RANKS_FILE = "group_ranks.json"
 
-cursor.execute("CREATE TABLE IF NOT EXISTS group_settings (chat_id INTEGER, key TEXT, value TEXT, PRIMARY KEY (chat_id, key))")
-conn.commit()
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_settings(data):
+    with open(SETTINGS_FILE, 'w') as f:
+        json.dump(data, f)
+
+def load_ranks():
+    if os.path.exists(RANKS_FILE):
+        with open(RANKS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+group_settings = load_settings()
+group_ranks = load_ranks()
 
 RANK_LEVELS = {"مالك اساسي": 6, "مالك": 5, "منشئ": 4, "مدير": 3, "ادمن": 2, "مشرف": 2, "مميز": 1, "عضو": 0}
 
 def get_user_rank(bot, chat_id, user_id):
+    chat_id = str(chat_id)
+    user_id = str(user_id)
     try:
         member = bot.get_chat_member(chat_id, user_id)
         if member.status == "creator": return "مالك اساسي", 6
         elif member.status == "administrator":
-            cursor.execute("SELECT rank_name FROM group_ranks WHERE chat_id =? AND user_id =?", (chat_id, user_id))
-            res = cursor.fetchone()
-            rank = res[0] if res else "مدير"
+            rank = group_ranks.get(chat_id, {}).get(user_id, "مدير")
             return rank, RANK_LEVELS.get(rank, 3)
     except: pass
-    cursor.execute("SELECT rank_name FROM group_ranks WHERE chat_id =? AND user_id =?", (chat_id, user_id))
-    res = cursor.fetchone()
-    if res: return res[0], RANK_LEVELS.get(res[0], 1)
-    return "عضو", 0
+    rank = group_ranks.get(chat_id, {}).get(user_id, "عضو")
+    return rank, RANK_LEVELS.get(rank, 0)
 
 def get_setting(chat_id, key, default="غير محدد"):
-    cursor.execute("SELECT value FROM group_settings WHERE chat_id =? AND key =?", (chat_id, key))
-    res = cursor.fetchone()
-    return res[0] if res else default
+    chat_id = str(chat_id)
+    return group_settings.get(chat_id, {}).get(key, default)
 
 def set_setting(chat_id, key, value):
-    cursor.execute("INSERT OR REPLACE INTO group_settings VALUES (?,?,?)", (chat_id, key, value))
-    conn.commit()
-
-def get_list(chat_id, key):
-    cursor.execute("SELECT value FROM group_settings WHERE chat_id =? AND key =?", (chat_id, key))
-    res = cursor.fetchone()
-    return res[0].split(",") if res and res[0] else []
+    chat_id = str(chat_id)
+    if chat_id not in group_settings: group_settings[chat_id] = {}
+    group_settings[chat_id][key] = value
+    save_settings(group_settings)
 
 def register_settings_handlers(bot, active_groups):
 
@@ -52,25 +62,20 @@ def register_settings_handlers(bot, active_groups):
         _, sender_level = get_user_rank(bot, chat_id, sender_id)
         is_admin = sender_level >= 2
 
-        # ===== امر الهمسة بالرد =====
         if text == "همس":
             if not m.reply_to_message:
                 return bot.reply_to(m, "💡 استخدم الأمر بالرد على الشخص + النص\nمثال: `همس اهلا بيك`", parse_mode="Markdown")
-
             target_id = m.reply_to_message.from_user.id
             target_name = m.reply_to_message.from_user.first_name
             sender_name = m.from_user.first_name
-
             whisper_text = text.replace("همس", "").strip()
             if not whisper_text and m.reply_to_message:
                 whisper_text = m.reply_to_message.text if m.reply_to_message.text else "بدون نص"
-
             if not whisper_text:
                 return bot.reply_to(m, "⚠️ اكتب النص بعد همس او رد على رسالة فيها نص")
 
             keyboard = types.InlineKeyboardMarkup()
             keyboard.add(types.InlineKeyboardButton("👁️ تمت القراءة", callback_data=f"read_whisper_{sender_id}"))
-
             try:
                 bot.send_message(target_id, f"""🔒 **همسة جديدة من {sender_name}**
 
@@ -84,7 +89,6 @@ def register_settings_handlers(bot, active_groups):
             except:
                 bot.reply_to(m, f"❌ ما قدرت ارسل الهمسة لـ {target_name}. لازم يبدأ البوت خاص ويكتب /start")
 
-        # ===== باقي الاوامر زي ما هي =====
         elif text == "الاعدادات خاص":
             welcome = get_setting(chat_id, "welcome_text", "معطل")
             link = get_setting(chat_id, "group_link", "غير محدد")
@@ -117,9 +121,6 @@ def register_settings_handlers(bot, active_groups):
 - رد على رسالة واكتب `همس النص`
 ━━━━━━━━━━━━""", parse_mode="Markdown")
 
-        #... باقي الاوامر خليها زي ما هي
-
-    # ===== معالج زر قراءة الهمسة =====
     @bot.callback_query_handler(func=lambda call: call.data.startswith("read_whisper_"))
     def read_whisper(call):
         sender_id = int(call.data.split("_")[2])
