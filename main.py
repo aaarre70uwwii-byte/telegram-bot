@@ -7,7 +7,16 @@ import m2 # استدعاء ملف الاعدادات
 import m3 # استدعاء ملف الحماية
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    print("❌ خطأ: BOT_TOKEN فاضي. تأكد من Variables في Railway")
+    exit()
+
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
+
+# فحص وصول الرسائل
+@bot.message_handler(func=lambda message: True)
+def log_all(message):
+    print(f"[LOG] وصلت رسالة: {message.text} من {message.chat.id}")
 
 FILE = "active_groups.json"
 
@@ -26,7 +35,7 @@ active_groups = load_groups()
 # مرر active_groups للملفات عشان يتأكدوا من التفعيل
 m1.active_groups = active_groups
 m2.register_settings_handlers(bot, active_groups)
-m3.register_lock_handlers(bot, active_groups) # <-- ربط m3
+m3.register_lock_handlers(bot, active_groups)
 
 # ========== دالة توليد القائمة حسب الصفحة ==========
 def get_menu(page=1):
@@ -92,7 +101,7 @@ def activate_group(m):
     if chat_id not in active_groups:
         active_groups.append(chat_id)
         save_groups(active_groups)
-        m1.active_groups = active_groups # تحديث القائمة في m1
+        m1.active_groups = active_groups
         bot.reply_to(m, "✅ تم التفعيل بنجاح\nالان تقدر تستخدم `الاوامر`")
     else:
         bot.reply_to(m, "⚠️ البوت مفعل مسبقاً في هذا القروب")
@@ -121,44 +130,44 @@ def cb(c):
         text, kb = get_menu(page)
         try:
             bot.edit_message_text(text, chat_id, c.message_id, reply_markup=kb)
-        except:
-            pass
+        except Exception as e:
+            print(f"خطأ تعديل الرسالة: {e}")
         bot.answer_callback_query(c.id)
 
     elif c.data == "menu_1":
         bot.answer_callback_query(c.id, "✅ تم تفعيل اوامر الادمنيه")
-        bot.send_message(chat_id, """**تم تفعيل اوامر الادمنيه** 🛡️
+        bot.send_message(chat_id, """<b>تم تفعيل اوامر الادمنيه</b> 🛡️
 تقدر الحين تستخدم الاوامر التالية:
 
-• `رفع` - بالرد على العضو
-• `تنزيل` - بالرد على العضو
-• `تنزيل الكل`
-• `مسح 10` - امسح رسائل
-• `حظر` - بالرد
-• `طرد` - بالرد
-• `كتم` - بالرد
-• `الغاء الكتم` - بالرد
-• `الغاء الحظر` - بالرد
-• `رتبتي`""", parse_mode="Markdown")
+• <code>رفع</code> - بالرد على العضو
+• <code>تنزيل</code> - بالرد على العضو
+• <code>تنزيل الكل</code>
+• <code>مسح 10</code> - امسح رسائل
+• <code>حظر</code> - بالرد
+• <code>طرد</code> - بالرد
+• <code>كتم</code> - بالرد
+• <code>الغاء الكتم</code> - بالرد
+• <code>الغاء الحظر</code> - بالرد
+• <code>رتبتي</code>""") # غيرت Markdown ل HTML
 
-    elif c.data == "menu_2": # زر الاعدادات
+    elif c.data == "menu_2":
         bot.answer_callback_query(c.id, "✅ تم تفعيل اوامر الاعدادات")
-        bot.send_message(chat_id, """**تم تفعيل اوامر الاعدادات** ⚙️
+        bot.send_message(chat_id, """<b>تم تفعيل اوامر الاعدادات</b> ⚙️
 تقدر الحين تستخدم الاوامر التالية:
 
-• `الاعدادات` - عرض كل الاوامر
-• `الرابط` • `القوانين` • `معلوماتي`
-• `ضع الترحيب` • `انشاء رابط`
-• `همس` - بالرد على العضو + النص
-• `الاعدادات خاص`""", parse_mode="Markdown")
+• <code>الاعدادات</code> - عرض كل الاوامر
+• <code>الرابط</code> • <code>القوانين</code> • <code>معلوماتي</code>
+• <code>ضع الترحيب</code> • <code>انشاء رابط</code>
+• <code>همس</code> - بالرد على العضو + النص
+• <code>الاعدادات خاص</code>""")
 
-    elif c.data == "menu_3": # <-- زر الحماية الجديد
+    elif c.data == "menu_3":
         bot.answer_callback_query(c.id, "✅ تم تفعيل اوامر الحماية")
-        bot.send_message(chat_id, """**تم تفعيل اوامر الحماية** 🔒
+        bot.send_message(chat_id, """<b>تم تفعيل اوامر الحماية</b> 🔒
 تقدر الحين تستخدم:
 
-• `الحماية` - لفتح قائمة الاقفال
-• تقدر تقفل: الروابط, الصور, الفيديو, السب, التكرار...الخ""", parse_mode="Markdown")
+• <code>الحماية</code> - لفتح قائمة الاقفال
+• تقدر تقفل: الروابط, الصور, الفيديو, السب, التكرار...الخ""")
 
     elif c.data.startswith("menu_"):
         num = c.data.split("_")[1]
