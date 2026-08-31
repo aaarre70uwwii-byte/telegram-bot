@@ -67,11 +67,14 @@ def get_menu(page=1):
     btn_prev = types.InlineKeyboardButton("◀️ السابق", callback_data=f"page_{page-1}")
     btn_update = types.InlineKeyboardButton("🔄 تحديثات بوت Tia", callback_data="update")
     btn_next = types.InlineKeyboardButton("التالي ▶️", callback_data=f"page_{page+1}")
+    btn_hide = types.InlineKeyboardButton("🗑️ اخفا الاوامر", callback_data="hide")
 
     if page == 1:
         keyboard.row(btn_update, btn_next)
     elif page == 2:
         keyboard.row(btn_prev, btn_update)
+
+    keyboard.row(btn_hide) # صف لحاله
 
     return text, keyboard
 
@@ -106,10 +109,13 @@ def cb(c):
     # تبديل الصفحات
     if c.data.startswith("page_"):
         page = int(c.data.split("_")[1])
-        if page < 1 or page > 2: # لو مافي صفحة
+        if page < 1 or page > 2:
             return bot.answer_callback_query(c.id, "مافي صفحات اكثر")
         text, kb = get_menu(page)
-        bot.edit_message_text(text, chat_id, c.message_id, reply_markup=kb)
+        try:
+            bot.edit_message_text(text, chat_id, c.message_id, reply_markup=kb)
+        except:
+            pass
         bot.answer_callback_query(c.id)
 
     # الازرار 1-12
@@ -120,6 +126,14 @@ def cb(c):
     # تحديثات
     elif c.data == "update":
         bot.answer_callback_query(c.id, "🔄 اخر تحديث: v1.0 بوت Tia", show_alert=True)
+
+    # اخفا
+    elif c.data == "hide":
+        try:
+            bot.delete_message(chat_id, c.message_id)
+        except:
+            pass
+        bot.answer_callback_query(c.id, "تم اخفاء القائمة")
 
 print("✅ البوت شغال...")
 bot.infinity_polling(none_stop=True)
