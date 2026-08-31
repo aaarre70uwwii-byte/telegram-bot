@@ -6,7 +6,6 @@ from telebot import types
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
 
-# ========== ملف حفظ القروبات المفعلة ==========
 FILE = "active_groups.json"
 
 def load_groups():
@@ -21,9 +20,13 @@ def save_groups(groups):
 
 active_groups = load_groups()
 
-# ========== دالة القائمة 6 ازرار ==========
-def show_main_menu(chat_id):
-    text = """- أهلاً بك عزي في قائمة الاوامر :
+# ========== دالة توليد القائمة حسب الصفحة ==========
+def get_menu(page=1):
+    text = ""
+    keyboard = types.InlineKeyboardMarkup(row_width=3)
+
+    if page == 1:
+        text = """- أهلاً بك عزي في قائمة الاوامر - الصفحة 1 :
 
 1م ◀ : اوامر الادمنيه
 2م ◀ : اوامر الاعدادات
@@ -32,23 +35,48 @@ def show_main_menu(chat_id):
 5م ◀ : Dev اوامر
 6م ◀ : الاوامر الخدميه
 """
+        btn1 = types.InlineKeyboardButton("1", callback_data="menu_1")
+        btn2 = types.InlineKeyboardButton("2", callback_data="menu_2")
+        btn3 = types.InlineKeyboardButton("3", callback_data="menu_3")
+        btn4 = types.InlineKeyboardButton("4", callback_data="menu_4")
+        btn5 = types.InlineKeyboardButton("5", callback_data="menu_5")
+        btn6 = types.InlineKeyboardButton("6", callback_data="menu_6")
+        keyboard.row(btn3, btn2, btn1)
+        keyboard.row(btn4, btn5, btn6)
 
-    keyboard = types.InlineKeyboardMarkup(row_width=3)
+    elif page == 2:
+        text = """- أهلاً بك عزي في قائمة الاوامر - الصفحة 2 :
 
-    btn1 = types.InlineKeyboardButton("1", callback_data="menu_1")
-    btn2 = types.InlineKeyboardButton("2", callback_data="menu_2")
-    btn3 = types.InlineKeyboardButton("3", callback_data="menu_3")
-    btn4 = types.InlineKeyboardButton("4", callback_data="menu_4")
-    btn5 = types.InlineKeyboardButton("5", callback_data="menu_5")
-    btn6 = types.InlineKeyboardButton("6", callback_data="menu_6")
+7م ◀ : اوامر الحماية
+8م ◀ : اوامر الترحيب
+9م ◀ : اوامر الردود
+10م ◀ : اوامر الالعاب
+11م ◀ : اوامر التحميل
+12م ◀ : اوامر اخرى
+"""
+        btn1 = types.InlineKeyboardButton("7", callback_data="menu_7")
+        btn2 = types.InlineKeyboardButton("8", callback_data="menu_8")
+        btn3 = types.InlineKeyboardButton("9", callback_data="menu_9")
+        btn4 = types.InlineKeyboardButton("10", callback_data="menu_10")
+        btn5 = types.InlineKeyboardButton("11", callback_data="menu_11")
+        btn6 = types.InlineKeyboardButton("12", callback_data="menu_12")
+        keyboard.row(btn3, btn2, btn1)
+        keyboard.row(btn4, btn5, btn6)
 
-    keyboard.row(btn3, btn2, btn1)  # الصف الاول
-    keyboard.row(btn4, btn5, btn6)  # الصف الثاني
+    # ازرار التنقل
+    btn_prev = types.InlineKeyboardButton("◀️ السابق", callback_data=f"page_{page-1}")
+    btn_update = types.InlineKeyboardButton("🔄 تحديثات بوت Tia", callback_data="update")
+    btn_next = types.InlineKeyboardButton("التالي ▶️", callback_data=f"page_{page+1}")
 
-    bot.send_message(chat_id, text, reply_markup=keyboard)
+    if page == 1:
+        keyboard.row(btn_update, btn_next)
+    elif page == 2:
+        keyboard.row(btn_prev, btn_update)
 
-# ========== امر التفعيل ==========
-@bot.message_handler(commands=['تفعيل'], chat_types=['group','supergroup'])
+    return text, keyboard
+
+# ========== امر التفعيل بدون / ==========
+@bot.message_handler(func=lambda m: m.text and m.text.strip() == "تفعيل", chat_types=['group','supergroup'])
 def activate_group(m):
     chat_id = m.chat.id
     if chat_id not in active_groups:
@@ -58,44 +86,40 @@ def activate_group(m):
     else:
         bot.reply_to(m, "⚠️ البوت مفعل مسبقاً في هذا القروب")
 
-# ========== الاوامر تشتغل بس لو مفعل ==========
+# ========== امر الاوامر بدون / ==========
 @bot.message_handler(func=lambda m: m.text and m.text.strip() == "الاوامر", chat_types=['group','supergroup'])
 def menu_text(m):
     if m.chat.id in active_groups:
-        show_main_menu(m.chat.id)
+        text, kb = get_menu(1)
+        bot.send_message(m.chat.id, text, reply_markup=kb)
     else:
-        bot.reply_to(m, "❌ البوت غير مفعل هنا\nاكتب /تفعيل لتفعيله")
+        bot.reply_to(m, "❌ البوت غير مفعل هنا\nاكتب تفعيل لتفعيله")
 
-@bot.message_handler(commands=['اوامر', 'start'])
-def menu_cmd(m):
-    if m.chat.type == 'private':
-        return bot.send_message(m.chat.id, "⚠️ القائمة تشتغل في القروبات فقط")
-    if m.chat.id in active_groups:
-        show_main_menu(m.chat.id)
-    else:
-        bot.reply_to(m, "❌ البوت غير مفعل هنا\nاكتب /تفعيل لتفعيله")
-
-# ========== معالجة الازرار بدون تعليق ==========
+# ========== معالجة الازرار ==========
 @bot.callback_query_handler(func=lambda c: True)
 def cb(c):
     chat_id = c.message.chat.id
-    
+
     if chat_id not in active_groups:
         return bot.answer_callback_query(c.id, "❌ القروب غير مفعل", show_alert=True)
-    
-    # نرد على الزر عشان ما يعلق
-    if c.data == "menu_1":
-        bot.answer_callback_query(c.id, "قائمة الادمنيه")
-    elif c.data == "menu_2":
-        bot.answer_callback_query(c.id, "قائمة الاعدادات")
-    elif c.data == "menu_3":
-        bot.answer_callback_query(c.id, "قائمة القفل")
-    elif c.data == "menu_4":
-        bot.answer_callback_query(c.id, "قائمة التسليه")
-    elif c.data == "menu_5":
-        bot.answer_callback_query(c.id, "قائمة المطور")
-    elif c.data == "menu_6":
-        bot.answer_callback_query(c.id, "القائمة الخدمية")
+
+    # تبديل الصفحات
+    if c.data.startswith("page_"):
+        page = int(c.data.split("_")[1])
+        if page < 1 or page > 2: # لو مافي صفحة
+            return bot.answer_callback_query(c.id, "مافي صفحات اكثر")
+        text, kb = get_menu(page)
+        bot.edit_message_text(text, chat_id, c.message_id, reply_markup=kb)
+        bot.answer_callback_query(c.id)
+
+    # الازرار 1-12
+    elif c.data.startswith("menu_"):
+        num = c.data.split("_")[1]
+        bot.answer_callback_query(c.id, f"تم الضغط على زر {num}")
+
+    # تحديثات
+    elif c.data == "update":
+        bot.answer_callback_query(c.id, "🔄 اخر تحديث: v1.0 بوت Tia", show_alert=True)
 
 print("✅ البوت شغال...")
 bot.infinity_polling(none_stop=True)
