@@ -1,58 +1,62 @@
 import telebot
 import os
-import threading
+import sqlite3
 from flask import Flask
 
-# استدعاء كل ملفات البوت
-import m1  # الادمنيه
-import m2  # الاعدادات 
-import m3  # الحماية
-import m4  # التسليه
-import menu # القائمة
+# استدعاء كل الملفات
+import m1
+import m2
+import m3
+import m4
+import m5
+import m6
+import menu
 
-TOKEN = os.getenv("BOT_TOKEN")
-if not TOKEN:
-    raise ValueError("لازم تحط التوكن في BOT_TOKEN في Railway")
-
+# التوكن حقك
+TOKEN = "ضع_التوكن_هنا"
 bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
-active_groups = set() # القروبات المفعله
 
-app = Flask('')
+app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "البوت شغال 24 ساعه ✅"
+    return "Bot Tia is Running ✅"
 
-def run_flask():
-    app.run(host='0.0.0.0', port=8080)
+# تفعيل كل الاوامر
+m1.register_handlers(bot)
+m2.register_handlers(bot)
+m3.register_handlers(bot)
+m4.register_handlers(bot)
+m5.register_handlers(bot)
+m6.register_handlers(bot)
+menu.register_handlers(bot)
 
-# ===== اوامر التفعيل العامة =====
-@bot.message_handler(content_types=['text'], chat_types=['group','supergroup'])
-def activate_group(m):
-    global active_groups
-    chat_id = m.chat.id
-    text = m.text.strip()
+@bot.message_handler(commands=['start'], chat_types=['private'])
+def start(m):
+    bot.reply_to(m, f"{m5.DEV_DATA['welcome']}\n\nاكتب /القائمة لعرض القائمة الرئيسية")
+
+# حماية عامة: حظر وكتم عام
+@bot.message_handler(func=lambda m: True, chat_types=['group','supergroup'])
+def check_gban_gmute(m):
+    if not m.from_user: return
+    user_id = m.from_user.id
+    conn = sqlite3.connect("dev_data.db"); cursor = conn.cursor()
     
-    if text == "تفعيل":
-        active_groups.add(chat_id)
-        bot.reply_to(m, "✅ تم تفعيل البوت في القروب\nاكتب `الاوامر` عشان تشوف كل الاوامر")
+    # تشييك الحظر العام
+    cursor.execute("SELECT user_id FROM gban WHERE user_id =?", (user_id,))
+    if cursor.fetchone():
+        try: bot.delete_message(m.chat.id, m.message_id); bot.ban_chat_member(m.chat.id, user_id)
+        except: pass
+        conn.close(); return
     
-    elif text == "تعطيل":
-        if chat_id in active_groups: 
-            active_groups.remove(chat_id)
-        bot.reply_to(m, "❌ تم تعطيل البوت في القروب")
+    # تشييك الكتم العام  
+    cursor.execute("SELECT user_id FROM gmute WHERE user_id =?", (user_id,))
+    if cursor.fetchone():
+        try: bot.delete_message(m.chat.id, m.message_id)
+        except: pass
+    conn.close()
 
-# ===== تسجيل كل الهاندلرات من الملفات =====
-m1.register_admin_handlers(bot, active_groups)
-m2.register_settings_handlers(bot, active_groups)
-m3.register_lock_handlers(bot, active_groups)
-m4.register_fun_handlers(bot, active_groups)
-menu.register_menu_handler(bot, active_groups)
-
-print("البوت اشتغل بنجاح...")
-
+# تشغيل البوت
 if __name__ == "__main__":
-    # نشغل السيرفر الوهمي عشان Railway ما يطفيه
-    threading.Thread(target=run_flask).start()
-    # نشغل البوت
-    bot.infinity_polling(none_stop=True, timeout=60)
+    print("Bot Tia Started...")
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
