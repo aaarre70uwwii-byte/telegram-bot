@@ -1,15 +1,20 @@
-import sqlite3
+import json
+import os
 from telebot.types import ChatPermissions
 
-DB_FILE = "group_management.db"
-conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-cursor = conn.cursor()
+FILE = "group_ranks.json"
 
-cursor.execute("CREATE TABLE IF NOT EXISTS group_ranks (chat_id INTEGER, user_id INTEGER, rank_name TEXT, PRIMARY KEY (chat_id, user_id))")
-conn.commit()
+def load_ranks():
+    if os.path.exists(FILE):
+        with open(FILE, 'r') as f:
+            return json.load(f)
+    return {}
 
-# بنستقبلها من الملف الرئيسي
-active_groups = []
+def save_ranks(data):
+    with open(FILE, 'w') as f:
+        json.dump(data, f)
+
+group_ranks = load_ranks()
 
 RANK_LEVELS = {
     "مالك اساسي": 6, "مالك": 5, "منشئ": 4, "مدير": 3,
@@ -19,31 +24,28 @@ RANK_LEVELS = {
 RANK_ORDER = ["عضو", "مميز", "ادمن", "مدير", "منشئ", "مالك", "مالك اساسي"]
 
 def get_user_rank(bot, chat_id, user_id):
+    chat_id = str(chat_id)
+    user_id = str(user_id)
     try:
         member = bot.get_chat_member(chat_id, user_id)
         status = member.status
         if status == "creator": return "مالك اساسي", 6
         elif status == "administrator":
-            cursor.execute("SELECT rank_name FROM group_ranks WHERE chat_id =? AND user_id =?", (chat_id, user_id))
-            res = cursor.fetchone()
-            rank = res[0] if res else "مدير"
+            rank = group_ranks.get(chat_id, {}).get(user_id, "مدير")
             return rank, RANK_LEVELS.get(rank, 3)
     except: pass
-    cursor.execute("SELECT rank_name FROM group_ranks WHERE chat_id =? AND user_id =?", (chat_id, user_id))
-    res = cursor.fetchone()
-    if res: return res[0], RANK_LEVELS.get(res[0], 1)
-    return "عضو", 0
+    rank = group_ranks.get(chat_id, {}).get(user_id, "عضو")
+    return rank, RANK_LEVELS.get(rank, 0)
 
-def register_admin_handlers(bot):
+def register_admin_handlers(bot, active_groups):
 
     @bot.message_handler(content_types=['text'], func=lambda m: m.chat.type in ["group", "supergroup"])
     def admin_commands(m):
-        # 1. يتأكد ان القروب مفعل اول
         if m.chat.id not in active_groups: return
-
         if not m.text: return
-        chat_id = m.chat.id
-        sender_id = m.from_user.id
+
+        chat_id = str(m.chat.id)
+        sender_id = str(m.from_user.id)
         text = m.text.strip()
 
         sender_rank, sender_level = get_user_rank(bot, chat_id, sender_id)
@@ -56,7 +58,7 @@ def register_admin_handlers(bot):
 
         elif text == "رفع":
             if not m.reply_to_message: return bot.reply_to(m, "💡 استخدم الأمر بالرد على العضو")
-            target_id = m.reply_to_message.from_user.id
+            target_id = str(m.reply_to_message.from_user.id)
             target_name = m.reply_to_message.from_user.first_name
             target_rank, target_level = get_user_rank(bot, chat_id, target_id)
 
@@ -67,13 +69,14 @@ def register_admin_handlers(bot):
             if next_level > sender_level: return bot.reply_to(m, f"⚠️ لا يمكنك رفع اكثر من رتبتك. رتبتك: {sender_rank}")
 
             new_rank = RANK_ORDER[next_level]
-            cursor.execute("INSERT OR REPLACE INTO group_ranks VALUES (?,?,?)", (chat_id, target_id, new_rank))
-            conn.commit()
+            if chat_id not in group_ranks: group_ranks[chat_id] = {}
+            group_ranks[chat_id][target_id] = new_rank
+            save_ranks(group_ranks)
             bot.reply_to(m, f"• العضو: {target_name}\n• تم رفعه من {target_rank} الى **{new_rank}** 🛡️", parse_mode="Markdown")
 
         elif text == "تنزيل":
             if not m.reply_to_message: return bot.reply_to(m, "💡 استخدم الأمر بالرد على العضو")
-            target_id = m.reply_to_message.from_user.id
+            target_id = str(m.reply_to_message.from_user.id)
             target_name = m.reply_to_message.from_user.first_name
             target_rank, target_level = get_user_rank(bot, chat_id, target_id)
 
@@ -83,16 +86,17 @@ def register_admin_handlers(bot):
             new_level = target_level - 1
             new_rank = RANK_ORDER[new_level]
             if new_rank == "عضو":
-                cursor.execute("DELETE FROM group_ranks WHERE chat_id =? AND user_id =?", (chat_id, target_id))
+                if chat_id in group_ranks and target_id in group_ranks[chat_id]: del group_ranks[chat_id][target_id]
             else:
-                cursor.execute("INSERT OR REPLACE INTO group_ranks VALUES (?,?,?)", (chat_id, target_id, new_rank))
-            conn.commit()
+                if chat_id not in group_ranks: group_ranks[chat_id] = {}
+                group_ranks[chat_id][target_id] = new_rank
+            save_ranks(group_ranks)
             bot.reply_to(m, f"• العضو: {target_name}\n• تم تنزيله من {target_rank} الى **{new_rank}** ❌", parse_mode="Markdown")
 
         elif text == "تنزيل الكل":
             if sender_level < 5: return bot.reply_to(m, "⚠️ هذا الامر للمالكين فقط")
-            cursor.execute("DELETE FROM group_ranks WHERE chat_id =?", (chat_id,))
-            conn.commit()
+            if chat_id in group_ranks: del group_ranks[chat_id]
+            save_ranks(group_ranks)
             bot.reply_to(m, "• تم مسح جميع الرتب المرفوعة 🛑")
 
         elif text.startswith("مسح "):
@@ -110,7 +114,7 @@ def register_admin_handlers(bot):
 
         elif text in ["حظر", "طرد", "كتم", "الغاء الكتم", "الغاء الحظر"]:
             if not m.reply_to_message: return bot.reply_to(m, "💡 رد على العضو")
-            target_id = m.reply_to_message.from_user.id
+            target_id = str(m.reply_to_message.from_user.id)
             target_name = m.reply_to_message.from_user.first_name
             _, target_level = get_user_rank(bot, chat_id, target_id)
             if target_level >= sender_level: return bot.reply_to(m, "⚠️ لا يمكنك معاقبة من هو اعلى منك")
