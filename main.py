@@ -4,6 +4,7 @@ from telebot import types
 import m1
 import m2
 import m3
+import dev_panel # 1. استدعينا ملف المطور
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
@@ -17,6 +18,10 @@ active_groups = []
 m1.active_groups = active_groups
 m2.register_settings_handlers(bot, active_groups)
 m3.register_lock_handlers(bot, active_groups)
+
+# 2. حط ايديك هنا حق التليجرام
+OWNER_ID = "12345678" # <-- غير هذا لايديك
+dev_panel.register_handlers(bot, OWNER_ID) # 3. شغلنا كيبورد المطور
 
 def get_menu(page=1):
     text = ""
@@ -55,7 +60,6 @@ def get_menu(page=1):
     keyboard.row(btn_hide)
     return text, keyboard
 
-# === 1. اهم شي: خلي اوامر التفعيل والاوامر فوق الكل ===
 @bot.message_handler(content_types=['text'], func=lambda m: m.text and m.text.strip() == "تفعيل", chat_types=['group','supergroup'])
 def activate_group(m):
     chat_id = m.chat.id
@@ -78,12 +82,10 @@ def menu_text(m):
     else:
         bot.reply_to(m, "❌ البوت غير مفعل هنا\nاكتب تفعيل لتفعيله")
 
-# === 2. بعدها حط اللوجز ===
 @bot.message_handler(func=lambda message: True)
 def log_all(message):
     print(f"[LOG] وصلت رسالة: {message.text} من {message.chat.id}")
 
-# === 3. بعدها الكول باك ===
 @bot.callback_query_handler(func=lambda c: True)
 def cb(c):
     chat_id = c.message.chat.id
@@ -108,4 +110,5 @@ def cb(c):
 
 print("✅ البوت شغال...")
 bot.remove_webhook()
+bot.delete_webhook(drop_pending_updates=True)
 bot.infinity_polling(none_stop=True, interval=0, timeout=20)
