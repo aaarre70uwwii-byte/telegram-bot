@@ -8,6 +8,9 @@ cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS group_ranks (chat_id INTEGER, user_id INTEGER, rank_name TEXT, PRIMARY KEY (chat_id, user_id))")
 conn.commit()
 
+# بنستقبلها من الملف الرئيسي
+active_groups = []
+
 RANK_LEVELS = {
     "مالك اساسي": 6, "مالك": 5, "منشئ": 4, "مدير": 3,
     "ادمن": 2, "مشرف": 2, "مميز": 1, "عضو": 0
@@ -33,8 +36,11 @@ def get_user_rank(bot, chat_id, user_id):
 
 def register_admin_handlers(bot):
 
-    @bot.message_handler(func=lambda m: m.chat.type in ["group", "supergroup"])
+    @bot.message_handler(content_types=['text'], func=lambda m: m.chat.type in ["group", "supergroup"])
     def admin_commands(m):
+        # 1. يتأكد ان القروب مفعل اول
+        if m.chat.id not in active_groups: return
+
         if not m.text: return
         chat_id = m.chat.id
         sender_id = m.from_user.id
