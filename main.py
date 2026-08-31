@@ -1,5 +1,4 @@
 import os
-import json
 import telebot
 from telebot import types
 import m1 # استدعاء ملف الادمنيه
@@ -18,19 +17,8 @@ bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
 def log_all(message):
     print(f"[LOG] وصلت رسالة: {message.text} من {message.chat.id}")
 
-FILE = "active_groups.json"
-
-def load_groups():
-    if os.path.exists(FILE):
-        with open(FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
-
-def save_groups(groups):
-    with open(FILE, 'w', encoding='utf-8') as f:
-        json.dump(groups, f)
-
-active_groups = load_groups()
+# ===== الحل: نحفظ في الذاكرة مؤقت عشان Railway =====
+active_groups = []
 
 # مرر active_groups للملفات عشان يتأكدوا من التفعيل
 m1.active_groups = active_groups
@@ -100,9 +88,9 @@ def activate_group(m):
     chat_id = m.chat.id
     if chat_id not in active_groups:
         active_groups.append(chat_id)
-        save_groups(active_groups)
-        m1.active_groups = active_groups
-        bot.reply_to(m, "✅ تم التفعيل بنجاح\nالان تقدر تستخدم `الاوامر`")
+        m1.active_groups = active_groups # حدث الملفات
+        bot.reply_to(m, "✅ تم التفعيل بنجاح\nالان تقدر تستخدم الاوامر")
+        print(f"[LOG] تم تفعيل القروب: {chat_id}")
     else:
         bot.reply_to(m, "⚠️ البوت مفعل مسبقاً في هذا القروب")
 
@@ -148,7 +136,7 @@ def cb(c):
 • <code>كتم</code> - بالرد
 • <code>الغاء الكتم</code> - بالرد
 • <code>الغاء الحظر</code> - بالرد
-• <code>رتبتي</code>""") # غيرت Markdown ل HTML
+• <code>رتبتي</code>""")
 
     elif c.data == "menu_2":
         bot.answer_callback_query(c.id, "✅ تم تفعيل اوامر الاعدادات")
@@ -184,4 +172,5 @@ def cb(c):
         bot.answer_callback_query(c.id, "تم اخفاء القائمة")
 
 print("✅ البوت شغال...")
+bot.remove_webhook() # مهم عشان يشتغل Polling
 bot.infinity_polling(none_stop=True, interval=0, timeout=20)
