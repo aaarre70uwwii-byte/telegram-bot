@@ -1,181 +1,119 @@
 import sqlite3
+import time
 import random
-import requests
+import datetime
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-DB_NAME = "service_data.db"
+DB_NAME = "dev_data.db"
 
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS inline_replies (chat_id INTEGER, trigger TEXT, reply TEXT, type TEXT, PRIMARY KEY(chat_id, trigger))")
-    cursor.execute("CREATE TABLE IF NOT EXISTS multi_replies (chat_id INTEGER, trigger TEXT, reply TEXT)")
-    conn.commit()
-    conn.close()
-
+    conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS warnings (chat_id INTEGER, user_id INTEGER, count INTEGER, PRIMARY KEY(chat_id, user_id))")
+    conn.commit(); conn.close()
 init_db()
 
-def get_service_keyboard():
-    markup = InlineKeyboardMarkup(row_width=3)
-    markup.add(
-        InlineKeyboardButton("❤️ نسب", callback_data="ser_ratio"),
-        InlineKeyboardButton("📨 زاجل", callback_data="ser_zajel"),
-        InlineKeyboardButton("🎁 اهداء", callback_data="ser_gift")
-    )
-    markup.add(
-        InlineKeyboardButton("📚 محتوى", callback_data="ser_content"),
-        InlineKeyboardButton("🔍 بحث", callback_data="ser_search"),
-        InlineKeyboardButton("⬇️ تحميل", callback_data="ser_download")
-    )
-    return markup
+def get_time():
+    now = datetime.datetime.now()
+    return now.strftime("%Y-%m-%d %H:%M:%S")
 
-def register_service_handlers(bot):
+def register_handlers(bot):
 
-    content_db = {
-        "افلام": ["فيلم 1: Inception", "فيلم 2: Interstellar", "فيلم 3: The Dark Knight"],
-        "قران": ["اية الكرسي: الله لا اله الا هو الحي القيوم", "سورة الاخلاص: قل هو الله احد"],
-        "اذكار": ["سبحان الله", "الحمدلله", "الله اكبر"],
-        "شعر": ["اذا الشعب يوما اراد الحياة", "قفا نبك من ذكرى حبيب ومنزل"],
-        "اقتباسات": ["الصبر مفتاح الفرج", "من جد وجد ومن سار على الدرب وصل"],
-        "ثريد": ["ثريد: 10 اسرار عن البرمجة"],
-        "قصص": ["قصة: كان هناك ولد ذكي"],
-        "اطربني": ["🎵 اغنية عربية", "🎵 اغنية اجنبية"],
-        "اغاني": ["اغنية 1", "اغنية 2"],
-        "هيدرات": ["صورة هيدر 1"],
-        "جداريات": ["جدارية 1"],
-        "ميمز": ["ميمز مضحك 1"],
-        "ايدت": ["ايدت انمي 1"],
-        "قيفات": ["قيف رومنسي 1", "قيف كيبوب 1"],
-        "افتارات": ["افتار بنات 1", "افتار عيال 1"],
-    }
-
-    @bot.message_handler(commands=['الخدميه'], chat_types=['group','supergroup','private'])
-    @bot.message_handler(func=lambda m: m.text == "الخدمية", chat_types=['group','supergroup','private'])
-    def service_menu(m):
-        bot.reply_to(m, "⚙️ **قائمة الخدمية**\nاختار القسم:", parse_mode="Markdown", reply_markup=get_service_keyboard())
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("ser_"))
-    def service_buttons(call):
-        if call.data == "ser_ratio":
-            bot.answer_callback_query(call.id, "اكتب: نسبة الحب / نسبة الغباء بالرد", show_alert=True)
-        elif call.data == "ser_zajel":
-            bot.answer_callback_query(call.id, "اكتب: ارسل الكلام @اليوزر زاجل", show_alert=True)
-        elif call.data == "ser_gift":
-            bot.answer_callback_query(call.id, "اكتب: اهديه بالرد او اهديه @اليوزر", show_alert=True)
-        elif call.data == "ser_content":
-            markup = InlineKeyboardMarkup(row_width=3)
-            for key in ["قران","اذكار","شعر","اقتباسات","افلام","ميمز"]:
-                markup.add(InlineKeyboardButton(key, callback_data=f"content_{key}"))
-            bot.edit_message_text("📚 اختار المحتوى:", call.message.chat.id, call.message_id, reply_markup=markup)
-        elif call.data == "ser_search":
-            bot.answer_callback_query(call.id, "اكتب: قوقل + البحث او ترجم عربي + النص", show_alert=True)
-        elif call.data == "ser_download":
-            bot.answer_callback_query(call.id, "اكتب: ساوند + الرابط او تيك + الرابط", show_alert=True)
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("content_"))
-    def send_content(call):
-        key = call.data.replace("content_", "")
-        bot.answer_callback_query(call.id, random.choice(content_db.get(key, ["فاضي"])), show_alert=True)
-
-    @bot.message_handler(func=lambda m: True, chat_types=['group','supergroup','private'])
-    def process_service(m):
-        if not m.text: return
-        text = m.text.strip()
-        chat_id = m.chat.id
+    @bot.message_handler(commands=['id'], chat_types=['group','supergroup','private'])
+    def show_id(m):
         user = m.from_user
+        chat = m.chat
+        if m.reply_to_message:
+            target = m.reply_to_message.from_user
+            text = f"◂ **معلومات العضو**\n━━━━━━━━━━━━\n**الاسم:** {target.first_name}\n**اليوزر:** @{target.username}\n**الايدي:** `{target.id}`"
+        else:
+            text = f"◂ **معلوماتك**\n━━━━━━━━━━━━\n**الاسم:** {user.first_name}\n**اليوزر:** @{user.username}\n**الايدي:** `{user.id}`\n**ايدي القروب:** `{chat.id}`\n**الوقت:** {get_time()}"
+        bot.reply_to(m, text, parse_mode="Markdown")
 
-        # ===== نسب =====
-        if text == "نسبه الحب":
-            num = random.randint(1,100)
-            bot.reply_to(m, f"❤️ نسبه حبك هي: {num}%")
-        if text.startswith("نسبه الغباء") and m.reply_to_message:
-            num = random.randint(1,100)
-            bot.reply_to(m, f"😂 نسبه غباء {m.reply_to_message.from_user.first_name} هي: {num}%")
-        if text.startswith("نسبه انوثتها") and m.reply_to_message:
-            num = random.randint(1,100)
-            bot.reply_to(m, f"👩 نسبه انوثه {m.reply_to_message.from_user.first_name} هي: {num}%")
-        if text.startswith("نسبه رجولته") and m.reply_to_message:
-            num = random.randint(1,100)
-            bot.reply_to(m, f"👨 نسبه رجوله {m.reply_to_message.from_user.first_name} هي: {num}%")
+    @bot.message_handler(commands=['الرابط'], chat_types=['group','supergroup'])
+    def get_link(m):
+        if not m.from_user.id: return
+        try:
+            link = bot.export_chat_invite_link(m.chat.id)
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("🔗 رابط القروب", url=link))
+            bot.reply_to(m, "◂ **رابط القروب**\n━━━━━━━━━━━━", reply_markup=markup)
+        except:
+            bot.reply_to(m, "❌ ماقدر اجيب الرابط. تاكد اني ادمن وعندي صلاحية دعوة")
 
-        # ===== تحبه =====
-        if text == "تحبه" and m.reply_to_message:
-            answers = ["اي احبه موت ❤️", "لا اكرهه 😂", "عادي"]
-            bot.reply_to(m, random.choice(answers))
+    @bot.message_handler(commands=['الوقت'], chat_types=['group','supergroup','private'])
+    def show_time(m):
+        bot.reply_to(m, f"🕐 **الوقت الان:**\n`{get_time()}`", parse_mode="Markdown")
 
-        # ===== الزاجل =====
-        if text.startswith("ارسل") and "زاجل" in text:
-            parts = text.split(" ", 2)
-            if len(parts) >= 3:
-                msg, username = parts[1], parts[2]
-                bot.reply_to(m, f"📨 تم ارسال الزاجل لـ {username}\nالرسالة: {msg}")
+    @bot.message_handler(commands=['تحويل'], chat_types=['group','supergroup'])
+    def to_text(m):
+        if not m.reply_to_message: return bot.reply_to(m, "❌ رد على الصورة او الملصق")
+        if m.reply_to_message.sticker:
+            bot.reply_to(m, f"اسم الملصق: `{m.reply_to_message.sticker.set_name}`", parse_mode="Markdown")
+        elif m.reply_to_message.photo:
+            bot.reply_to(m, "📸 هذه صورة")
+        elif m.reply_to_message.voice:
+            bot.reply_to(m, "🎤 هذه رسالة صوتية")
+        else:
+            bot.reply_to(m, "❌ ما اقدر احول هذا النوع")
 
-        # ===== الصياح =====
-        if text == "صيح":
-            bot.reply_to(m, f"ااه {user.first_name} ليش تصيح 😂")
-        if text.startswith("صيح "):
-            username = text.split(" ", 1)[1]
-            bot.reply_to(m, f"ااه {username} ليش تصيح 😂")
+    @bot.message_handler(commands=['احذف'], chat_types=['group','supergroup'])
+    def delete_msg(m):
+        if not m.reply_to_message: return bot.reply_to(m, "❌ رد على الرسالة اللي تريد تحذفها")
+        try:
+            bot.delete_message(m.chat.id, m.message_id)
+            bot.delete_message(m.chat.id, m.reply_to_message.message_id)
+        except:
+            bot.reply_to(m, "❌ ماعندي صلاحية الحذف")
 
-        # ===== الشبيه =====
-        if text == "شبيهي":
-            bot.reply_to(m, f"شبيهك هو {random.choice(['احمد', 'محمد', 'علي', 'خالد'])}")
-        if text == "شبيهتي":
-            bot.reply_to(m, f"شبيهتك هي {random.choice(['فاطمة', 'سارة', 'نور', 'ريم'])}")
+    @bot.message_handler(commands=['انذار'], chat_types=['group','supergroup'])
+    def warn_user(m):
+        if not m.reply_to_message: return bot.reply_to(m, "❌ رد على العضو")
+        target = m.reply_to_message.from_user.id
+        chat = m.chat.id
 
-        # ===== الاهداء =====
-        if text == "اهديه" and m.reply_to_message:
-            gifts = ["🌹 وردة", "💍 خاتم", "🍫 شوكولاته", "🎁 هدية"]
-            bot.reply_to(m, f"اهديت {m.reply_to_message.from_user.first_name} {random.choice(gifts)}")
-        if text.startswith("اهديه "):
-            username = text.split(" ", 1)[1]
-            bot.reply_to(m, f"اهديت {username} 🌹")
+        conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
+        cursor.execute("SELECT count FROM warnings WHERE chat_id =? AND user_id =?", (chat, target))
+        row = cursor.fetchone()
 
-        # ===== معلومات الحساب =====
-        if text == "شرايك في افتاري":
-            bot.reply_to(m, "افتارك جميل جدا 🔥")
-        if text == "افتاره" and m.reply_to_message:
-            try:
-                photos = bot.get_user_profile_photos(m.reply_to_message.from_user.id, limit=1)
-                bot.send_photo(m.chat.id, photos.photos[0][0].file_id, caption="📸 افتاره")
-            except: bot.reply_to(m, "ماعنده صورة")
-        if text == "البايو" and m.reply_to_message:
-            try:
-                info = bot.get_chat(m.reply_to_message.from_user.id)
-                bot.reply_to(m, f"📝 البايو: {info.bio if info.bio else 'فاضي'}")
-            except: bot.reply_to(m, "ماقدر اجيب البايو")
+        if row:
+            count = row[0] + 1
+            cursor.execute("UPDATE warnings SET count =? WHERE chat_id =? AND user_id =?", (count, chat, target))
+        else:
+            count = 1
+            cursor.execute("INSERT INTO warnings VALUES (?,?,?)", (chat, target, count))
+        conn.commit(); conn.close()
 
-        # ===== محتوى عشوائي =====
-        if text in content_db:
-            bot.reply_to(m, random.choice(content_db[text]))
+        if count >= 3:
+            bot.reply_to(m, f"⛔ تم طرد {m.reply_to_message.from_user.first_name} بسبب 3 انذارات")
+            try: bot.ban_chat_member(chat, target); bot.unban_chat_member(chat, target)
+            except: pass
+        else:
+            bot.reply_to(m, f"⚠️ تم انذار {m.reply_to_message.from_user.first_name}\nالانذار رقم: {count}/3")
 
-        # ===== ادوات =====
-        if text.startswith("قوقل "):
-            query = text.split(" ", 1)[1]
-            bot.reply_to(m, f"🔍 ابحث في قوقل: https://google.com/search?q={query}")
-        if text.startswith("ترجم عربي "):
-            txt = text.split(" ", 2)[2]
-            bot.reply_to(m, f"🇸🇦 الترجمة: {txt} [ترجمة وهمية]")
-        if text.startswith("ترجم انقليزي "):
-            txt = text.split(" ", 2)[2]
-            bot.reply_to(m, f"🇺🇸 Translation: {txt} [fake]")
-        if text.startswith("زخرف "):
-            name = text.split(" ", 1)[1]
-            bot.reply_to(m, f"✨ زخرفة: 『{name}』『★{name}★』『❥{name}❥』")
+    @bot.message_handler(commands=['مسح_الانذارات'], chat_types=['group','supergroup'])
+    def clear_warns(m):
+        if not m.reply_to_message: return bot.reply_to(m, "❌ رد على العضو")
+        target = m.reply_to_message.from_user.id
+        conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
+        cursor.execute("DELETE FROM warnings WHERE chat_id =? AND user_id =?", (m.chat.id, target))
+        conn.commit(); conn.close()
+        bot.reply_to(m, f"✅ تم مسح انذارات {m.reply_to_message.from_user.first_name}")
 
-        # ===== نادي المطور =====
-        if text == "نادي المطور":
-            bot.reply_to(m, "@YourUsername تعال المطور يناديك")
+    @bot.message_handler(commands=['نكتة'], chat_types=['group','supergroup','private'])
+    def joke(m):
+        jokes = [
+            "محش سألوه ليش تأخرت؟ قال كنت احلم 😂",
+            "واحد غبي راح للدكتور قاله: دكتور انسى كثير. قاله: من متى؟ قاله: من متى ايش؟ 😂",
+            "معلم قال لطالب: اذا عندك 10 تفاحات واكلت 8 ايش بيبقى؟ قال: بيبقى انا شبعان 😂"
+        ]
+        bot.reply_to(m, random.choice(jokes))
 
-        # ===== من ضافني =====
-        if text == "من ضافني":
-            bot.reply_to(m, "⚠️ هذي الميزة تحتاج تخزين من اول ما دخلت")
-
-        # ===== التحميل =====
-        if text.startswith("ساوند ") or text.startswith("تيك ") or text.startswith("تويتر "):
-            link = text.split(" ", 1)[1]
-            bot.reply_to(m, f"⬇️ جاري تحميل: {link}\nملاحظة: تحتاج مكتبة yt-dlp للتحميل الفعلي")
-
-        # ===== تحويل الصيغ =====
-        if text.startswith("تحويل") and m.reply_to_message:
-            bot.reply_to(m, "🔄 تم التحويل... تحتاج مكتبة ffmpeg")
+    @bot.message_handler(commands=['حكم'], chat_types=['group','supergroup','private'])
+    def wisdom(m):
+        wisdoms = [
+            "من جد وجد ومن زرع حصد",
+            "الصبر مفتاح الفرج",
+            "لا تؤجل عمل اليوم الى الغد",
+            "القناعة كنز لا يفنى"
+        ]
+        bot.reply_to(m, f"💡 {random.choice(wisdoms)}")
