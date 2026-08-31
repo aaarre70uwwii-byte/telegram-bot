@@ -32,10 +32,19 @@ def init_db():
     conn.commit(); conn.close()
 init_db()
 
-MAIN_DEV = 7488375443  # غيره لايديك
-DEV_PHOTO = "https://t.me/YourPhoto" # حط صورة المطور
-DEV_USERNAME = "@YourUsername" # حط يوزرك
+MAIN_DEV = 7488375443 # ايديك
 DEV_NAME = "المطور الاساسي"
+
+def get_dev_info(bot):
+    """يجيب اليوزر والصورة تلقائي"""
+    try:
+        user = bot.get_chat(MAIN_DEV)
+        username = f"@{user.username}" if user.username else "مافي يوزر"
+        photos = bot.get_user_profile_photos(MAIN_DEV, limit=1)
+        photo = photos.photos[0][0].file_id if photos.total > 0 else None
+        return username, photo
+    except:
+        return "@YourUsername", None
 
 def is_dev(user_id):
     conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("SELECT user_id FROM devs WHERE user_id =?", (user_id,)); is_secondary = cursor.fetchone(); conn.close()
@@ -61,9 +70,13 @@ def register_handlers(bot):
 
     @bot.message_handler(commands=['المطور'], chat_types=['group','supergroup','private'])
     def show_dev_info(m):
-        caption = f"◂ **معلومات المطور**\n━━━━━━━━━━━━\n**الاسم:** {DEV_NAME}\n**اليوزر:** {DEV_USERNAME}\n**الايدي:** `{MAIN_DEV}`\n━━━━━━━━━━━━\nللتواصل: {DEV_USERNAME}"
-        try: bot.send_photo(m.chat.id, DEV_PHOTO, caption=caption, parse_mode="Markdown")
-        except: bot.reply_to(m, caption, parse_mode="Markdown")
+        username, photo = get_dev_info(bot)
+        caption = f"◂ **معلومات المطور**\n━━━━━━━━━━━━\n**الاسم:** {DEV_NAME}\n**اليوزر:** {username}\n**الايدي:** `{MAIN_DEV}`\n━━━━━━━━━━━━\nللتواصل: {username}"
+        if photo:
+            try: bot.send_photo(m.chat.id, photo, caption=caption, parse_mode="Markdown")
+            except: bot.reply_to(m, caption, parse_mode="Markdown")
+        else:
+            bot.reply_to(m, caption, parse_mode="Markdown")
 
     @bot.message_handler(chat_types=['group','supergroup'])
     def save_group_id(m): save_group(m.chat.id)
@@ -72,6 +85,7 @@ def register_handlers(bot):
     def process_dev(m):
         global bot_status
         text = m.text.strip(); user_id = m.from_user.id; chat_id = m.chat.id
+        username, _ = get_dev_info(bot)
 
         if text.startswith("رفع Dev") and m.reply_to_message: target = m.reply_to_message.from_user.id; add_dev(target); bot.reply_to(m, f"👑 تم رفع {m.reply_to_message.from_user.first_name} مطور ثانوي")
         if text.startswith("تنزيل Dev") and m.reply_to_message: target = m.reply_to_message.from_user.id; del_dev(target); bot.reply_to(m, f"🗑️ تم تنزيل {m.reply_to_message.from_user.first_name} من المطورين")
@@ -106,7 +120,8 @@ def register_handlers(bot):
     @bot.message_handler(func=lambda m: True, chat_types=['group','supergroup'])
     def dev_auto_reply(m):
         if not m.text: return
-        dev_names = ["المطور", "المبرمج", "dev", "الادمن الاساسي", DEV_USERNAME.lower()]
+        username, _ = get_dev_info(bot)
+        dev_names = ["المطور", "المبرمج", "dev", "الادمن الاساسي", username.lower()]
         if any(name in m.text.lower() for name in dev_names):
-            replies = [f"نعم؟ المطور {DEV_USERNAME} موجود 😎", f"تحتاج المطور؟ كلمه على {DEV_USERNAME}"]
+            replies = [f"نعم؟ المطور {username} موجود 😎", f"تحتاج المطور؟ كلمه على {username}"]
             bot.reply_to(m, random.choice(replies))
