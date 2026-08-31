@@ -3,25 +3,30 @@ import json
 import telebot
 from telebot import types
 import m1 # استدعاء ملف الادمنيه
+import m2 # استدعاء ملف الاعدادات
+import m3 # استدعاء ملف الحماية
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
-
-m1.register_admin_handlers(bot) # تفعيل كل اوامر m1
 
 FILE = "active_groups.json"
 
 def load_groups():
     if os.path.exists(FILE):
-        with open(FILE, 'r') as f:
+        with open(FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return []
 
 def save_groups(groups):
-    with open(FILE, 'w') as f:
+    with open(FILE, 'w', encoding='utf-8') as f:
         json.dump(groups, f)
 
 active_groups = load_groups()
+
+# مرر active_groups للملفات عشان يتأكدوا من التفعيل
+m1.active_groups = active_groups
+m2.register_settings_handlers(bot, active_groups)
+m3.register_lock_handlers(bot, active_groups) # <-- ربط m3
 
 # ========== دالة توليد القائمة حسب الصفحة ==========
 def get_menu(page=1):
@@ -66,7 +71,6 @@ def get_menu(page=1):
         keyboard.row(btn1, btn2, btn3)
         keyboard.row(btn4, btn5, btn6)
 
-    # ازرار التنقل
     btn_prev = types.InlineKeyboardButton("◀️ السابق", callback_data=f"page_{page-1}")
     btn_update = types.InlineKeyboardButton("🔄 تحديثات بوت Tia", callback_data="update")
     btn_next = types.InlineKeyboardButton("التالي ▶️", callback_data=f"page_{page+1}")
@@ -77,23 +81,24 @@ def get_menu(page=1):
     elif page == 2:
         keyboard.row(btn_prev, btn_update)
 
-    keyboard.row(btn_hide) # صف لحاله
+    keyboard.row(btn_hide)
 
     return text, keyboard
 
 # ========== امر التفعيل بدون / ==========
-@bot.message_handler(func=lambda m: m.text and m.text.strip() == "تفعيل", chat_types=['group','supergroup'])
+@bot.message_handler(content_types=['text'], func=lambda m: m.text and m.text.strip() == "تفعيل", chat_types=['group','supergroup'])
 def activate_group(m):
     chat_id = m.chat.id
     if chat_id not in active_groups:
         active_groups.append(chat_id)
         save_groups(active_groups)
+        m1.active_groups = active_groups # تحديث القائمة في m1
         bot.reply_to(m, "✅ تم التفعيل بنجاح\nالان تقدر تستخدم `الاوامر`")
     else:
         bot.reply_to(m, "⚠️ البوت مفعل مسبقاً في هذا القروب")
 
 # ========== امر الاوامر بدون / ==========
-@bot.message_handler(func=lambda m: m.text and m.text.strip() == "الاوامر", chat_types=['group','supergroup'])
+@bot.message_handler(content_types=['text'], func=lambda m: m.text and m.text.strip() == "الاوامر", chat_types=['group','supergroup'])
 def menu_text(m):
     if m.chat.id in active_groups:
         text, kb = get_menu(1)
@@ -109,7 +114,6 @@ def cb(c):
     if chat_id not in active_groups:
         return bot.answer_callback_query(c.id, "❌ القروب غير مفعل", show_alert=True)
 
-    # تبديل الصفحات
     if c.data.startswith("page_"):
         page = int(c.data.split("_")[1])
         if page < 1 or page > 2:
@@ -121,7 +125,6 @@ def cb(c):
             pass
         bot.answer_callback_query(c.id)
 
-    # زر 1 = يفعل كل اوامر m1
     elif c.data == "menu_1":
         bot.answer_callback_query(c.id, "✅ تم تفعيل اوامر الادمنيه")
         bot.send_message(chat_id, """**تم تفعيل اوامر الادمنيه** 🛡️
@@ -138,16 +141,32 @@ def cb(c):
 • `الغاء الحظر` - بالرد
 • `رتبتي`""", parse_mode="Markdown")
 
-    # باقي الازرار
+    elif c.data == "menu_2": # زر الاعدادات
+        bot.answer_callback_query(c.id, "✅ تم تفعيل اوامر الاعدادات")
+        bot.send_message(chat_id, """**تم تفعيل اوامر الاعدادات** ⚙️
+تقدر الحين تستخدم الاوامر التالية:
+
+• `الاعدادات` - عرض كل الاوامر
+• `الرابط` • `القوانين` • `معلوماتي`
+• `ضع الترحيب` • `انشاء رابط`
+• `همس` - بالرد على العضو + النص
+• `الاعدادات خاص`""", parse_mode="Markdown")
+
+    elif c.data == "menu_3": # <-- زر الحماية الجديد
+        bot.answer_callback_query(c.id, "✅ تم تفعيل اوامر الحماية")
+        bot.send_message(chat_id, """**تم تفعيل اوامر الحماية** 🔒
+تقدر الحين تستخدم:
+
+• `الحماية` - لفتح قائمة الاقفال
+• تقدر تقفل: الروابط, الصور, الفيديو, السب, التكرار...الخ""", parse_mode="Markdown")
+
     elif c.data.startswith("menu_"):
         num = c.data.split("_")[1]
         bot.answer_callback_query(c.id, f"قريباً: قائمة {num}")
 
-    # تحديثات
     elif c.data == "update":
         bot.answer_callback_query(c.id, "🔄 اخر تحديث: v1.0 بوت Tia", show_alert=True)
 
-    # اخفا
     elif c.data == "hide":
         try:
             bot.delete_message(chat_id, c.message_id)
@@ -156,4 +175,4 @@ def cb(c):
         bot.answer_callback_query(c.id, "تم اخفاء القائمة")
 
 print("✅ البوت شغال...")
-bot.infinity_polling(none_stop=True)
+bot.infinity_polling(none_stop=True, interval=0, timeout=20)
