@@ -1,6 +1,6 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 import json, os, sys
-import menu # 👈 ضفنا هذا عشان زر الرجوع
+import menu
 
 FILE_DEV = 'dev.json'
 FILE_CONTACT = 'contact.json'
@@ -13,14 +13,30 @@ FILE_CLISHA = 'clisha.json'
 FILE_BROADCAST = 'broadcast.json'
 FILE_SETTINGS = 'settings.json'
 
-DEVS = [7488375443] # المطور الاساسي
+DEVS = [7488375443] # <-- غيره لايديك
+
+devs = []
+contact_replies = {}
+gban_list = {}
+gmute_list = {}
+global_ranks = {}
+global_replies = {}
+multi_replies = {}
+clisha = {}
+broadcast_status = {'groups': []}
+settings = {}
 
 def load_dev_data():
     global devs, contact_replies, gban_list, gmute_list, global_ranks, global_replies, multi_replies, clisha, broadcast_status, settings
-    for f in [FILE_DEV, FILE_CONTACT, FILE_GBAN, FILE_GMUTE, FILE_GLOBAL_RANKS, FILE_GLOBAL_REPLIES, FILE_MULTI_REPLIES, FILE_CLISHA, FILE_BROADCAST, FILE_SETTINGS]:
+    files = [FILE_DEV, FILE_CONTACT, FILE_GBAN, FILE_GMUTE, FILE_GLOBAL_RANKS, FILE_GLOBAL_REPLIES, FILE_MULTI_REPLIES, FILE_CLISHA, FILE_BROADCAST, FILE_SETTINGS]
+    for f in files:
         if not os.path.exists(f):
-            if f == FILE_DEV: json.dump([], open(f, 'w', encoding='utf-8'))
-            else: json.dump({}, open(f, 'w', encoding='utf-8'))
+            if f == FILE_DEV:
+                with open(f, 'w', encoding='utf-8') as file: json.dump([], file)
+            elif f == FILE_BROADCAST:
+                with open(f, 'w', encoding='utf-8') as file: json.dump({'groups': []}, file)
+            else:
+                with open(f, 'w', encoding='utf-8') as file: json.dump({}, file)
 
     devs = json.load(open(FILE_DEV, 'r', encoding='utf-8'))
     contact_replies = json.load(open(FILE_CONTACT, 'r', encoding='utf-8'))
@@ -34,20 +50,20 @@ def load_dev_data():
     settings = json.load(open(FILE_SETTINGS, 'r', encoding='utf-8'))
 
 def save_dev_data():
-    json.dump(devs, open(FILE_DEV, 'w', encoding='utf-8'), ensure_ascii=False)
-    json.dump(contact_replies, open(FILE_CONTACT, 'w', encoding='utf-8'), ensure_ascii=False)
-    json.dump(gban_list, open(FILE_GBAN, 'w', encoding='utf-8'), ensure_ascii=False)
-    json.dump(gmute_list, open(FILE_GMUTE, 'w', encoding='utf-8'), ensure_ascii=False)
-    json.dump(global_ranks, open(FILE_GLOBAL_RANKS, 'w', encoding='utf-8'), ensure_ascii=False)
-    json.dump(global_replies, open(FILE_GLOBAL_REPLIES, 'w', encoding='utf-8'), ensure_ascii=False)
-    json.dump(multi_replies, open(FILE_MULTI_REPLIES, 'w', encoding='utf-8'), ensure_ascii=False)
-    json.dump(clisha, open(FILE_CLISHA, 'w', encoding='utf-8'), ensure_ascii=False)
-    json.dump(broadcast_status, open(FILE_BROADCAST, 'w', encoding='utf-8'), ensure_ascii=False)
-    json.dump(settings, open(FILE_SETTINGS, 'w', encoding='utf-8'), ensure_ascii=False)
+    with open(FILE_DEV, 'w', encoding='utf-8') as f: json.dump(devs, f, ensure_ascii=False)
+    with open(FILE_CONTACT, 'w', encoding='utf-8') as f: json.dump(contact_replies, f, ensure_ascii=False)
+    with open(FILE_GBAN, 'w', encoding='utf-8') as f: json.dump(gban_list, f, ensure_ascii=False)
+    with open(FILE_GMUTE, 'w', encoding='utf-8') as f: json.dump(gmute_list, f, ensure_ascii=False)
+    with open(FILE_GLOBAL_RANKS, 'w', encoding='utf-8') as f: json.dump(global_ranks, f, ensure_ascii=False)
+    with open(FILE_GLOBAL_REPLIES, 'w', encoding='utf-8') as f: json.dump(global_replies, f, ensure_ascii=False)
+    with open(FILE_MULTI_REPLIES, 'w', encoding='utf-8') as f: json.dump(multi_replies, f, ensure_ascii=False)
+    with open(FILE_CLISHA, 'w', encoding='utf-8') as f: json.dump(clisha, f, ensure_ascii=False)
+    with open(FILE_BROADCAST, 'w', encoding='utf-8') as f: json.dump(broadcast_status, f, ensure_ascii=False)
+    with open(FILE_SETTINGS, 'w', encoding='utf-8') as f: json.dump(settings, f, ensure_ascii=False)
 
 load_dev_data()
 
-def dev_keyboard(): # هذا حق الخاص
+def dev_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
         KeyboardButton("ترحيب الخاص نص"), KeyboardButton("ترحيب الخاص صورة"),
@@ -64,7 +80,6 @@ def dev_keyboard(): # هذا حق الخاص
     )
     return markup
 
-# ===== جديد: قائمة القروب ازرار =====
 def show_dev_menu(bot, chat_id):
     channel = settings.get('channel', 'لم يتم التعيين')
     text = f"""🔧 **اوامر المطور Dev**
@@ -80,7 +95,7 @@ def show_dev_menu(bot, chat_id):
     )
     bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
 
-def show_dev_keyboard(bot, chat_id): # هذا حق الخاص
+def show_dev_keyboard(bot, chat_id):
     channel = settings.get('channel', 'لم يتم التعيين')
     welcome = settings.get('welcome', 'لم يتم التعيين')
     welcome_pm = settings.get('welcome_pm', 'اهلا بك في البوت')
@@ -99,11 +114,12 @@ def is_dev(user_id):
 def send_welcome_pm(bot, chat_id, user):
     welcome = settings.get('welcome_pm', 'اهلا بك {name} في البوت')
     welcome = welcome.replace('{name}', user.first_name).replace('{id}', str(user.id)).replace('{username}', f"@{user.username}" if user.username else "")
-    photo = settings.get('welcome_pm_photo')
-    if not photo: photo = "https://i.imgur.com/8Km9tLL.jpg"
-    bot.send_photo(chat_id, photo, caption=welcome)
+    photo = settings.get('welcome_pm_photo', "https://i.imgur.com/8Km9tLL.jpg")
+    try:
+        bot.send_photo(chat_id, photo, caption=welcome)
+    except:
+        bot.send_message(chat_id, welcome)
 
-# ===== غيرنا الاسم من register_m5_handlers الى register_handlers =====
 def register_handlers(bot):
 
     @bot.message_handler(commands=['start'])
@@ -115,21 +131,40 @@ def register_handlers(bot):
 
     @bot.message_handler(func=lambda m: m.chat.type == 'private' and is_dev(m.from_user.id))
     def dev_keyboard_commands(m):
-        # كل الكود حقك هنا بدون تغيير
         txt = m.text.strip()
-        if txt == "معاينة الترحيب": send_welcome_pm(bot, m.chat.id, m.from_user)
+
+        if txt == "معاينة الترحيب":
+            send_welcome_pm(bot, m.chat.id, m.from_user)
         elif txt == "ترحيب الخاص نص":
             msg = bot.send_message(m.chat.id, "ارسل نص ترحيب الخاص\nتقدر تستخدم: {name} {id} {username}")
             bot.register_next_step_handler(msg, set_welcome_pm)
         elif txt == "اذاعة":
             msg = bot.send_message(m.chat.id, "ارسل الرسالة للاذاعة")
             bot.register_next_step_handler(msg, broadcast_msg)
+        elif txt == "قائمه العام":
+            msg = f"🚫 محظورين عام: {len(gban_list)}\n🔇 مكتومين عام: {len(gmute_list)}"
+            bot.send_message(m.chat.id, msg, reply_markup=dev_keyboard())
+        elif txt == "مسح المحظورين عام":
+            gban_list.clear(); gmute_list.clear(); save_dev_data()
+            bot.send_message(m.chat.id, "✅ تم مسح العام", reply_markup=dev_keyboard())
+        elif txt == "تغير قناة البوت":
+            msg = bot.send_message(m.chat.id, "ارسل يوزر القناة بدون @")
+            bot.register_next_step_handler(msg, set_channel)
+        elif txt.startswith("حظر عام "):
+            target = txt.split()[2]
+            gban_list[target] = True; save_dev_data()
+            bot.send_message(m.chat.id, f"✅ تم حظر {target} عام", reply_markup=dev_keyboard())
+        elif txt.startswith("الغاء حظر عام "):
+            target = txt.split()[3]
+            gban_list.pop(target, None); save_dev_data()
+            bot.send_message(m.chat.id, f"✅ تم الغاء حظر {target} عام", reply_markup=dev_keyboard())
+        elif txt.startswith("كتم عام "):
+            target = txt.split()[2]
+            gmute_list[target] = True; save_dev_data()
+            bot.send_message(m.chat.id, f"✅ تم كتم {target} عام", reply_markup=dev_keyboard())
         elif txt == "رجوع للقائمة":
-            menu.show_menu(bot, m.chat.id) # عدلتها
-        #... باقي الاوامر حقك كلها هنا
-        # لخصتها عشان الطول بس خلي كل اللي عندك
+            menu.show_menu(bot, m.chat.id)
 
-    # ===== جديد: اوامر ازرار القروب =====
     @bot.callback_query_handler(func=lambda call: call.data.startswith("dev_"))
     def dev_callbacks(call):
         bot.answer_callback_query(call.id)
@@ -142,18 +177,24 @@ def register_handlers(bot):
             gban_list.clear(); gmute_list.clear(); save_dev_data()
             bot.send_message(call.message.chat.id, "✅ تم مسح المحظورين والمكتومين عام")
 
-    # كل دوال set_welcome_pm و broadcast_msg... خليها زي ما هي
-    # الصقها من الكود اللي ارسلته انت
     def set_welcome_pm(m):
         settings['welcome_pm'] = m.text
         save_dev_data()
         send_welcome_pm(bot, m.chat.id, m.from_user)
         bot.send_message(m.chat.id, "✅ تم حفظ ترحيب الخاص", reply_markup=dev_keyboard())
+
+    def set_channel(m):
+        settings['channel'] = m.text
+        save_dev_data()
+        bot.send_message(m.chat.id, f"✅ تم تعيين القناة: @{m.text}", reply_markup=dev_keyboard())
+
     def broadcast_msg(m):
         groups = broadcast_status.get('groups', [])
         count = 0
         for chat_id in groups:
-            try: bot.send_message(chat_id, f"📢 اذاعة:\n\n{m.text}"); count += 1
-            except: pass
+            try:
+                bot.send_message(chat_id, f"📢 اذاعة:\n\n{m.text}")
+                count += 1
+            except:
+                pass
         bot.send_message(m.chat.id, f"✅ تمت الاذاعة لـ {count} مجموعة", reply_markup=dev_keyboard())
-    #... الصق باقي دوالك هنا
