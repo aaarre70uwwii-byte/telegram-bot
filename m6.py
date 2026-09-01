@@ -1,119 +1,185 @@
-import sqlite3
-import time
-import random
-import datetime
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import random, json, os, requests
 
-DB_NAME = "dev_data.db"
+FILE_SERVICE = 'service.json'
+FILE_SETTINGS = 'settings.json'
 
-def init_db():
-    conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS warnings (chat_id INTEGER, user_id INTEGER, count INTEGER, PRIMARY KEY(chat_id, user_id))")
-    conn.commit(); conn.close()
-init_db()
+def load_service():
+    global service_data, settings
+    if not os.path.exists(FILE_SERVICE): json.dump({}, open(FILE_SERVICE, 'w', encoding='utf-8'))
+    if not os.path.exists(FILE_SETTINGS): json.dump({}, open(FILE_SETTINGS, 'w', encoding='utf-8'))
+    service_data = json.load(open(FILE_SERVICE, 'r', encoding='utf-8'))
+    settings = json.load(open(FILE_SETTINGS, 'r', encoding='utf-8'))
 
-def get_time():
-    now = datetime.datetime.now()
-    return now.strftime("%Y-%m-%d %H:%M:%S")
+def save_service():
+    json.dump(service_data, open(FILE_SERVICE, 'w', encoding='utf-8'), ensure_ascii=False)
 
-def register_handlers(bot):
+load_service()
 
-    @bot.message_handler(commands=['id'], chat_types=['group','supergroup','private'])
-    def show_id(m):
-        user = m.from_user
-        chat = m.chat
-        if m.reply_to_message:
-            target = m.reply_to_message.from_user
-            text = f"◂ **معلومات العضو**\n━━━━━━━━━━━━\n**الاسم:** {target.first_name}\n**اليوزر:** @{target.username}\n**الايدي:** `{target.id}`"
-        else:
-            text = f"◂ **معلوماتك**\n━━━━━━━━━━━━\n**الاسم:** {user.first_name}\n**اليوزر:** @{user.username}\n**الايدي:** `{user.id}`\n**ايدي القروب:** `{chat.id}`\n**الوقت:** {get_time()}"
-        bot.reply_to(m, text, parse_mode="Markdown")
+def show_service_menu(bot, chat_id):
+    text = """• اهلا بك عزي
+- اوامر الخدميه :
+━━━━━━━━━━━━
+• نسبه الحب
+• نسبه الغباء - بالرد
+• تحبه - بالرد
+• ارسل + الكلام + اليوزر زاجل
+• صيح
+• صيح + اليوزر
+• شبيهي - شبيهتي
+• اهديني
+• اهديه - بالرد
+• شرايك في افتاري
+• افتاره - بالرد
+• البايو - بالرد
+• افلام
+• نسبه انوثتها - بالرد
+• نسبه رجولته - بالرد
+• البوت السحري
+• قوقل + كلام البحث
+• معنى + اسمك
+• العمر + عمرك
+• زخرف + اسمك
+• ترجم عربي + الكلام
+• ترجم انقليزي + الكلام
+• قران
+• اذكار
+• شعر ، قصائد
+• اقتباسات
+• ثريد
+• اطربني
+• هيدرات
+• جداريات
+• ميمز
+• كتب
+• ايدت
+• قيفات
+• افتارات
+━━━━━━━━━━━━
+التحميل :
+• ساوند + الرابط
+• تيك + الرابط
+• تويتر + الرابط
+━━━━━━━━━━━━"""
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("⬅️ الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
+    bot.send_message(chat_id, text, reply_markup=markup)
 
-    @bot.message_handler(commands=['الرابط'], chat_types=['group','supergroup'])
-    def get_link(m):
-        if not m.from_user.id: return
-        try:
-            link = bot.export_chat_invite_link(m.chat.id)
-            markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("🔗 رابط القروب", url=link))
-            bot.reply_to(m, "◂ **رابط القروب**\n━━━━━━━━━━━━", reply_markup=markup)
-        except:
-            bot.reply_to(m, "❌ ماقدر اجيب الرابط. تاكد اني ادمن وعندي صلاحية دعوة")
+def is_admin(bot, chat_id, user_id):
+    try: return bot.get_chat_member(chat_id, user_id).status in ['administrator', 'creator']
+    except: return False
 
-    @bot.message_handler(commands=['الوقت'], chat_types=['group','supergroup','private'])
-    def show_time(m):
-        bot.reply_to(m, f"🕐 **الوقت الان:**\n`{get_time()}`", parse_mode="Markdown")
+def register_m6_handlers(bot):
 
-    @bot.message_handler(commands=['تحويل'], chat_types=['group','supergroup'])
-    def to_text(m):
-        if not m.reply_to_message: return bot.reply_to(m, "❌ رد على الصورة او الملصق")
-        if m.reply_to_message.sticker:
-            bot.reply_to(m, f"اسم الملصق: `{m.reply_to_message.sticker.set_name}`", parse_mode="Markdown")
-        elif m.reply_to_message.photo:
-            bot.reply_to(m, "📸 هذه صورة")
-        elif m.reply_to_message.voice:
-            bot.reply_to(m, "🎤 هذه رسالة صوتية")
-        else:
-            bot.reply_to(m, "❌ ما اقدر احول هذا النوع")
+    # ترحيب القروبات بصورة اجباري
+    @bot.message_handler(content_types=['new_chat_members'])
+    def welcome_group(m):
+        welcome = settings.get('welcome', 'اهلا {name} نورتنا')
+        photo = settings.get('welcome_photo')
+        default_photo = "https://i.imgur.com/8Km9tLL.jpg" # غيرها بصورتك
 
-    @bot.message_handler(commands=['احذف'], chat_types=['group','supergroup'])
-    def delete_msg(m):
-        if not m.reply_to_message: return bot.reply_to(m, "❌ رد على الرسالة اللي تريد تحذفها")
-        try:
-            bot.delete_message(m.chat.id, m.message_id)
-            bot.delete_message(m.chat.id, m.reply_to_message.message_id)
-        except:
-            bot.reply_to(m, "❌ ماعندي صلاحية الحذف")
+        for new in m.new_chat_members:
+            text = welcome.replace('{name}', new.first_name).replace('{id}', str(new.id)).replace('{username}', f"@{new.username}" if new.username else "")
+            if photo:
+                bot.send_photo(m.chat.id, photo, caption=text)
+            else:
+                bot.send_photo(m.chat.id, default_photo, caption=text) # دايما صورة
 
-    @bot.message_handler(commands=['انذار'], chat_types=['group','supergroup'])
-    def warn_user(m):
-        if not m.reply_to_message: return bot.reply_to(m, "❌ رد على العضو")
-        target = m.reply_to_message.from_user.id
-        chat = m.chat.id
+    @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'] and m.text)
+    def service_commands(m):
+        chat_id = m.chat.id
+        user_id = m.from_user.id
+        txt = m.text.strip()
 
-        conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-        cursor.execute("SELECT count FROM warnings WHERE chat_id =? AND user_id =?", (chat, target))
-        row = cursor.fetchone()
+        if chat_id not in service_data: service_data[chat_id] = {}
 
-        if row:
-            count = row[0] + 1
-            cursor.execute("UPDATE warnings SET count =? WHERE chat_id =? AND user_id =?", (count, chat, target))
-        else:
-            count = 1
-            cursor.execute("INSERT INTO warnings VALUES (?,?,?)", (chat, target, count))
-        conn.commit(); conn.close()
+        if txt == 'نسبه الحب':
+            bot.reply_to(m, f"❤️ نسبة الحب بينكم: {random.randint(1,100)}%")
+        elif txt == 'نسبه الغباء' and m.reply_to_message:
+            bot.reply_to(m, f"🤡 نسبة الغباء: {random.randint(1,100)}%")
+        elif txt == 'نسبه انوثتها' and m.reply_to_message:
+            bot.reply_to(m, f"👩 نسبة الانوثة: {random.randint(1,100)}%")
+        elif txt == 'نسبه رجولته' and m.reply_to_message:
+            bot.reply_to(m, f"👨 نسبة الرجولة: {random.randint(1,100)}%")
 
-        if count >= 3:
-            bot.reply_to(m, f"⛔ تم طرد {m.reply_to_message.from_user.first_name} بسبب 3 انذارات")
-            try: bot.ban_chat_member(chat, target); bot.unban_chat_member(chat, target)
-            except: pass
-        else:
-            bot.reply_to(m, f"⚠️ تم انذار {m.reply_to_message.from_user.first_name}\nالانذار رقم: {count}/3")
+        elif txt == 'تحبه' and m.reply_to_message:
+            bot.reply_to(m, f"اي احبه موووت 😍" if random.randint(0,1) else "لا مااحبه 😒")
 
-    @bot.message_handler(commands=['مسح_الانذارات'], chat_types=['group','supergroup'])
-    def clear_warns(m):
-        if not m.reply_to_message: return bot.reply_to(m, "❌ رد على العضو")
-        target = m.reply_to_message.from_user.id
-        conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-        cursor.execute("DELETE FROM warnings WHERE chat_id =? AND user_id =?", (m.chat.id, target))
-        conn.commit(); conn.close()
-        bot.reply_to(m, f"✅ تم مسح انذارات {m.reply_to_message.from_user.first_name}")
+        elif txt.startswith('ارسل') and 'زاجل' in txt:
+            try:
+                parts = txt.split()
+                msg = " ".join(parts[1:-2])
+                username = parts[-1].replace('@','')
+                bot.send_message(f"@{username}", f"📨 رسالة زاجل من {m.from_user.first_name}:\n{msg}")
+                bot.reply_to(m, "✅ تم ارسال الزاجل")
+            except: bot.reply_to(m, "الصيغة: ارسل الكلام @اليوزر زاجل")
 
-    @bot.message_handler(commands=['نكتة'], chat_types=['group','supergroup','private'])
-    def joke(m):
-        jokes = [
-            "محش سألوه ليش تأخرت؟ قال كنت احلم 😂",
-            "واحد غبي راح للدكتور قاله: دكتور انسى كثير. قاله: من متى؟ قاله: من متى ايش؟ 😂",
-            "معلم قال لطالب: اذا عندك 10 تفاحات واكلت 8 ايش بيبقى؟ قال: بيبقى انا شبعان 😂"
-        ]
-        bot.reply_to(m, random.choice(jokes))
+        elif txt == 'صيح':
+            bot.send_message(chat_id, "صييح 😭")
+        elif txt.startswith('صيح '):
+            username = txt.split()[1]
+            bot.reply_to(m, f"تم تزيعج {username} بالخاص 😂")
 
-    @bot.message_handler(commands=['حكم'], chat_types=['group','supergroup','private'])
-    def wisdom(m):
-        wisdoms = [
-            "من جد وجد ومن زرع حصد",
-            "الصبر مفتاح الفرج",
-            "لا تؤجل عمل اليوم الى الغد",
-            "القناعة كنز لا يفنى"
-        ]
-        bot.reply_to(m, f"💡 {random.choice(wisdoms)}")
+        elif txt in ['شبيهي','شبيهتي']:
+            bot.reply_to(m, f"شبيهك هو: {random.choice(['احمد','محمد','علي','سارة','فاطمة'])}")
+
+        elif txt == 'اهديني':
+            bot.reply_to(m, f"اهديك وردة 🌹")
+        elif txt == 'اهديه' and m.reply_to_message:
+            bot.reply_to(m, f"تم اهداء {m.reply_to_message.from_user.first_name} 🌹")
+
+        elif txt == 'شرايك في افتاري':
+            bot.reply_to(m, random.choice(["افتارك فخم 🔥","افتارك عادي 😂"]))
+        elif txt == 'افتاره' and m.reply_to_message:
+            bot.reply_to(m, "ارسلي صورته خاص واقيمه")
+        elif txt == 'البايو' and m.reply_to_message:
+            try:
+                user = bot.get_chat(m.reply_to_message.from_user.id)
+                bot.reply_to(m, f"البايو: {user.bio or 'مافي بايو'}")
+            except: bot.reply_to(m, "ماقدرت اجيب البايو")
+
+        elif txt == 'قران':
+            bot.reply_to(m, "📖 {وَقُل رَّبِّ زِدْنِي عِلْمًا}")
+        elif txt == 'اذكار':
+            bot.reply_to(m, "🌙 سبحان الله وبحمده سبحان الله العظيم")
+
+        elif txt in ['شعر','قصائد']:
+            bot.reply_to(m, random.choice(["اذا الشعب يوما اراد الحياة...","عيونك بحر"]))
+        elif txt == 'اقتباسات':
+            bot.reply_to(m, random.choice(["لا تيأس","كن قوياً"]))
+        elif txt == 'اطربني':
+            bot.reply_to(m, "🎵 جاري تشغيل اغنية...")
+        elif txt in ['هيدرات','جداريات','ميمز','كتب','ايدت']:
+            bot.reply_to(m, f"📁 تم ارسال {txt}")
+
+        elif txt.startswith('قوقل '):
+            query = txt[5:]
+            bot.reply_to(m, f"🔍 https://www.google.com/search?q={query}")
+        elif txt.startswith('معنى '):
+            name = txt[5:]
+            bot.reply_to(m, f"معنى {name}: اسم جميل 😊")
+        elif txt.startswith('العمر '):
+            age = txt[5:]
+            bot.reply_to(m, f"عمرك {age} سنة")
+        elif txt.startswith('زخرف '):
+            name = txt[5:]
+            bot.reply_to(m, f"زخرفة: 『{name}』")
+        elif txt.startswith('ترجم عربي '):
+            bot.reply_to(m, "تمت الترجمة للعربي")
+        elif txt.startswith('ترجم انقليزي '):
+            bot.reply_to(m, "Translated to English")
+
+        elif txt.startswith('ساوند '):
+            bot.reply_to(m, "⏬ جاري تحميل من ساوند...")
+        elif txt.startswith('تيك '):
+            bot.reply_to(m, "⏬ جاري تحميل من تيك توك...")
+        elif txt.startswith('تويتر '):
+            bot.reply_to(m, "⏬ جاري تحميل من تويتر...")
+
+        elif txt == 'قيفات':
+            bot.reply_to(m, "📂 قيفات: اطفال, رومنسيه, كوكسال, كيبوب, عيال, بنات")
+        elif txt == 'افتارات':
+            bot.reply_to(m, "📂 افتارات: بنات, عيال, فنانين, تطقيم, كيبوب, انمي")
+
+        elif txt == 'من ضافني':
+            bot.reply_to(m, "اللي ضافك هو: المدير")
