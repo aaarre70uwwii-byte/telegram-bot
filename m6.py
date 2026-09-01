@@ -1,8 +1,12 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import random, json, os, requests
+import menu # عشان زر الرجوع
 
 FILE_SERVICE = 'service.json'
 FILE_SETTINGS = 'settings.json'
+
+service_data = {}
+settings = {}
 
 def load_service():
     global service_data, settings
@@ -69,26 +73,26 @@ def is_admin(bot, chat_id, user_id):
     try: return bot.get_chat_member(chat_id, user_id).status in ['administrator', 'creator']
     except: return False
 
-def register_m6_handlers(bot):
+def register_handlers(bot): # <-- غيرت الاسم
 
     # ترحيب القروبات بصورة اجباري
     @bot.message_handler(content_types=['new_chat_members'])
     def welcome_group(m):
         welcome = settings.get('welcome', 'اهلا {name} نورتنا')
         photo = settings.get('welcome_photo')
-        default_photo = "https://i.imgur.com/8Km9tLL.jpg" # غيرها بصورتك
+        default_photo = "https://i.imgur.com/8Km9tLL.jpg" # حط رابط صورتك هنا
 
         for new in m.new_chat_members:
             text = welcome.replace('{name}', new.first_name).replace('{id}', str(new.id)).replace('{username}', f"@{new.username}" if new.username else "")
             if photo:
                 bot.send_photo(m.chat.id, photo, caption=text)
             else:
-                bot.send_photo(m.chat.id, default_photo, caption=text) # دايما صورة
+                bot.send_photo(m.chat.id, default_photo, caption=text)
 
     @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'] and m.text)
     def service_commands(m):
-        chat_id = m.chat.id
-        user_id = m.from_user.id
+        chat_id = str(m.chat.id)
+        user_id = str(m.from_user.id)
         txt = m.text.strip()
 
         if chat_id not in service_data: service_data[chat_id] = {}
@@ -130,8 +134,6 @@ def register_m6_handlers(bot):
 
         elif txt == 'شرايك في افتاري':
             bot.reply_to(m, random.choice(["افتارك فخم 🔥","افتارك عادي 😂"]))
-        elif txt == 'افتاره' and m.reply_to_message:
-            bot.reply_to(m, "ارسلي صورته خاص واقيمه")
         elif txt == 'البايو' and m.reply_to_message:
             try:
                 user = bot.get_chat(m.reply_to_message.from_user.id)
@@ -149,8 +151,6 @@ def register_m6_handlers(bot):
             bot.reply_to(m, random.choice(["لا تيأس","كن قوياً"]))
         elif txt == 'اطربني':
             bot.reply_to(m, "🎵 جاري تشغيل اغنية...")
-        elif txt in ['هيدرات','جداريات','ميمز','كتب','ايدت']:
-            bot.reply_to(m, f"📁 تم ارسال {txt}")
 
         elif txt.startswith('قوقل '):
             query = txt[5:]
@@ -163,11 +163,7 @@ def register_m6_handlers(bot):
             bot.reply_to(m, f"عمرك {age} سنة")
         elif txt.startswith('زخرف '):
             name = txt[5:]
-            bot.reply_to(m, f"زخرفة: 『{name}』")
-        elif txt.startswith('ترجم عربي '):
-            bot.reply_to(m, "تمت الترجمة للعربي")
-        elif txt.startswith('ترجم انقليزي '):
-            bot.reply_to(m, "Translated to English")
+            bot.reply_to(m, f"زخرفة: 『{name}』『〲{name}〲』『★{name}★』")
 
         elif txt.startswith('ساوند '):
             bot.reply_to(m, "⏬ جاري تحميل من ساوند...")
@@ -180,6 +176,3 @@ def register_m6_handlers(bot):
             bot.reply_to(m, "📂 قيفات: اطفال, رومنسيه, كوكسال, كيبوب, عيال, بنات")
         elif txt == 'افتارات':
             bot.reply_to(m, "📂 افتارات: بنات, عيال, فنانين, تطقيم, كيبوب, انمي")
-
-        elif txt == 'من ضافني':
-            bot.reply_to(m, "اللي ضافك هو: المدير")
