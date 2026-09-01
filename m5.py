@@ -1,127 +1,300 @@
-import sqlite3
-import os
-import sys
-import random
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+import json, os, sys
 
-DB_NAME = "dev_data.db"
-GROUPS_FILE = "groups.txt"
+FILE_DEV = 'dev.json'
+FILE_CONTACT = 'contact.json'
+FILE_GBAN = 'gban.json'
+FILE_GMUTE = 'gmute.json'
+FILE_GLOBAL_RANKS = 'global_ranks.json'
+FILE_GLOBAL_REPLIES = 'global_replies.json'
+FILE_MULTI_REPLIES = 'multi_replies.json'
+FILE_CLISHA = 'clisha.json'
+FILE_BROADCAST = 'broadcast.json'
+FILE_SETTINGS = 'settings.json'
 
-DEV_DATA = {
-    "bot_name": "𝐓𝐢𝐚",
-    "welcome": "✨ أهلاً بك في بوت 𝐓𝐢𝐚 ✨",
-    "owner_id": 7488375443
-}
-bot_status = True
+DEVS = [7488375443] # المطور الاساسي
 
-def get_dev_keyboard():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
-    markup.row(KeyboardButton("📊 قائمة العام"), KeyboardButton("📢 اذاعة"), KeyboardButton("🔄 تحديث"))
-    markup.row(KeyboardButton("👤 رفع مطور"), KeyboardButton("👤 تنزيل مطور"))
-    markup.row(KeyboardButton("✅ تفعيل البوت"), KeyboardButton("🔴 تعطيل البوت"), KeyboardButton("♻️ اعادة تشغيل"))
+def load_dev_data():
+    global devs, contact_replies, gban_list, gmute_list, global_ranks, global_replies, multi_replies, clisha, broadcast_status, settings
+    for f in [FILE_DEV, FILE_CONTACT, FILE_GBAN, FILE_GMUTE, FILE_GLOBAL_RANKS, FILE_GLOBAL_REPLIES, FILE_MULTI_REPLIES, FILE_CLISHA, FILE_BROADCAST, FILE_SETTINGS]:
+        if not os.path.exists(f):
+            if f == FILE_DEV: json.dump([], open(f, 'w', encoding='utf-8'))
+            else: json.dump({}, open(f, 'w', encoding='utf-8'))
+
+    devs = json.load(open(FILE_DEV, 'r', encoding='utf-8'))
+    contact_replies = json.load(open(FILE_CONTACT, 'r', encoding='utf-8'))
+    gban_list = json.load(open(FILE_GBAN, 'r', encoding='utf-8'))
+    gmute_list = json.load(open(FILE_GMUTE, 'r', encoding='utf-8'))
+    global_ranks = json.load(open(FILE_GLOBAL_RANKS, 'r', encoding='utf-8'))
+    global_replies = json.load(open(FILE_GLOBAL_REPLIES, 'r', encoding='utf-8'))
+    multi_replies = json.load(open(FILE_MULTI_REPLIES, 'r', encoding='utf-8'))
+    clisha = json.load(open(FILE_CLISHA, 'r', encoding='utf-8'))
+    broadcast_status = json.load(open(FILE_BROADCAST, 'r', encoding='utf-8'))
+    settings = json.load(open(FILE_SETTINGS, 'r', encoding='utf-8'))
+
+def save_dev_data():
+    json.dump(devs, open(FILE_DEV, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(contact_replies, open(FILE_CONTACT, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(gban_list, open(FILE_GBAN, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(gmute_list, open(FILE_GMUTE, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(global_ranks, open(FILE_GLOBAL_RANKS, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(global_replies, open(FILE_GLOBAL_REPLIES, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(multi_replies, open(FILE_MULTI_REPLIES, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(clisha, open(FILE_CLISHA, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(broadcast_status, open(FILE_BROADCAST, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(settings, open(FILE_SETTINGS, 'w', encoding='utf-8'), ensure_ascii=False)
+
+load_dev_data()
+
+def dev_keyboard():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add(
+        KeyboardButton("ترحيب الخاص نص"), KeyboardButton("ترحيب الخاص صورة"),
+        KeyboardButton("معاينة الترحيب"), KeyboardButton("مسح صورة ترحيب الخاص"),
+        KeyboardButton("اضف رد تواصل"), KeyboardButton("ردود التواصل"),
+        KeyboardButton("اضف رد عام"), KeyboardButton("الردود العامه"),
+        KeyboardButton("اضف رد متعدد عام"), KeyboardButton("الردود المتعدده العامه"),
+        KeyboardButton("ضع ترحيب"), KeyboardButton("ضع صورة الترحيب"),
+        KeyboardButton("مسح صورة الترحيب"), KeyboardButton("قائمه العام"),
+        KeyboardButton("مسح المحظورين عام"), KeyboardButton("اذاعة"),
+        KeyboardButton("مغادرة"), KeyboardButton("تغير قناة البوت"),
+        KeyboardButton("نقل الملكية"), KeyboardButton("تحديث الملفات"),
+        KeyboardButton("اعاده تشغيل"), KeyboardButton("رجوع للقائمة")
+    )
     return markup
 
-def init_db():
-    conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS replies (chat_id INTEGER, trigger TEXT, reply TEXT, type TEXT, PRIMARY KEY(chat_id, trigger))")
-    cursor.execute("CREATE TABLE IF NOT EXISTS gban (user_id INTEGER PRIMARY KEY)")
-    cursor.execute("CREATE TABLE IF NOT EXISTS gmute (user_id INTEGER PRIMARY KEY)")
-    cursor.execute("CREATE TABLE IF NOT EXISTS devs (user_id INTEGER PRIMARY KEY)")
-    cursor.execute("CREATE TABLE IF NOT EXISTS clips (name TEXT PRIMARY KEY, text TEXT)")
-    cursor.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
-    conn.commit(); conn.close()
-init_db()
-
-MAIN_DEV = 7488375443 # ايديك
-DEV_NAME = "المطور الاساسي"
-
-def get_dev_info(bot):
-    """يجيب اليوزر والصورة تلقائي"""
-    try:
-        user = bot.get_chat(MAIN_DEV)
-        username = f"@{user.username}" if user.username else "مافي يوزر"
-        photos = bot.get_user_profile_photos(MAIN_DEV, limit=1)
-        photo = photos.photos[0][0].file_id if photos.total > 0 else None
-        return username, photo
-    except:
-        return "@YourUsername", None
+def show_dev_menu(bot, chat_id):
+    channel = settings.get('channel', 'لم يتم التعيين')
+    welcome = settings.get('welcome', 'لم يتم التعيين')
+    welcome_pm = settings.get('welcome_pm', 'اهلا بك في البوت')
+    photo = "✅ موجودة" if settings.get('welcome_pm_photo') else "❌ غير موجودة"
+    text = f"""- اهلا بك عزي Dev
+- قناة البوت: @{channel}
+- ترحيب القروبات: {welcome}
+- ترحيب الخاص: {welcome_pm}
+- صورة ترحيب الخاص: {photo}
+━━━━━━━━━━━━"""
+    bot.send_message(chat_id, text, reply_markup=dev_keyboard())
 
 def is_dev(user_id):
-    conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("SELECT user_id FROM devs WHERE user_id =?", (user_id,)); is_secondary = cursor.fetchone(); conn.close()
-    return user_id == MAIN_DEV or is_secondary
+    return user_id in DEVS or str(user_id) in devs
 
-def add_dev(user_id): conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("INSERT OR IGNORE INTO devs VALUES (?)", (user_id,)); conn.commit(); conn.close()
-def del_dev(user_id): conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("DELETE FROM devs WHERE user_id =?", (user_id,)); conn.commit(); conn.close()
-def save_group(chat_id):
-    if not os.path.exists(GROUPS_FILE): open(GROUPS_FILE, 'w').close()
-    with open(GROUPS_FILE, 'r') as f: groups = f.read().splitlines()
-    if str(chat_id) not in groups:
-        with open(GROUPS_FILE, 'a') as f: f.write(f"{chat_id}\n")
-def get_all_groups():
-    if not os.path.exists(GROUPS_FILE): return []
-    with open(GROUPS_FILE, 'r') as f: return [int(x) for x in f.read().splitlines()]
+def send_welcome_pm(bot, chat_id, user):
+    welcome = settings.get('welcome_pm', 'اهلا بك {name} في البوت')
+    welcome = welcome.replace('{name}', user.first_name).replace('{id}', str(user.id)).replace('{username}', f"@{user.username}" if user.username else "")
 
-def register_handlers(bot):
+    photo = settings.get('welcome_pm_photo')
+    if not photo:
+        photo = "https://i.imgur.com/8Km9tLL.jpg" # غير الرابط بصورتك
 
-    @bot.message_handler(commands=['المطور2'], chat_types=['group','supergroup','private'])
-    def dev_menu(m):
-        if not is_dev(m.from_user.id): return bot.reply_to(m, "❌ هذا الامر للمطور فقط")
-        bot.reply_to(m, "- اهلا بك عزي Dev\n━━━━━━━━━━━━\n- رفع Dev - تنزيل Dev\n- حظر عام - الغاء عام\n- كتم عام - الغاء كتم عام\n- قائمه العام - مسح المحظورين عام\n- اذاعه + بالرد\n- تحديث - اعاده تشغيل\n━━━━━━━━━━━━", reply_markup=get_dev_keyboard())
+    bot.send_photo(chat_id, photo, caption=welcome)
 
-    @bot.message_handler(commands=['المطور'], chat_types=['group','supergroup','private'])
-    def show_dev_info(m):
-        username, photo = get_dev_info(bot)
-        caption = f"◂ **معلومات المطور**\n━━━━━━━━━━━━\n**الاسم:** {DEV_NAME}\n**اليوزر:** {username}\n**الايدي:** `{MAIN_DEV}`\n━━━━━━━━━━━━\nللتواصل: {username}"
-        if photo:
-            try: bot.send_photo(m.chat.id, photo, caption=caption, parse_mode="Markdown")
-            except: bot.reply_to(m, caption, parse_mode="Markdown")
-        else:
-            bot.reply_to(m, caption, parse_mode="Markdown")
+def register_m5_handlers(bot):
 
-    @bot.message_handler(chat_types=['group','supergroup'])
-    def save_group_id(m): save_group(m.chat.id)
+    @bot.message_handler(commands=['start'])
+    def start_pm(m):
+        if m.chat.type == 'private':
+            send_welcome_pm(bot, m.chat.id, m.from_user)
+            if is_dev(m.from_user.id):
+                bot.send_message(m.chat.id, "مرحبا عزي المطور", reply_markup=dev_keyboard())
+
+    @bot.message_handler(func=lambda m: m.chat.type == 'private' and is_dev(m.from_user.id))
+    def dev_keyboard_commands(m):
+        txt = m.text.strip()
+
+        if txt == "معاينة الترحيب":
+            send_welcome_pm(bot, m.chat.id, m.from_user)
+
+        elif txt == "ترحيب الخاص نص":
+            msg = bot.send_message(m.chat.id, "ارسل نص ترحيب الخاص\nتقدر تستخدم: {name} {id} {username}")
+            bot.register_next_step_handler(msg, set_welcome_pm)
+
+        elif txt == "ترحيب الخاص صورة":
+            msg = bot.send_message(m.chat.id, "ارسل الصورة لترحيب الخاص")
+            bot.register_next_step_handler(msg, set_welcome_pm_photo)
+
+        elif txt == "مسح صورة ترحيب الخاص":
+            settings['welcome_pm_photo'] = ""
+            save_dev_data()
+            bot.send_message(m.chat.id, "✅ تم الرجوع للصورة الافتراضية", reply_markup=dev_keyboard())
+
+        elif txt == "ضع ترحيب":
+            msg = bot.send_message(m.chat.id, "ارسل نص ترحيب القروبات")
+            bot.register_next_step_handler(msg, set_welcome)
+
+        elif txt == "ضع صورة الترحيب":
+            msg = bot.send_message(m.chat.id, "ارسل الصورة لترحيب القروبات")
+            bot.register_next_step_handler(msg, set_welcome_photo)
+
+        elif txt == "مسح صورة الترحيب":
+            settings['welcome_photo'] = ""
+            save_dev_data()
+            bot.send_message(m.chat.id, "✅ تم مسح صورة ترحيب القروبات", reply_markup=dev_keyboard())
+
+        elif txt == "اضف رد تواصل":
+            msg = bot.send_message(m.chat.id, "ارسل الكلمة والرد مفصولين بـ |")
+            bot.register_next_step_handler(msg, add_contact_reply)
+
+        elif txt == "ردود التواصل":
+            msg = "📋 ردود التواصل:\n" + "\n".join([f"- {k} : {v}" for k,v in contact_replies.items()]) if contact_replies else "مافي ردود"
+            bot.send_message(m.chat.id, msg, reply_markup=dev_keyboard())
+
+        elif txt == "اضف رد عام":
+            msg = bot.send_message(m.chat.id, "ارسل الكلمة والرد مفصولين بـ |")
+            bot.register_next_step_handler(msg, add_global_reply)
+
+        elif txt == "الردود العامه":
+            msg = "📋 الردود العامه:\n" + "\n".join([f"- {k}" for k in global_replies.keys()]) if global_replies else "مافي ردود"
+            bot.send_message(m.chat.id, msg, reply_markup=dev_keyboard())
+
+        elif txt == "اضف رد متعدد عام":
+            msg = bot.send_message(m.chat.id, "ارسل الكلمة والردود مفصولين بـ | وبين الردود,")
+            bot.register_next_step_handler(msg, add_multi_reply)
+
+        elif txt == "الردود المتعدده العامه":
+            msg = "📋 الردود المتعدده:\n" + "\n".join([f"- {k}" for k in multi_replies.keys()]) if multi_replies else "مافي ردود"
+            bot.send_message(m.chat.id, msg, reply_markup=dev_keyboard())
+
+        elif txt == "قائمه العام":
+            msg = f"🚫 محظورين عام: {len(gban_list)}\n🔇 مكتومين عام: {len(gmute_list)}"
+            bot.send_message(m.chat.id, msg, reply_markup=dev_keyboard())
+
+        elif txt == "مسح المحظورين عام":
+            gban_list.clear(); gmute_list.clear(); save_dev_data()
+            bot.send_message(m.chat.id, "✅ تم مسح المحظورين والمكتومين عام", reply_markup=dev_keyboard())
+
+        elif txt == "اذاعة":
+            msg = bot.send_message(m.chat.id, "ارسل الرسالة للاذاعة")
+            bot.register_next_step_handler(msg, broadcast_msg)
+
+        elif txt == "مغادرة":
+            msg = bot.send_message(m.chat.id, "ارسل ايدي المجموعة")
+            bot.register_next_step_handler(msg, leave_chat)
+
+        elif txt == "تغير قناة البوت":
+            msg = bot.send_message(m.chat.id, "ارسل يوزر القناة بدون @")
+            bot.register_next_step_handler(msg, set_channel)
+
+        elif txt == "نقل الملكية":
+            msg = bot.send_message(m.chat.id, "ارسل يوزر المطور الجديد")
+            bot.register_next_step_handler(msg, transfer_owner)
+
+        elif txt == "تحديث الملفات":
+            bot.send_message(m.chat.id, "🔄 جاري تحديث الملفات...")
+            os.system('git pull')
+            bot.send_message(m.chat.id, "✅ تم تحديث الملفات", reply_markup=dev_keyboard())
+
+        elif txt == "اعاده تشغيل":
+            bot.send_message(m.chat.id, "♻️ جاري اعادة التشغيل...")
+            os.execv(sys.executable, ['python'] + sys.argv)
+
+        elif txt == "رجوع للقائمة":
+            from menu import show_main_menu
+            show_main_menu(bot, m.chat.id)
 
     @bot.message_handler(func=lambda m: is_dev(m.from_user.id) and m.text)
-    def process_dev(m):
-        global bot_status
-        text = m.text.strip(); user_id = m.from_user.id; chat_id = m.chat.id
-        username, _ = get_dev_info(bot)
+    def dev_text_commands(m):
+        txt = m.text.strip()
+        if txt.startswith('رفع Dev') and m.reply_to_message:
+            target = str(m.reply_to_message.from_user.id)
+            if target not in devs: devs.append(target); save_dev_data()
+            bot.reply_to(m, "✅ تم رفع مطور ثانوي", reply_markup=dev_keyboard())
+        elif txt.startswith('تنزيل Dev') and m.reply_to_message:
+            target = str(m.reply_to_message.from_user.id)
+            if target in devs: devs.remove(target); save_dev_data()
+            bot.reply_to(m, "✅ تم تنزيل مطور ثانوي", reply_markup=dev_keyboard())
+        elif txt == 'حظر عام' and m.reply_to_message:
+            target = str(m.reply_to_message.from_user.id)
+            gban_list[target] = True; save_dev_data()
+            bot.reply_to(m, "🚫 تم حظر العضو عام", reply_markup=dev_keyboard())
+        elif txt == 'كتم عام' and m.reply_to_message:
+            target = str(m.reply_to_message.from_user.id)
+            gmute_list[target] = True; save_dev_data()
+            bot.reply_to(m, "🔇 تم كتم العضو عام", reply_markup=dev_keyboard())
+        elif txt == 'الغاء كتم عام' and m.reply_to_message:
+            target = str(m.reply_to_message.from_user.id)
+            if target in gmute_list: gmute_list.pop(target); save_dev_data()
+            bot.reply_to(m, "✅ تم الغاء الكتم", reply_markup=dev_keyboard())
 
-        if text.startswith("رفع Dev") and m.reply_to_message: target = m.reply_to_message.from_user.id; add_dev(target); bot.reply_to(m, f"👑 تم رفع {m.reply_to_message.from_user.first_name} مطور ثانوي")
-        if text.startswith("تنزيل Dev") and m.reply_to_message: target = m.reply_to_message.from_user.id; del_dev(target); bot.reply_to(m, f"🗑️ تم تنزيل {m.reply_to_message.from_user.first_name} من المطورين")
-        if text == "مسح المالكين الاساسيين": conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("DELETE FROM devs"); conn.commit(); conn.close(); bot.reply_to(m, "🗑️ تم مسح كل المطورين الثانويين")
+    def set_welcome_pm(m):
+        settings['welcome_pm'] = m.text
+        save_dev_data()
+        send_welcome_pm(bot, m.chat.id, m.from_user)
+        bot.send_message(m.chat.id, "✅ تم حفظ ترحيب الخاص", reply_markup=dev_keyboard())
 
-        if text.startswith("حظر عام") and m.reply_to_message: target = m.reply_to_message.from_user.id; conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("INSERT OR IGNORE INTO gban VALUES (?)", (target,)); conn.commit(); conn.close(); bot.reply_to(m, f"⛔ تم حظر {m.reply_to_message.from_user.first_name} عام")
-        if text.startswith("الغاء عام") and m.reply_to_message: target = m.reply_to_message.from_user.id; conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("DELETE FROM gban WHERE user_id =?", (target,)); conn.commit(); conn.close(); bot.reply_to(m, f"✅ تم الغاء الحظر العام")
-        if text == "قائمه العام": conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("SELECT user_id FROM gban"); rows = cursor.fetchall(); conn.close(); bot.reply_to(m, f"المحظورين عام: {len(rows)}")
-        if text == "مسح المحظورين عام": conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("DELETE FROM gban"); conn.commit(); conn.close(); bot.reply_to(m, "🗑️ تم مسح المحظورين عام")
+    def set_welcome_pm_photo(m):
+        if m.photo:
+            file_id = m.photo[-1].file_id
+            settings['welcome_pm_photo'] = file_id
+            save_dev_data()
+            send_welcome_pm(bot, m.chat.id, m.from_user)
+            bot.send_message(m.chat.id, "✅ تم حفظ صورة ترحيب الخاص", reply_markup=dev_keyboard())
+        else:
+            bot.send_message(m.chat.id, "❌ ارسل صورة فقط", reply_markup=dev_keyboard())
 
-        if text.startswith("كتم عام") and m.reply_to_message: target = m.reply_to_message.from_user.id; conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("INSERT OR IGNORE INTO gmute VALUES (?)", (target,)); conn.commit(); conn.close(); bot.reply_to(m, f"🔇 تم كتم {m.reply_to_message.from_user.first_name} عام")
-        if text.startswith("الغاء كتم عام") and m.reply_to_message: target = m.reply_to_message.from_user.id; conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("DELETE FROM gmute WHERE user_id =?", (target,)); conn.commit(); conn.close(); bot.reply_to(m, f"🔊 تم الغاء الكتم العام")
-        if text == "مسح المكتومين عام": conn = sqlite3.connect(DB_NAME); cursor = conn.cursor(); cursor.execute("DELETE FROM gmute"); conn.commit(); conn.close(); bot.reply_to(m, "🗑️ تم مسح المكتومين عام")
+    def set_welcome(m):
+        settings['welcome'] = m.text
+        save_dev_data()
+        bot.send_message(m.chat.id, "✅ تم حفظ ترحيب القروبات", reply_markup=dev_keyboard())
 
-        if text == "✅ تفعيل البوت": bot_status = True; bot.reply_to(m, "✅ تم تفعيل البوت")
-        if text == "🔴 تعطيل البوت": bot_status = False; bot.reply_to(m, "🔴 تم تعطيل البوت")
-        if text == "📊 قائمة العام":
-            groups = get_all_groups(); bot.reply_to(m, f"📊 عدد القروبات: {len(groups)}")
+    def set_welcome_photo(m):
+        if m.photo:
+            file_id = m.photo[-1].file_id
+            settings['welcome_photo'] = file_id
+            save_dev_data()
+            bot.send_message(m.chat.id, "✅ تم حفظ صورة ترحيب القروبات", reply_markup=dev_keyboard())
+        else:
+            bot.send_message(m.chat.id, "❌ ارسل صورة فقط", reply_markup=dev_keyboard())
 
-        if text == "📢 اذاعة" or text == "اذاعه": bot.reply_to(m, "📢 ارسل الرسالة اللي تريد تذيعها بالرد")
-        if text.startswith("ذيع") and m.reply_to_message:
-            groups = get_all_groups(); count = 0
-            for g in groups:
-                try: bot.forward_message(g, m.chat.id, m.reply_to_message.message_id); count += 1
-                except: pass
-            bot.reply_to(m, f"📢 تمت الاذاعة لـ {count} قروب")
+    def add_contact_reply(m):
+        try: k,v = m.text.split('|',1)
+        except: return bot.send_message(m.chat.id, "الصيغة غلط", reply_markup=dev_keyboard())
+        contact_replies[k.strip()] = v.strip(); save_dev_data()
+        bot.send_message(m.chat.id, "✅ تم اضافة رد التواصل", reply_markup=dev_keyboard())
 
-        if "غادر" in text: bot.reply_to(m, "👋 تم المغادرة"); bot.leave_chat(chat_id)
-        if text == "تحديث": bot.reply_to(m, "🔄 جاري التحديث..."); os.system("git pull")
-        if text == "اعاده تشغيل" or text == "♻️ اعادة تشغيل": bot.reply_to(m, "♻️ جاري اعادة التشغيل..."); os.execv(sys.executable, ['python'] + sys.argv)
+    def add_global_reply(m):
+        try: k,v = m.text.split('|',1)
+        except: return bot.send_message(m.chat.id, "الصيغة غلط", reply_markup=dev_keyboard())
+        global_replies[k.strip()] = v.strip(); save_dev_data()
+        bot.send_message(m.chat.id, "✅ تم اضافة رد عام", reply_markup=dev_keyboard())
 
-    @bot.message_handler(func=lambda m: True, chat_types=['group','supergroup'])
-    def dev_auto_reply(m):
-        if not m.text: return
-        username, _ = get_dev_info(bot)
-        dev_names = ["المطور", "المبرمج", "dev", "الادمن الاساسي", username.lower()]
-        if any(name in m.text.lower() for name in dev_names):
-            replies = [f"نعم؟ المطور {username} موجود 😎", f"تحتاج المطور؟ كلمه على {username}"]
-            bot.reply_to(m, random.choice(replies))
+    def add_multi_reply(m):
+        try: k,v = m.text.split('|',1)
+        except: return bot.send_message(m.chat.id, "الصيغة غلط", reply_markup=dev_keyboard())
+        multi_replies[k.strip()] = [x.strip() for x in v.split(',')]
+        save_dev_data(); bot.send_message(m.chat.id, "✅ تم اضافة رد متعدد", reply_markup=dev_keyboard())
+
+    def set_channel(m):
+        username = m.text.replace('@','').strip()
+        settings['channel'] = username
+        save_dev_data()
+        bot.send_message(m.chat.id, f"✅ تم تعيين قناة البوت: @{username}", reply_markup=dev_keyboard())
+
+    def transfer_owner(m):
+        username = m.text.replace('@','').strip()
+        try:
+            user = bot.get_chat(username)
+            new_id = user.id
+            global DEVS
+            DEVS = [new_id]
+            json.dump(DEVS, open(FILE_DEV, 'w', encoding='utf-8'))
+            bot.send_message(m.chat.id, f"✅ تم نقل الملكية للمطور: @{username}\nالايدي: {new_id}", reply_markup=dev_keyboard())
+        except:
+            bot.send_message(m.chat.id, "❌ اليوزر غلط", reply_markup=dev_keyboard())
+
+    def broadcast_msg(m):
+        groups = broadcast_status.get('groups', [])
+        count = 0
+        for chat_id in groups:
+            try:
+                bot.send_message(chat_id, f"📢 اذاعة:\n\n{m.text}")
+                count += 1
+            except: pass
+        bot.send_message(m.chat.id, f"✅ تمت الاذاعة لـ {count} مجموعة", reply_markup=dev_keyboard())
+
+    def leave_chat(m):
+        try:
+            bot.leave_chat(int(m.text))
+            bot.send_message(m.chat.id, f"✅ تمت المغادرة من: {m.text}", reply_markup=dev_keyboard())
+        except:
+            bot.send_message(m.chat.id, "❌ ايدي غلط", reply_markup=dev_keyboard())
