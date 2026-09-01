@@ -1,13 +1,14 @@
 import telebot
 import os
+import time
 import menu
-import m5  # استدعاء ملف المطور
-import m6  # استدعاء ملف الخدمات
+import m5
+import m6
 
 TOKEN = os.getenv("TOKEN")
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
-OWNER_ID = int(os.getenv("OWNER_ID", "0")) # لو فاضي ما يطيح
+OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 
 bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
 activated_groups = set()
@@ -34,11 +35,16 @@ def not_activated(m):
     if m.text and m.text.lower().strip() in ['الاوامر', '/اوامر', '1م', '2م', '3م', '4م', '5م', '6م']:
         bot.reply_to(m, "⚠️ المجموعه غير مفعله\nالمالك لازم يكتب `تفعيل` اول")
 
-# تفعيل كل الهاندلرات
 menu.register_handlers(bot)
 m5.register_m5_handlers(bot)
 m6.register_m6_handlers(bot)
 
-print("Bot is running...")
-print(f"Owner ID: {OWNER_ID}")
-bot.infinity_polling()
+if __name__ == '__main__':
+    print("Bot is starting...")
+    print(f"Owner ID: {OWNER_ID}")
+    
+    # اهم سطرين لحل مشكلة 409
+    bot.remove_webhook() # يمسح اي ويبهوك قديم
+    time.sleep(1) # انتظر ثانية
+    
+    bot.infinity_polling(none_stop=True, timeout=60, long_polling_timeout=60)
