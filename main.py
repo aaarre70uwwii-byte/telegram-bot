@@ -1,57 +1,31 @@
-import os
-import threading
 import telebot
-from flask import Flask
-
-# استدعاء ملف القائمة
+import os
 import menu
+import m1
+import m2
+import m3
+import m4
 
-# 1. قراءة المتغيرات من Railway
-TOKEN = os.getenv("BOT_TOKEN")
-API_ID = os.getenv("API_ID")
-API_HASH = os.getenv("API_HASH")
-OWNER_ID = os.getenv("OWNER_ID")
-
-if not TOKEN:
-    print("خطأ: BOT_TOKEN مش موجود")
-    exit()
-
+TOKEN = os.environ.get('TOKEN') # حطه في Railway Variables
 bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
 
-# 2. سيرفر Flask عشان Railway ما يوقف البوت
-app = Flask(__name__)
+# تسجيل كل الهاندلرز
+menu.register_handlers(bot)
+m1.register_m1_handlers(bot)
+m2.register_m2_handlers(bot)
+m3.register_m3_handlers(bot)
+m4.register_m4_handlers(bot)
 
-@app.route('/')
-def home():
-    return "البوت شغال 24 ساعة ✅"
-
-def run_flask():
-    app.run(host='0.0.0.0', port=8080)
-
-# 3. اوامر اساسية للبوت
 @bot.message_handler(commands=['start'])
 def start(m):
     if m.chat.type == 'private':
-        bot.reply_to(m, f"اهلا {m.from_user.first_name}\nضيفني قروب واكتب الاوامر")
+        menu.show_menu(bot, m.chat.id)
+    else:
+        bot.reply_to(m, "ارسل /start في الخاص لعرض الاوامر")
 
-@bot.message_handler(commands=['owner'])
-def owner(m):
-    bot.reply_to(m, f"المطور: `{OWNER_ID}`")
+@bot.message_handler(commands=['اوامر'])
+def commands(m):
+    menu.show_menu(bot, m.chat.id)
 
-# 4. امر التفعيل في القروبات
-@bot.message_handler(func=lambda m: m.text and m.text == 'تفعيل', chat_types=['group','supergroup'])
-def activate_group(m):
-    bot.reply_to(m, "✅ تم التفعيل بنجاح")
-    print(f"تم تفعيل القروب: {m.chat.title} - {m.chat.id}")
-
-# 5. تشغيل هاندلرات القائمة من ملف menu.py
-menu.register_handlers(bot)  # <-- كملت هذا
-
-# 6. تشغيل البوت
-def run_bot():
-    print("البوت بدأ التشغيل...")
-    bot.infinity_polling()
-
-if __name__ == "__main__":
-    threading.Thread(target=run_flask, daemon=True).start()  # <-- وكملت هذا
-    run_bot()
+print("Bot is running...")
+bot.infinity_polling(timeout=10, long_polling_timeout=5)
