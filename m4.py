@@ -1,152 +1,199 @@
-import sqlite3
-import random
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import json, os
 
-DB_NAME = "entertainment_data.db"
+FILE_RANKS = 'ranks.json'
+FILE_GLOBAL = 'global_ranks.json'
+FILE_MARRIAGE = 'marriage.json'
 
-def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS fun_roles (user_id INTEGER, chat_id INTEGER, role_name TEXT, PRIMARY KEY (user_id, chat_id, role_name))")
-    cursor.execute("CREATE TABLE IF NOT EXISTS marriage (user_one INTEGER, user_two INTEGER, PRIMARY KEY (user_one, user_two))")
-    cursor.execute("CREATE TABLE IF NOT EXISTS fun_settings (chat_id INTEGER PRIMARY KEY, entertainment TEXT DEFAULT 'تفعيل', kick_vote TEXT DEFAULT 'تفعيل', marry_sys TEXT DEFAULT 'تفعيل')")
-    conn.commit()
-    conn.close()
+def load_data():
+    global ranks, global_ranks, marriages, vote_data
+    ranks = json.load(open(FILE_RANKS, 'r', encoding='utf-8')) if os.path.exists(FILE_RANKS) else {}
+    global_ranks = json.load(open(FILE_GLOBAL, 'r', encoding='utf-8')) if os.path.exists(FILE_GLOBAL) else {}
+    marriages = json.load(open(FILE_MARRIAGE, 'r', encoding='utf-8')) if os.path.exists(FILE_MARRIAGE) else {}
+    vote_data = {}
 
-init_db()
-vote_data = {}
+def save_data():
+    json.dump(ranks, open(FILE_RANKS, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(global_ranks, open(FILE_GLOBAL, 'w', encoding='utf-8'), ensure_ascii=False)
+    json.dump(marriages, open(FILE_MARRIAGE, 'w', encoding='utf-8'), ensure_ascii=False)
 
-RANK_LEVELS = {"مالك اساسي": 6, "مالك": 5, "منشئ": 4, "مدير": 3, "ادمن": 2, "مشرف": 2, "مميز": 1, "عضو": 0}
+load_data()
 
-def get_user_rank(bot, chat_id, user_id):
-    try:
-        member = bot.get_chat_member(chat_id, user_id)
-        if member.status == "creator": return "مالك اساسي", 6
-        elif member.status == "administrator": return "مدير", 3
-    except: pass
-    return "عضو", 0
+def show_fun_menu(bot, chat_id):
+    text = """• اهلا بك عزي
+- اوامر التسليه :
+━━━━━━━━━━━━
+- اوامر تسلية تظهر بالايدي :
 
-def manage_fun_role(user_id: int, chat_id: int, role: str, action: str):
-    conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-    if action == "add": cursor.execute("INSERT OR IGNORE INTO fun_roles VALUES (?,?,?)", (user_id, chat_id, role))
-    elif action == "remove": cursor.execute("DELETE FROM fun_roles WHERE user_id =? AND chat_id =? AND role_name =?", (user_id, chat_id, role))
-    conn.commit(); conn.close()
+- رفع - تنزيل : هطف : الهطوف
+- رفع - تنزيل : بثر : البثرين
+- رفع - تنزيل : حمار : الحمير
+- رفع - تنزيل : كلب : الكلاب
+- رفع - تنزيل : كلبه : الكلبات
+- رفع - تنزيل : عتوي : العتوين
+- رفع - تنزيل : عتويه : العتويات
+- رفع - تنزيل : لحجي : اللحوج
+- رفع - تنزيل : لحجيه : اللحجيات
+- رفع - تنزيل : خروف : الخرفان
+- رفع - تنزيل : خفيفه : الخفيفات
+- رفع - تنزيل : خفيف : الخفيفين
+- رفع بقلبي : تنزيل من قلبي
+━━━━━━━━━━━━
+للقروب:
+- رفع + اسم اختياري
+- مسح رتب التسليه
+- رتب التسليه
+- تعطيل التسليه
+━━━━━━━━━━━━
+للعام:
+- رفع عام +اسم اختياري
+- رتب التسليه عام
+- مسح رتب التسليه عام
+━━━━━━━━━━━━
+- طلاق - زواج
+- زوجي - زوجتي
+- تتزوجني
+━━━━━━━━━━━━
+- اكتموه (تصويت)
+- تعطيل - تفعيل : اكتموه
+- تعطيل - تفعيل : زوجني
+━━━━━━━━━━━━"""
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("⬅️ الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-def get_user_fun_roles(user_id: int, chat_id: int) -> list:
-    conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-    cursor.execute("SELECT role_name FROM fun_roles WHERE user_id =? AND chat_id =?", (user_id, chat_id))
-    rows = cursor.fetchall(); conn.close()
-    return [r[0] for r in rows]
+def is_admin(bot, chat_id, user_id):
+    try: return bot.get_chat_member(chat_id, user_id).status in ['administrator', 'creator']
+    except: return False
 
-def clear_chat_fun_roles(chat_id: int):
-    conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-    cursor.execute("DELETE FROM fun_roles WHERE chat_id =?", (chat_id,)); conn.commit(); conn.close()
+def register_m4_handlers(bot):
 
-def get_setting(chat_id: int, column: str) -> str:
-    conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-    cursor.execute(f"SELECT {column} FROM fun_settings WHERE chat_id =?", (chat_id,))
-    row = cursor.fetchone(); conn.close()
-    return row[0] if row else "تفعيل"
+    rank_names = {
+        'هطف': 'الهطوف', 'بثر': 'البثرين', 'حمار': 'الحمير', 'كلب': 'الكلاب',
+        'كلبه': 'الكلبات', 'عتوي': 'العتوين', 'عتويه': 'العتويات', 'لحجي': 'اللحوج',
+        'لحجيه': 'اللحجيات', 'خروف': 'الخرفان', 'خفيفه': 'الخفيفات', 'خفيف': 'الخفيفين'
+    }
 
-def update_setting(chat_id: int, column: str, value: str):
-    conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO fun_settings (chat_id, {}) VALUES (?,?)".format(column), (chat_id, value))
-    conn.commit(); conn.close()
+    @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'] and m.text)
+    def fun_commands(m):
+        chat_id = str(m.chat.id)
+        user_id = str(m.from_user.id)
+        txt = m.text.strip()
 
-def register_fun_handlers(bot, active_groups):
+        if chat_id not in ranks: ranks[chat_id] = {}
+        if chat_id not in marriages: marriages[chat_id] = {}
 
-    static_roles = {"هطف": "الهطوف", "بثر": "البثرين", "حمار": "الحمير", "كلب": "الكلاب", "كلبه": "الكلبات", "عتوي": "العتوين", "عتويه": "العتويات", "لحجي": "اللحوج", "لحجيه": "اللحجيات", "خروف": "الخرفان", "خفيفه": "الخفيفات", "خفيف": "الخفيفين", "بقلبي": "قلبي"}
+        if ranks[chat_id].get('disabled') and not is_admin(bot, chat_id, user_id): return
+        if ranks[chat_id].get('disabled_zawaj') and txt in ['زواج','طلاق','زوجي','زوجتي','تتزوجني']: return
+        if ranks[chat_id].get('disabled_aktmoh') and txt == 'اكتموه': return
 
-    jokes = ["مرة واحد محش دخل الامتحان قالوا له اكتب اسمك كتب اسمي","واحد غبي طاح من فوق قال الحمدلله ما مت","محش سألوه 2+2 قال 5 نقصت 1"]
-    saraha = ["ايش اكثر شي تندم عليه؟","من تكره في القروب؟","تحب مين بالسري؟","ايش سرك؟"]
-    challenges = ["تحداك ترسل 5 ملصقات","تحداك تغير اسمك 10 دقايق","تحداك تمدح الادمن","تحداك ترسل صوتية"]
+        for rank, plural in rank_names.items():
+            if txt == f'رفع {rank}':
+                if m.reply_to_message:
+                    target = str(m.reply_to_message.from_user.id)
+                    ranks[chat_id][target] = rank; save_data()
+                    bot.reply_to(m, f"✅ تم رفع {m.reply_to_message.from_user.first_name} الى `{plural}`")
+                    return
+            elif txt == f'تنزيل {rank}':
+                if m.reply_to_message:
+                    target = str(m.reply_to_message.from_user.id)
+                    if ranks[chat_id].get(target) == rank: ranks[chat_id].pop(target); save_data()
+                    bot.reply_to(m, f"✅ تم تنزيل {m.reply_to_message.from_user.first_name} من `{plural}`")
+                    return
 
-    @bot.message_handler(content_types=['text'], chat_types=['group','supergroup'])
-    def process_fun(m):
-        if m.chat.id not in active_groups: return
-        text = m.text.strip()
-        chat_id = m.chat.id
-        user_id = m.from_user.id
-        _, sender_level = get_user_rank(bot, chat_id, user_id)
+        if txt.startswith('رفع بقلبي'):
+            if m.reply_to_message:
+                target = str(m.reply_to_message.from_user.id)
+                ranks[chat_id][target] = 'بقلبي'; save_data()
+                bot.reply_to(m, f"❤️ تم رفع {m.reply_to_message.from_user.first_name} بقلبك")
+                return
+        elif txt.startswith('تنزيل من قلبي'):
+            if m.reply_to_message:
+                target = str(m.reply_to_message.from_user.id)
+                if ranks[chat_id].get(target) == 'بقلبي': ranks[chat_id].pop(target); save_data()
+                bot.reply_to(m, f"💔 تم تنزيل {m.reply_to_message.from_user.first_name} من قلبك")
+                return
 
-        if get_setting(chat_id, "entertainment") == "تعطيل" and text not in ["تفعيل التسليه"]:
-            return
+        if not is_admin(bot, chat_id, user_id):
+            # نكمل عشان اوامر العام
+            pass
+        else:
+            if txt == 'مسح رتب التسليه':
+                for k in list(ranks[chat_id].keys()):
+                    if k not in ['disabled','disabled_zawaj','disabled_aktmoh']: ranks[chat_id].pop(k)
+                save_data(); bot.reply_to(m, "✅ تم مسح كل رتب التسليه للقروب"); return
+            elif txt == 'رتب التسليه':
+                msg = "📊 رتب التسليه للقروب:\n"
+                for uid, r in ranks[chat_id].items():
+                    if uid not in ['disabled','disabled_zawaj','disabled_aktmoh']:
+                        try: name = bot.get_chat_member(chat_id, uid).user.first_name
+                        except: name = uid
+                        msg += f"- {name} : `{r}`\n"
+                bot.reply_to(m, msg or "مافي رتب"); return
+            elif txt == 'تعطيل التسليه': ranks[chat_id]['disabled'] = True; save_data(); bot.reply_to(m, "❌ تم تعطيل التسليه"); return
+            elif txt == 'تفعيل التسليه': ranks[chat_id]['disabled'] = False; save_data(); bot.reply_to(m, "✅ تم تفعيل التسليه"); return
+            elif txt == 'تعطيل اكتموه': ranks[chat_id]['disabled_aktmoh'] = True; save_data(); bot.reply_to(m, "❌ تم تعطيل امر اكتموه"); return
+            elif txt == 'تفعيل اكتموه': ranks[chat_id]['disabled_aktmoh'] = False; save_data(); bot.reply_to(m, "✅ تم تفعيل امر اكتموه"); return
+            elif txt == 'تعطيل زوجني': ranks[chat_id]['disabled_zawaj'] = True; save_data(); bot.reply_to(m, "❌ تم تعطيل اوامر الزواج"); return
+            elif txt == 'تفعيل زوجني': ranks[chat_id]['disabled_zawaj'] = False; save_data(); bot.reply_to(m, "✅ تم تفعيل اوامر الزواج"); return
 
-        # ===== اوامر الادمن للتسلية =====
-        if sender_level >= 2:
-            if text == "تعطيل التسليه": update_setting(chat_id, "entertainment", "تعطيل"); return bot.reply_to(m, "⚙️ تم تعطيل نظام التسلية")
-            if text == "تفعيل التسليه": update_setting(chat_id, "entertainment", "تفعيل"); return bot.reply_to(m, "⚙️ تم تفعيل نظام التسلية")
-            if text == "تعطيل اكتموه": update_setting(chat_id, "kick_vote", "تعطيل"); return bot.reply_to(m, "⚙️ تم تعطيل تصويت الكتم")
-            if text == "تفعيل اكتموه": update_setting(chat_id, "kick_vote", "تفعيل"); return bot.reply_to(m, "⚙️ تم تفعيل تصويت الكتم")
-            if text == "تعطيل زوجني": update_setting(chat_id, "marry_sys", "تعطيل"); return bot.reply_to(m, "⚙️ تم تعطيل نظام الزواج")
-            if text == "تفعيل زوجني": update_setting(chat_id, "marry_sys", "تفعيل"); return bot.reply_to(m, "⚙️ تم تفعيل نظام الزواج")
-            if text == "مسح رتب التسليه": clear_chat_fun_roles(chat_id); return bot.reply_to(m, "🗑️ تم مسح كل رتب التسلية")
+        if txt.startswith('رفع عام '):
+            name = txt[8:]
+            global_ranks[user_id] = name; save_data()
+            bot.reply_to(m, f"✅ تم رفعك عام الى `{name}`"); return
+        elif txt == 'رتب التسليه عام':
+            msg = "📊 رتب التسليه العام:\n"
+            for uid, r in global_ranks.items():
+                try: name = bot.get_chat(user_id=uid).first_name
+                except: name = uid
+                msg += f"- {name} : `{r}`\n"
+            bot.reply_to(m, msg or "مافي رتب عام"); return
+        elif txt == 'مسح رتب التسليه عام': # صلحت الاسم هنا
+            if user_id in global_ranks: global_ranks.pop(user_id); save_data()
+            bot.reply_to(m, "✅ تم مسح رتبتك العامة"); return
 
-        # ===== اوامر التسليه كتابه =====
-        if text == "نكتة": return bot.reply_to(m, f"😂 {random.choice(jokes)}")
-        if text == "صراحة": return bot.reply_to(m, f"🎭 صراحة: {random.choice(saraha)}")
-        if text == "تحدي": return bot.reply_to(m, f"🔥 تحدي: {random.choice(challenges)}")
-        if text == "رتبي":
-            roles = get_user_fun_roles(user_id, chat_id)
-            return bot.reply_to(m, f"🏅 رتبك: {', '.join(roles) if roles else 'بدون رتبة'}")
+        if txt == 'تتزوجني' and m.reply_to_message:
+            target = str(m.reply_to_message.from_user.id)
+            if target in marriages[chat_id].values() or user_id in marriages[chat_id]:
+                bot.reply_to(m, "واحد منكم متزوج اصلا")
+            else:
+                marriages[chat_id][user_id] = target; save_data()
+                bot.reply_to(m, f"💍 مبروك {m.from_user.first_name} و {m.reply_to_message.from_user.first_name} تزوجو")
+        elif txt == 'طلاق':
+            if marriages[chat_id].get(user_id):
+                marriages[chat_id].pop(user_id); save_data()
+                bot.reply_to(m, "💔 تم الطلاق")
+            else: bot.reply_to(m, "انت مش متزوج")
+        elif txt == 'زوجي':
+            for k,v in marriages[chat_id].items():
+                if v == user_id: bot.reply_to(m, f"زوجك هو: `{k}`"); return
+            bot.reply_to(m, "ماعندك زوج")
+        elif txt == 'زوجتي':
+            if marriages[chat_id].get(user_id): bot.reply_to(m, f"زوجتك هي: `{marriages[chat_id][user_id]}`")
+            else: bot.reply_to(m, "ماعندك زوجه")
 
-        # ===== رفع وتنزيل الرتب =====
-        if text.startswith("رفع ") or text.startswith("تنزيل "):
-            if not m.reply_to_message: return bot.reply_to(m, "⚠️ رد على الشخص")
-            parts = text.split(" ", 1)
-            action, role_input = parts[0], parts[1].strip()
-            target = m.reply_to_message.from_user
-            if role_input in static_roles:
-                plural = static_roles[role_input]
-                manage_fun_role(target.id, chat_id, role_input, "add" if action == "رفع" else "remove")
-                bot.reply_to(m, f"{'👑 تم رفع' if action == 'رفع' else '🗑️ تم تنزيل'} {target.first_name} {'في' if action == 'رفع' else 'من'} {plural}")
+        if txt == 'اكتموه' and m.reply_to_message:
+            target = str(m.reply_to_message.from_user.id)
+            if chat_id not in vote_data: vote_data[chat_id] = {}
+            vote_data[chat_id][target] = 1
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("نعم اكتموه 1", callback_data=f"mute_yes_{target}_{chat_id}"))
+            bot.send_message(chat_id, f"تصويت لكتم {m.reply_to_message.from_user.first_name}\nتحتاج 3 اصوات", reply_markup=markup)
 
-        if text == "رفع بقلبي" and m.reply_to_message:
-            target = m.reply_to_message.from_user
-            manage_fun_role(target.id, chat_id, "بقلبي", "add")
-            bot.reply_to(m, f"❤️ تم رفع {target.first_name} في قلبي")
+    @bot.callback_query_handler(func=lambda call: call.data.startswith('mute_yes_'))
+    def vote_mute(call):
+        _,_,target,chat_id = call.data.split('_')
+        if chat_id not in vote_data: vote_data[chat_id] = {}
+        vote_data[chat_id][target] = vote_data[chat_id].get(target, 0) + 1
 
-        if text == "تنزيل من قلبي" and m.reply_to_message:
-            target = m.reply_to_message.from_user
-            manage_fun_role(target.id, chat_id, "بقلبي", "remove")
-            bot.reply_to(m, f"💔 تم تنزيل {target.first_name} من قلبي")
-
-        # ===== نظام الزواج =====
-        if get_setting(chat_id, "marry_sys") == "تفعيل":
-            if text == "تتزوجني" and m.reply_to_message:
-                target = m.reply_to_message.from_user
-                bot.reply_to(m, f"{target.first_name} هل تقبل الزواج من {m.from_user.first_name} ؟\nرد بـ `قبول` او `رفض`", parse_mode="Markdown")
-
-            if text in ["قبول", "رفض", "طلاق"] and m.reply_to_message:
-                target_id = m.reply_to_message.from_user.id
-                conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-                if text == "قبول":
-                    cursor.execute("INSERT OR REPLACE INTO marriage VALUES (?,?)", (user_id, target_id))
-                    cursor.execute("INSERT OR REPLACE INTO marriage VALUES (?,?)", (target_id, user_id))
-                    bot.reply_to(m, f"🎉 مبروك تم الزواج رسمياً 💍")
-                elif text == "طلاق":
-                    cursor.execute("DELETE FROM marriage WHERE user_one =? AND user_two =?", (user_id, target_id))
-                    cursor.execute("DELETE FROM marriage WHERE user_one =? AND user_two =?", (target_id, user_id))
-                    bot.reply_to(m, "💔 تم الطلاق")
-                elif text == "رفض": bot.reply_to(m, "💔 تم رفض طلب الزواج")
-                conn.commit(); conn.close()
-
-            if text in ["زوجي", "زوجتي"]:
-                conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-                cursor.execute("SELECT user_two FROM marriage WHERE user_one =?", (user_id,))
-                row = cursor.fetchone(); conn.close()
-                bot.reply_to(m, f"💍 زوجك/زوجتك: `{row[0]}`" if row else "انت اعزب/عزباء", parse_mode="Markdown")
-
-        # ===== تصويت الكتم =====
-        if text == "اكتموه" and m.reply_to_message and get_setting(chat_id, "kick_vote") == "تفعيل":
-            target_id = m.reply_to_message.from_user.id
-            vote_data[target_id] = vote_data.get(target_id, 0) + 1
-            if vote_data[target_id] >= 3:
-                try: bot.restrict_chat_member(chat_id, target_id, until_date=3600); bot.reply_to(m, f"🔇 تم كتم {m.reply_to_message.from_user.first_name} ساعة"); vote_data[target_id] = 0
-                except: bot.reply_to(m, "❌ ما عندي صلاحية كتم")
-            else: bot.reply_to(m, f"📢 تصويت {vote_data[target_id]}/3 لكتم {m.reply_to_message.from_user.first_name}")
-
-        # ===== نسبه الحب =====
-        if text == "نسبه الحب" and m.reply_to_message:
-            percent = random.randint(1, 100)
-            bot.reply_to(m, f"❤️ نسبة الحب بين {m.from_user.first_name} و {m.reply_to_message.from_user.first_name} هي: {percent}%")
+        if vote_data[chat_id][target] >= 3:
+            try:
+                bot.restrict_chat_member(chat_id, target, can_send_messages=False)
+                bot.edit_message_text("✅ تم كتم العضو بالتصويت", chat_id, call.message_id)
+                vote_data[chat_id].pop(target)
+            except: bot.answer_callback_query(call.id, "ماعندي صلاحية كتم")
+        else:
+            bot.edit_message_reply_markup(chat_id, call.message_id,
+                reply_markup=InlineKeyboardMarkup().add(
+                    InlineKeyboardButton(f"نعم اكتموه {vote_data[chat_id][target]}", callback_data=f"mute_yes_{target}_{chat_id}")
+                ))
