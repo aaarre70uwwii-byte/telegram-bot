@@ -6,6 +6,15 @@ import m4
 import m5
 import m6
 
+# دالة جديدة عشان نشغل اوامر كل الملفات
+def register_all(bot):
+    m1.register_handlers(bot)
+    m2.register_handlers(bot)
+    m3.register_handlers(bot)
+    m4.register_handlers(bot)
+    m5.register_handlers(bot)
+    m6.register_handlers(bot)
+
 def get_empty_menu():
     markup = InlineKeyboardMarkup(row_width=3)
     markup.add(
@@ -55,53 +64,12 @@ def register_handlers(bot):
     @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['4م', '4', '/4'])
     def cmd_4(m): m4.show_fun_menu(bot, m.chat.id)
     @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['5م', '5', '/5'])
-    def cmd_5(m): m5.show_dev_menu(bot, m.chat.id)
+    def cmd_5(m): 
+        if m.chat.type == 'private':
+            m5.show_dev_keyboard(bot, m.chat.id) # كيبورد للخاص
+        else:
+            m5.show_dev_menu(bot, m.chat.id) # قائمة للقروب
     @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['6م', '6', '/6'])
     def cmd_6(m): m6.show_service_menu(bot, m.chat.id)
 
     @bot.callback_query_handler(func=lambda call: True)
-    def menu_callback(call):
-        chat_id = call.message.chat.id
-        message_id = call.message.id # <-- صلحتها هنا
-
-        bot.answer_callback_query(call.id)
-
-        try:
-            if call.data == "close_menu":
-                bot.delete_message(chat_id, message_id)
-
-            elif call.data == "back_to_main":
-                bot.delete_message(chat_id, message_id)
-                show_menu(bot, chat_id)
-
-            elif call.data == "menu_1": 
-                bot.delete_message(chat_id, message_id)
-                m1.show_admin_menu(bot, chat_id)
-            elif call.data == "menu_2": 
-                bot.delete_message(chat_id, message_id)
-                m2.show_settings_menu(bot, chat_id)
-            elif call.data == "menu_3": 
-                bot.delete_message(chat_id, message_id)
-                m3.show_lock_menu(bot, chat_id)
-            elif call.data == "menu_4": 
-                bot.delete_message(chat_id, message_id)
-                m4.show_fun_menu(bot, chat_id)
-            
-            elif call.data == "menu_5":
-                bot.delete_message(chat_id, message_id)
-                m5.show_dev_menu(bot, chat_id)
-
-            elif call.data == "menu_6": 
-                bot.delete_message(chat_id, message_id)
-                m6.show_service_menu(bot, chat_id)
-            
-            elif call.data == "menu_lock": 
-                bot.delete_message(chat_id, message_id)
-                m3.show_lock_menu(bot, chat_id)
-            elif call.data == "menu_active": 
-                bot.delete_message(chat_id, message_id)
-                bot.send_message(chat_id, "📊 قائمة التفعيل والتعطيل")
-
-        except Exception as e:
-            print("ERROR:", e)
-            bot.answer_callback_query(call.id, "حدث خطا", show_alert=True)
