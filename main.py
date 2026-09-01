@@ -7,7 +7,7 @@ import m3
 import m4
 import m5
 
-TOKEN = os.environ.get("TOKEN")  # <-- هذا اسم المتغير عندك في Railway
+TOKEN = os.environ.get("TOKEN")  # اسم المتغير في Railway
 if not TOKEN:
     print("❌ خطأ: ما لقيت TOKEN في المتغيرات")
     exit()
@@ -36,6 +36,15 @@ def save_group(m):
 def check_gban(m):
     from m5 import gban_list
     if str(m.from_user.id) in gban_list:
+        try:
+            bot.delete_message(m.chat.id, m.message_id)
+        except: pass
+
+# ===== منع المكتومين عام =====
+@bot.message_handler(func=lambda m: True, content_types=['text'])
+def check_gmute(m):
+    from m5 import gmute_list
+    if str(m.from_user.id) in gmute_list:
         try:
             bot.delete_message(m.chat.id, m.message_id)
         except: pass
