@@ -1,5 +1,6 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import re
+import menu # مهم عشان زر الرجوع
 
 locks = {}
 settings = {}
@@ -31,7 +32,7 @@ def is_admin(bot, chat_id, user_id):
     except:
         return False
 
-def register_m3_handlers(bot):
+def register_handlers(bot): # <-- غيرتها من register_m3_handlers
 
     @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'] and m.text and is_admin(bot, m.chat.id, m.from_user.id))
     def lock_commands(m):
