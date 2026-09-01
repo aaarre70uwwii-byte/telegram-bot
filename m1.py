@@ -1,4 +1,5 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import menu
 
 def show_admin_menu(bot, chat_id):
     text = """• أهلاً بك في عزي
@@ -27,7 +28,7 @@ def show_admin_menu(bot, chat_id):
 - مسح المكتومين
 - مسح قائمه المنع
 - مسح الردود
--مسح الاوامر المضافه
+- مسح الاوامر المضافه
 - مسح + عدد
 - مسح بالرد
 - مسح الايدي
@@ -62,7 +63,7 @@ def is_admin(bot, chat_id, user_id):
     except:
         return False
 
-def register_m1_handlers(bot):
+def register_handlers(bot): # <-- مهم: لازم اسمها كذا عشان menu.py يشغلها
 
     @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'] and m.text and is_admin(bot, m.chat.id, m.from_user.id), chat_types=['group','supergroup'])
     def admin_commands(m):
@@ -78,7 +79,7 @@ def register_m1_handlers(bot):
             
         # اوامر المسح
         elif txt.startswith('مسح '):
-            if txt.startswith('مسح ') and txt[4:].isdigit(): # مسح 10
+            if txt[4:].isdigit(): # مسح 10
                 bot.reply_to(m, f"✅ تم مسح `{txt[4:]}` رسالة")
             elif txt == 'مسح بالرد':
                 if m.reply_to_message:
@@ -93,24 +94,22 @@ def register_m1_handlers(bot):
         
         # اوامر الحظر والطرد
         elif txt.startswith('حظر'):
+            if m.reply_to_message:
+                try: bot.kick_chat_member(m.chat.id, m.reply_to_message.from_user.id)
+                except: pass
             bot.reply_to(m, "✅ تم الحظر")
         elif txt.startswith('طرد'):
+            if m.reply_to_message:
+                try: bot.kick_chat_member(m.chat.id, m.reply_to_message.from_user.id)
+                except: pass
             bot.reply_to(m, "✅ تم الطرد")
         elif txt.startswith('كتم'):
+            if m.reply_to_message:
+                try: bot.restrict_chat_member(m.chat.id, m.reply_to_message.from_user.id, can_send_messages=False)
+                except: pass
             bot.reply_to(m, "✅ تم الكتم")
-        elif txt.startswith('تقييد'):
-            bot.reply_to(m, "✅ تم التقييد")
-        elif txt.startswith('الغاء الحظر'):
-            bot.reply_to(m, "✅ تم الغاء الحظر")
         elif txt.startswith('الغاء الكتم'):
+            if m.reply_to_message:
+                try: bot.restrict_chat_member(m.chat.id, m.reply_to_message.from_user.id, can_send_messages=True, can_send_media_messages=True)
+                except: pass
             bot.reply_to(m, "✅ تم الغاء الكتم")
-        elif txt.startswith('فك التقييد'):
-            bot.reply_to(m, "✅ تم فك التقييد")
-        elif txt == 'رفع القيود':
-            bot.reply_to(m, "✅ تم رفع القيود")
-        elif txt == 'طرد البوتات':
-            bot.reply_to(m, "✅ تم طرد البوتات")
-        elif txt == 'طرد المحذوفين':
-            bot.reply_to(m, "✅ تم طرد الحسابات المحذوفة")
-        elif txt == 'كشف البوتات':
-            bot.reply_to(m, "✅ جاري كشف البوتات...")
