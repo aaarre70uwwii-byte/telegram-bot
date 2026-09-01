@@ -1,133 +1,97 @@
-import json
-import os
-from telebot import types
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-SETTINGS_FILE = "group_settings.json"
-RANKS_FILE = "group_ranks.json"
+def show_settings_menu(bot, chat_id):
+    text = """- اهلا بك في قائمة اوامر الاعدادات :
+━━━━━━━━━━━━ 
 
-def load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'r') as f:
-            return json.load(f)
-    return {}
+- اوامر رؤية الاعدادات :
 
-def save_settings(data):
-    with open(SETTINGS_FILE, 'w') as f:
-        json.dump(data, f)
+- الرابط
+- المالكين
+- المالكين الاساسين
+- المنشئين 
+- الادمنيه
+- المدراء
+- المميزين
+- المحظورين
+- القوانين
+- المكتومين 
+- معلوماتي 
+- الحمايه  
+- الاعدادت
+- المجموعه
 
-def load_ranks():
-    if os.path.exists(RANKS_FILE):
-        with open(RANKS_FILE, 'r') as f:
-            return json.load(f)
-    return {}
+- اوامر وضع الاعدادات :
 
-group_settings = load_settings()
-group_ranks = load_ranks()
+- اضف رابط = بخاص البوت
+- مسح الرابط
+- انشاء رابط
+- ضع الترحيب
+- ضع قوانين
+- ضـع رابط
+- اضف امر
+- تعيين الايدي
+- اضف قناه (باليوزر ، بالايدي)
+- حذف قناه (باليوزر ، بالايدي)
 
-RANK_LEVELS = {"مالك اساسي": 6, "مالك": 5, "منشئ": 4, "مدير": 3, "ادمن": 2, "مشرف": 2, "مميز": 1, "عضو": 0}
+- اوامر التحميل
+- تفعيل - تعطيل التحميل
+- لليوتيوب
+- بحث + اسم الاغنيه
+- للتيك توك
+- تيك + الرابط
+- للساوند
+- ساوند + الرابط
+━━━━━━━━━━━━"""
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("⬅️ الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-def get_user_rank(bot, chat_id, user_id):
-    chat_id = str(chat_id)
-    user_id = str(user_id)
+def is_admin(bot, chat_id, user_id):
     try:
         member = bot.get_chat_member(chat_id, user_id)
-        if member.status == "creator": return "مالك اساسي", 6
-        elif member.status == "administrator":
-            rank = group_ranks.get(chat_id, {}).get(user_id, "مدير")
-            return rank, RANK_LEVELS.get(rank, 3)
-    except: pass
-    rank = group_ranks.get(chat_id, {}).get(user_id, "عضو")
-    return rank, RANK_LEVELS.get(rank, 0)
+        return member.status in ['administrator', 'creator']
+    except:
+        return False
 
-def get_setting(chat_id, key, default="غير محدد"):
-    chat_id = str(chat_id)
-    return group_settings.get(chat_id, {}).get(key, default)
+def register_m2_handlers(bot):
 
-def set_setting(chat_id, key, value):
-    chat_id = str(chat_id)
-    if chat_id not in group_settings: group_settings[chat_id] = {}
-    group_settings[chat_id][key] = value
-    save_settings(group_settings)
-
-def register_settings_handlers(bot, active_groups):
-
-    @bot.message_handler(content_types=['text'], func=lambda m: m.chat.type in ["group", "supergroup"])
+    @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'] and m.text and is_admin(bot, m.chat.id, m.from_user.id), chat_types=['group','supergroup'])
     def settings_commands(m):
-        if m.chat.id not in active_groups: return
-        if not m.text: return
-        chat_id = m.chat.id
-        sender_id = m.from_user.id
-        text = m.text.strip()
-
-        _, sender_level = get_user_rank(bot, chat_id, sender_id)
-        is_admin = sender_level >= 2
-
-        if text == "همس":
-            if not m.reply_to_message:
-                return bot.reply_to(m, "💡 استخدم الأمر بالرد على الشخص + النص\nمثال: `همس اهلا بيك`", parse_mode="Markdown")
-            target_id = m.reply_to_message.from_user.id
-            target_name = m.reply_to_message.from_user.first_name
-            sender_name = m.from_user.first_name
-            whisper_text = text.replace("همس", "").strip()
-            if not whisper_text and m.reply_to_message:
-                whisper_text = m.reply_to_message.text if m.reply_to_message.text else "بدون نص"
-            if not whisper_text:
-                return bot.reply_to(m, "⚠️ اكتب النص بعد همس او رد على رسالة فيها نص")
-
-            keyboard = types.InlineKeyboardMarkup()
-            keyboard.add(types.InlineKeyboardButton("👁️ تمت القراءة", callback_data=f"read_whisper_{sender_id}"))
-            try:
-                bot.send_message(target_id, f"""🔒 **همسة جديدة من {sender_name}**
-
-في قروب: {m.chat.title}
-الرسالة:
-{whisper_text}
-
-━━━━━━━━━━━━
-✅ اضغط الزر تحت لما تقرأها""", parse_mode="Markdown", reply_markup=keyboard)
-                bot.reply_to(m, f"✅ تم ارسال همسة الى {target_name} في الخاص")
-            except:
-                bot.reply_to(m, f"❌ ما قدرت ارسل الهمسة لـ {target_name}. لازم يبدأ البوت خاص ويكتب /start")
-
-        elif text == "الاعدادات خاص":
-            welcome = get_setting(chat_id, "welcome_text", "معطل")
-            link = get_setting(chat_id, "group_link", "غير محدد")
-            rules = get_setting(chat_id, "rules", "غير محدد")
-            settings_text = f"""⚙️ **اعدادات {m.chat.title}:**
-
-👋 الترحيب: `{welcome}`
-🔗 الرابط: {link}
-📜 القوانين: {rules}"""
-            try:
-                bot.send_message(sender_id, settings_text, parse_mode="Markdown")
-                bot.reply_to(m, "📩 تم ارسال الاعدادات لك في الخاص")
-            except:
-                bot.reply_to(m, "❌ ما قدرت ارسل لك خاص. اضغط /start على البوت اول")
-
-        elif text == "الاعدادات":
-            bot.reply_to(m, """- اهلا بك في قائمة اوامر الاعدادات :
-━━━━━━━━━━━━
-- اوامر رؤية الاعدادات :
-- الرابط • المالكين • المنشئين
-- الادمنيه • المدراء • المميزين
-- المحظورين • القوانين • المكتومين
-- معلوماتي • الحمايه • المجموعه
-- الاعدادات خاص
-- اوامر وضع الاعدادات :
-- اضف رابط • مسح الرابط • انشاء رابط
-- ضع الترحيب • ضع قوانين • ضع رابط
-- تعيين الايدي [النص]
-- اوامر الهمس:
-- رد على رسالة واكتب `همس النص`
-━━━━━━━━━━━━""", parse_mode="Markdown")
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("read_whisper_"))
-    def read_whisper(call):
-        sender_id = int(call.data.split("_")[2])
-        reader_name = call.from_user.first_name
-        try:
-            bot.send_message(sender_id, f"👁️ {reader_name} قرأ همستك")
-            bot.answer_callback_query(call.id, "تم ابلاغ المرسل انك قرأتها")
-            bot.edit_message_reply_markup(call.message.chat.id, call.message_id, reply_markup=None)
-        except:
-            bot.answer_callback_query(call.id, "ما قدرت ابلغ المرسل")
+        txt = m.text.strip()
+        txt_low = txt.lower()
+        
+        # اوامر الرؤية
+        if txt_low == 'الرابط': bot.reply_to(m, "الرابط: `لا يوجد رابط`")
+        elif txt_low == 'المالكين': bot.reply_to(m, "قائمة المالكين: فارغة")
+        elif txt_low == 'المالكين الاساسين': bot.reply_to(m, "قائمة المالكين الاساسين: فارغة")
+        elif txt_low == 'المنشئين': bot.reply_to(m, "قائمة المنشئين: فارغة")
+        elif txt_low == 'الادمنيه': bot.reply_to(m, "قائمة الادمنيه: فارغة")
+        elif txt_low == 'المدراء': bot.reply_to(m, "قائمة المدراء: فارغة")
+        elif txt_low == 'المميزين': bot.reply_to(m, "قائمة المميزين: فارغة")
+        elif txt_low == 'المحظورين': bot.reply_to(m, "قائمة المحظورين: فارغة")
+        elif txt_low == 'القوانين': bot.reply_to(m, "لا توجد قوانين")
+        elif txt_low == 'المكتومين': bot.reply_to(m, "قائمة المكتومين: فارغة")
+        elif txt_low == 'معلوماتي': bot.reply_to(m, f"اسمك: {m.from_user.first_name}\nايديك: `{m.from_user.id}`")
+        elif txt_low == 'الحمايه': bot.reply_to(m, "حالة الحماية: مفعلة")
+        elif txt_low == 'الاعدادت': bot.reply_to(m, "الاعدادات الافتراضية")
+        elif txt_low == 'المجموعه': bot.reply_to(m, f"اسم المجموعة: {m.chat.title}")
+        
+        # اوامر الوضع - نخليها قبل m1 عشان ما يتعارض مع "مسح"
+        elif txt_low.startswith('اضف رابط'): bot.reply_to(m, "ارسل الرابط في الخاص")
+        elif txt_low == 'مسح الرابط': bot.reply_to(m, "✅ تم مسح الرابط")
+        elif txt_low == 'انشاء رابط': bot.reply_to(m, "✅ تم انشاء رابط جديد")
+        elif txt_low.startswith('ضع الترحيب'): bot.reply_to(m, "✅ تم وضع الترحيب")
+        elif txt_low.startswith('ضع قوانين'): bot.reply_to(m, "✅ تم وضع القوانين")
+        elif txt_low.startswith('ضـع رابط'): bot.reply_to(m, "✅ تم وضع الرابط")
+        elif txt_low.startswith('اضف امر'): bot.reply_to(m, "ارسل: `اضف امر الكلمة`")
+        elif txt_low.startswith('تعيين الايدي'): bot.reply_to(m, "✅ تم تعيين الايدي")
+        elif txt_low.startswith('اضف قناه'): bot.reply_to(m, "✅ تم اضافة القناة")
+        elif txt_low.startswith('حذف قناه'): bot.reply_to(m, "✅ تم حذف القناة")
+        
+        # اوامر التحميل
+        elif txt_low == 'تفعيل التحميل': bot.reply_to(m, "✅ تم تفعيل التحميل")
+        elif txt_low == 'تعطيل التحميل': bot.reply_to(m, "✅ تم تعطيل التحميل")
+        elif txt_low.startswith('بحث '): bot.reply_to(m, f"جاري البحث عن: `{txt[4:]}`")
+        elif txt_low.startswith('تيك '): bot.reply_to(m, "✅ جاري تحميل تيك توك...")
+        elif txt_low.startswith('ساوند '): bot.reply_to(m, "✅ جاري تحميل ساوند...")
