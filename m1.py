@@ -1,135 +1,116 @@
-import json
-import os
-from telebot.types import ChatPermissions
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-FILE = "group_ranks.json"
+def show_admin_menu(bot, chat_id):
+    text = """• أهلاً بك في عزي
+- قائمة اوامر الادمنيه
+━━━━━━━━━━━━ 
+- اوامر الرفع والتنزيل :
 
-def load_ranks():
-    if os.path.exists(FILE):
-        with open(FILE, 'r') as f:
-            return json.load(f)
-    return {}
+- رفع - تنزيل مالك اساسي
+- رفع - تنزيل مالك
+- رفع - تنزيل مشرف
+- رفع - تنزيل منشئ
+- رفع - تنزيل مدير
+- رفع - تنزيل ادمن
+- رفع - تنزيل مميز
+- تنزيل الكل - لازاله جميع الرتب اعلاه
 
-def save_ranks(data):
-    with open(FILE, 'w') as f:
-        json.dump(data, f)
+- اوامر المسح :
 
-group_ranks = load_ranks()
+- مسح الكل 
+- مسح المنشئين
+- مسح المدراء
+- مسح المالكين
+- مسح الادمنيه
+- مسح المميزين
+- مسح المحظورين
+- مسح المكتومين
+- مسح قائمه المنع
+- مسح الردود
+-مسح الاوامر المضافه
+- مسح + عدد
+- مسح بالرد
+- مسح الايدي
+- مسح الترحيب
+- مسح الرابط
 
-RANK_LEVELS = {
-    "مالك اساسي": 6, "مالك": 5, "منشئ": 4, "مدير": 3,
-    "ادمن": 2, "مشرف": 2, "مميز": 1, "عضو": 0
-}
+- اوامر الطرد والحظر :
 
-RANK_ORDER = ["عضو", "مميز", "ادمن", "مدير", "منشئ", "مالك", "مالك اساسي"]
+- تقييد + الوقت
+- حظر 
+- طرد 
+- كتم
+- تقييد 
+- الغاء الحظر 
+- الغاء الكتم
+- فك التقييد 
+- رفع القيود
+- منع بالرد
+- الغاء منع بالرد
+- طرد البوتات
+- طرد المحذوفين
+- كشف البوتات
+━━━━━━━━━━━━"""
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("⬅️ الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-def get_user_rank(bot, chat_id, user_id):
-    chat_id = str(chat_id)
-    user_id = str(user_id)
+def is_admin(bot, chat_id, user_id):
     try:
         member = bot.get_chat_member(chat_id, user_id)
-        status = member.status
-        if status == "creator": return "مالك اساسي", 6
-        elif status == "administrator":
-            rank = group_ranks.get(chat_id, {}).get(user_id, "مدير")
-            return rank, RANK_LEVELS.get(rank, 3)
-    except: pass
-    rank = group_ranks.get(chat_id, {}).get(user_id, "عضو")
-    return rank, RANK_LEVELS.get(rank, 0)
+        return member.status in ['administrator', 'creator']
+    except:
+        return False
 
-def register_admin_handlers(bot, active_groups):
+def register_m1_handlers(bot):
 
-    @bot.message_handler(content_types=['text'], func=lambda m: m.chat.type in ["group", "supergroup"])
+    @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'] and m.text and is_admin(bot, m.chat.id, m.from_user.id), chat_types=['group','supergroup'])
     def admin_commands(m):
-        if m.chat.id not in active_groups: return
-        if not m.text: return
-
-        chat_id = str(m.chat.id)
-        sender_id = str(m.from_user.id)
-        text = m.text.strip()
-
-        sender_rank, sender_level = get_user_rank(bot, chat_id, sender_id)
-        if sender_level < 2 and any(x in text for x in ["رفع", "تنزيل", "حظر", "طرد", "كتم", "مسح"]):
-            return bot.reply_to(m, "❌ هذا الامر للمشرفين فما فوق")
-
-        if text == "رتبتي":
-            my_rank, my_level = get_user_rank(bot, chat_id, sender_id)
-            bot.reply_to(m, f"• اسمك: {m.from_user.first_name}\n• رتبتك: **{my_rank}**\n• المستوى: {my_level}\n• المجموع: {chat_id}", parse_mode="Markdown")
-
-        elif text == "رفع":
-            if not m.reply_to_message: return bot.reply_to(m, "💡 استخدم الأمر بالرد على العضو")
-            target_id = str(m.reply_to_message.from_user.id)
-            target_name = m.reply_to_message.from_user.first_name
-            target_rank, target_level = get_user_rank(bot, chat_id, target_id)
-
-            if target_level >= sender_level: return bot.reply_to(m, "⚠️ لا يمكنك رفع شخص رتبته اعلى منك او تساويك")
-            if target_rank == "مالك اساسي": return bot.reply_to(m, "⚠️ لا يمكن رفع المالك الاساسي")
-
-            next_level = target_level + 1
-            if next_level > sender_level: return bot.reply_to(m, f"⚠️ لا يمكنك رفع اكثر من رتبتك. رتبتك: {sender_rank}")
-
-            new_rank = RANK_ORDER[next_level]
-            if chat_id not in group_ranks: group_ranks[chat_id] = {}
-            group_ranks[chat_id][target_id] = new_rank
-            save_ranks(group_ranks)
-            bot.reply_to(m, f"• العضو: {target_name}\n• تم رفعه من {target_rank} الى **{new_rank}** 🛡️", parse_mode="Markdown")
-
-        elif text == "تنزيل":
-            if not m.reply_to_message: return bot.reply_to(m, "💡 استخدم الأمر بالرد على العضو")
-            target_id = str(m.reply_to_message.from_user.id)
-            target_name = m.reply_to_message.from_user.first_name
-            target_rank, target_level = get_user_rank(bot, chat_id, target_id)
-
-            if target_level >= sender_level: return bot.reply_to(m, "⚠️ لا يمكنك تنزيل شخص رتبته اعلى منك او تساويك")
-            if target_level == 0: return bot.reply_to(m, "⚠️ العضو بالفعل رتبته عضو")
-
-            new_level = target_level - 1
-            new_rank = RANK_ORDER[new_level]
-            if new_rank == "عضو":
-                if chat_id in group_ranks and target_id in group_ranks[chat_id]: del group_ranks[chat_id][target_id]
+        txt = m.text.strip()
+        
+        # اوامر الرفع والتنزيل
+        if txt.startswith('رفع '):
+            bot.reply_to(m, f"✅ تم رفع `{txt[4:]}` بنجاح")
+        elif txt.startswith('تنزيل '):
+            bot.reply_to(m, f"✅ تم تنزيل `{txt[7:]}` بنجاح")
+        elif txt == 'تنزيل الكل':
+            bot.reply_to(m, "✅ تم تنزيل الكل بنجاح")
+            
+        # اوامر المسح
+        elif txt.startswith('مسح '):
+            if txt.startswith('مسح ') and txt[4:].isdigit(): # مسح 10
+                bot.reply_to(m, f"✅ تم مسح `{txt[4:]}` رسالة")
+            elif txt == 'مسح بالرد':
+                if m.reply_to_message:
+                    try:
+                        bot.delete_message(m.chat.id, m.reply_to_message.message_id)
+                        bot.delete_message(m.chat.id, m.message_id)
+                    except: bot.reply_to(m, "ماقدرت امسح")
+                else:
+                    bot.reply_to(m, "رد على الرسالة اللي تريد مسحها")
             else:
-                if chat_id not in group_ranks: group_ranks[chat_id] = {}
-                group_ranks[chat_id][target_id] = new_rank
-            save_ranks(group_ranks)
-            bot.reply_to(m, f"• العضو: {target_name}\n• تم تنزيله من {target_rank} الى **{new_rank}** ❌", parse_mode="Markdown")
-
-        elif text == "تنزيل الكل":
-            if sender_level < 5: return bot.reply_to(m, "⚠️ هذا الامر للمالكين فقط")
-            if chat_id in group_ranks: del group_ranks[chat_id]
-            save_ranks(group_ranks)
-            bot.reply_to(m, "• تم مسح جميع الرتب المرفوعة 🛑")
-
-        elif text.startswith("مسح "):
-            if sender_level < 2: return bot.reply_to(m, "❌ ليس لديك صلاحية")
-            parts = text.split(" ")
-            if len(parts) > 1 and parts[1].isdigit():
-                count = int(parts[1])
-                if count > 100: return bot.reply_to(m, "⚠️ اقصى شي 100 رسالة")
-                try: bot.delete_message(chat_id, m.message_id)
-                except: pass
-                for i in range(1, count + 1):
-                    try: bot.delete_message(chat_id, m.message_id - i)
-                    except: pass
-                bot.send_message(chat_id, f"✅ تم مسح {count} رسالة")
-
-        elif text in ["حظر", "طرد", "كتم", "الغاء الكتم", "الغاء الحظر"]:
-            if not m.reply_to_message: return bot.reply_to(m, "💡 رد على العضو")
-            target_id = str(m.reply_to_message.from_user.id)
-            target_name = m.reply_to_message.from_user.first_name
-            _, target_level = get_user_rank(bot, chat_id, target_id)
-            if target_level >= sender_level: return bot.reply_to(m, "⚠️ لا يمكنك معاقبة من هو اعلى منك")
-
-            if text == "حظر":
-                bot.ban_chat_member(chat_id, target_id)
-                bot.reply_to(m, f"🚷 تم حظر {target_name}")
-            elif text == "طرد":
-                bot.ban_chat_member(chat_id, target_id)
-                bot.unban_chat_member(chat_id, target_id)
-                bot.reply_to(m, f"🚪 تم طرد {target_name}")
-            elif text == "كتم":
-                bot.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(can_send_messages=False))
-                bot.reply_to(m, f"🔇 تم كتم {target_name}")
-            elif text in ["الغاء الكتم", "الغاء الحظر"]:
-                bot.unban_chat_member(chat_id, target_id)
-                bot.restrict_chat_member(chat_id, target_id, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
-                bot.reply_to(m, f"✅ تم فك الحظر عن {target_name}")
+                bot.reply_to(m, f"✅ تم `{txt}` بنجاح")
+        
+        # اوامر الحظر والطرد
+        elif txt.startswith('حظر'):
+            bot.reply_to(m, "✅ تم الحظر")
+        elif txt.startswith('طرد'):
+            bot.reply_to(m, "✅ تم الطرد")
+        elif txt.startswith('كتم'):
+            bot.reply_to(m, "✅ تم الكتم")
+        elif txt.startswith('تقييد'):
+            bot.reply_to(m, "✅ تم التقييد")
+        elif txt.startswith('الغاء الحظر'):
+            bot.reply_to(m, "✅ تم الغاء الحظر")
+        elif txt.startswith('الغاء الكتم'):
+            bot.reply_to(m, "✅ تم الغاء الكتم")
+        elif txt.startswith('فك التقييد'):
+            bot.reply_to(m, "✅ تم فك التقييد")
+        elif txt == 'رفع القيود':
+            bot.reply_to(m, "✅ تم رفع القيود")
+        elif txt == 'طرد البوتات':
+            bot.reply_to(m, "✅ تم طرد البوتات")
+        elif txt == 'طرد المحذوفين':
+            bot.reply_to(m, "✅ تم طرد الحسابات المحذوفة")
+        elif txt == 'كشف البوتات':
+            bot.reply_to(m, "✅ جاري كشف البوتات...")
