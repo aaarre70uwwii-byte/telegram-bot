@@ -1,28 +1,27 @@
 import os
 import telebot
+import m5 # <-- خليه اول
 import menu
 import m1
 import m2
 import m3
 import m4
-import m5
 
-TOKEN = os.environ.get("TOKEN")  # اسم المتغير في Railway
+TOKEN = os.environ.get("TOKEN")
 if not TOKEN:
     print("❌ خطأ: ما لقيت TOKEN في المتغيرات")
     exit()
 
 bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
 
-# تشغيل كل الاوامر
+m5.register_handlers(bot) # <-- سجله اول
 menu.register_all(bot)
 m1.register_handlers(bot)
 m2.register_handlers(bot)
 m3.register_handlers(bot)
 m4.register_handlers(bot)
-m5.register_handlers(bot)
 
-# ===== مهم للاذاعة: حفظ القروبات تلقائي =====
+# حفظ القروبات تلقائي
 @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'])
 def save_group(m):
     from m5 import broadcast_status, save_dev_data
@@ -31,22 +30,20 @@ def save_group(m):
         broadcast_status.setdefault('groups', []).append(chat_id)
         save_dev_data()
 
-# ===== منع المحظورين عام =====
+# منع المحظورين عام
 @bot.message_handler(func=lambda m: True, content_types=['text','photo','video','document','sticker','voice','audio'])
 def check_gban(m):
     from m5 import gban_list
     if str(m.from_user.id) in gban_list:
-        try:
-            bot.delete_message(m.chat.id, m.message_id)
+        try: bot.delete_message(m.chat.id, m.message_id)
         except: pass
 
-# ===== منع المكتومين عام =====
+# منع المكتومين عام
 @bot.message_handler(func=lambda m: True, content_types=['text'])
 def check_gmute(m):
     from m5 import gmute_list
     if str(m.from_user.id) in gmute_list:
-        try:
-            bot.delete_message(m.chat.id, m.message_id)
+        try: bot.delete_message(m.chat.id, m.message_id)
         except: pass
 
 print("✅ البوت شغال 100%")
