@@ -1,69 +1,56 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-def get_main_menu():
-    markup = InlineKeyboardMarkup(row_width=2)
+def get_empty_menu():
+    markup = InlineKeyboardMarkup(row_width=3)
+    # الصف الاول 1 2 3
     markup.add(
-        InlineKeyboardButton("📊 الادمنية", callback_data="menu_admin"),
-        InlineKeyboardButton("⚙️ الاعدادات", callback_data="menu_settings")
+        InlineKeyboardButton("🛡️ 1", callback_data="ignore"),
+        InlineKeyboardButton("⚙️ 2", callback_data="ignore"),
+        InlineKeyboardButton("🔧 3", callback_data="ignore")
     )
+    # الصف الثاني 4 5 6
     markup.add(
-        InlineKeyboardButton("🛡️ الحماية", callback_data="menu_protect"),
-        InlineKeyboardButton("😂 التسلية", callback_data="menu_fun")
+        InlineKeyboardButton("📢 4", callback_data="ignore"),
+        InlineKeyboardButton("🤖 5", callback_data="ignore"),
+        InlineKeyboardButton("✨ 6", callback_data="ignore")
     )
+    # الصف الثالث
     markup.add(
-        InlineKeyboardButton("🔧 الخدمية", callback_data="menu_service"),
-        InlineKeyboardButton("👑 المطور", callback_data="menu_dev")
+        InlineKeyboardButton("🔐 القفل والفتح", callback_data="ignore"),
+        InlineKeyboardButton("📊 التفعيل والتعطيل", callback_data="ignore")
     )
-    markup.add(InlineKeyboardButton("❌ اغلاق", callback_data="menu_close"))
+    # الصف الرابع
+    markup.add(
+        InlineKeyboardButton("⬅️ اخفاء الاوامر", callback_data="close_menu")
+    )
     return markup
 
-def get_back_button():
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🔙 رجوع", callback_data="menu_back"))
-    return markup
+def show_menu(bot, chat_id):
+    text = """- أهلاً بك عزي في قائمة الاوامر :
+━━━━━━━━━━━━
+◀️ 1م : اوامر الادمنيه
+◀️ 2م : اوامر الاعدادات
+◀️ 3م : اوامر القفل - الفتح
+◀️ 4م : اوامر التسلية
+◀️ 5م : اوامر Dev
+◀️ 6م : الاوامر الخدميه
+━━━━━━━━━━━━"""
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=get_empty_menu())
 
 def register_handlers(bot):
 
-    @bot.message_handler(commands=['القائمة', 'menu'], chat_types=['group','supergroup','private'])
-    def show_menu(m):
-        text = "◂ **قائمة بوت Tia الرئيسية**\n━━━━━━━━━━━━\nاختر القسم اللي تريده من الازرار 👇"
-        bot.reply_to(m, text, parse_mode="Markdown", reply_markup=get_main_menu())
+    # لما يكتب الاوامر في قروب او قناة
+    @bot.message_handler(func=lambda m: m.text and m.text.lower() == 'الاوامر', chat_types=['group','supergroup','channel'])
+    def show_menu_text(m):
+        show_menu(bot, m.chat.id)
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith('menu_'))
+    # عشان الازرار ما تعلق
+    @bot.callback_query_handler(func=lambda call: True)
     def menu_callback(call):
-        bot.answer_callback_query(call.id)
-        chat_id = call.message.chat.id
-        msg_id = call.message_id
-        data = call.data
-
-        if data == "menu_back":
-            bot.edit_message_text("◂ **قائمة بوت Tia الرئيسية**\n━━━━━━━━━━━━\nاختر القسم اللي تريده من الازرار 👇", 
-            chat_id, msg_id, parse_mode="Markdown", reply_markup=get_main_menu())
-
-        elif data == "menu_admin":
-            text = "◂ **قائمة الادمنية**\n━━━━━━━━━━━━\n`ترقية` - رفع ادمن\n`تنزيل` - تنزيل ادمن\n`كتم` - كتم عضو\n`الغاء الكتم` - فك الكتم\n`حظر` - حظر عضو\n`الغاء الحظر` - فك الحظر\n`تقييد` - تقييد عضو"
-            bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-        elif data == "menu_settings":
-            text = "◂ **قائمة الاعدادات**\n━━━━━━━━━━━━\n`الرابط` - جلب رابط القروب\n`الترحيب` - تفعيل/تعطيل الترحيب\n`الايدي` - تفعيل/تعطيل الايدي\n`الردود` - اضافة رد تلقائي"
-            bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-        elif data == "menu_protect":
-            text = "◂ **قائمة الحماية**\n━━━━━━━━━━━━\n`قفل الروابط` - منع نشر الروابط\n`قفل الصور` - منع الصور\n`قفل الملصقات` - منع الملصقات\n`قفل الفيديو` - منع الفيديو\n`الانذار` - نظام 3 انذارات"
-            bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-        elif data == "menu_fun":
-            text = "◂ **قائمة التسلية**\n━━━━━━━━━━━━\n`نكتة` - نكتة عشوائية\n`حكم` - حكمة اليوم\n`تحويل` - تحويل ملصق لنص\n`صراحة` - لعبة صراحة"
-            bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-        elif data == "menu_service":
-            text = "◂ **قائمة الخدمية**\n━━━━━━━━━━━━\n`id` - معلوماتك\n`الوقت` - الوقت والتاريخ\n`احذف` - حذف رسالة بالرد\n`مسح_الانذارات` - مسح انذارات عضو"
-            bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-        elif data == "menu_dev":
-            text = "◂ **قائمة المطور**\n━━━━━━━━━━━━\n`المطور2` - لوحة المطور\n`رفع Dev` - بالرد\n`حظر عام` - بالرد\n`اذاعه` - بالرد\n`تحديث` - تحديث البوت"
-            bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown", reply_markup=get_back_button())
-
-        elif data == "menu_close":
-            try: bot.delete_message(chat_id, msg_id)
+        if call.data == "close_menu":
+            try: 
+                bot.delete_message(call.message.chat.id, call.message_id)
             except: pass
+        else:
+            # اي زر ثاني نسوي له ignore عشان ما يعلق
+            bot.answer_callback_query(call.id, "هذي لوحة عرض فقط", show_alert=False)
