@@ -1,4 +1,5 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import menu
 
 def show_settings_menu(bot, chat_id):
     text = """- اهلا بك في قائمة اوامر الاعدادات :
@@ -54,7 +55,7 @@ def is_admin(bot, chat_id, user_id):
     except:
         return False
 
-def register_m2_handlers(bot):
+def register_handlers(bot): # <-- غيرت الاسم هنا
 
     @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'] and m.text and is_admin(bot, m.chat.id, m.from_user.id), chat_types=['group','supergroup'])
     def settings_commands(m):
@@ -77,7 +78,7 @@ def register_m2_handlers(bot):
         elif txt_low == 'الاعدادت': bot.reply_to(m, "الاعدادات الافتراضية")
         elif txt_low == 'المجموعه': bot.reply_to(m, f"اسم المجموعة: {m.chat.title}")
         
-        # اوامر الوضع - نخليها قبل m1 عشان ما يتعارض مع "مسح"
+        # اوامر الوضع
         elif txt_low.startswith('اضف رابط'): bot.reply_to(m, "ارسل الرابط في الخاص")
         elif txt_low == 'مسح الرابط': bot.reply_to(m, "✅ تم مسح الرابط")
         elif txt_low == 'انشاء رابط': bot.reply_to(m, "✅ تم انشاء رابط جديد")
@@ -92,6 +93,6 @@ def register_m2_handlers(bot):
         # اوامر التحميل
         elif txt_low == 'تفعيل التحميل': bot.reply_to(m, "✅ تم تفعيل التحميل")
         elif txt_low == 'تعطيل التحميل': bot.reply_to(m, "✅ تم تعطيل التحميل")
-        elif txt_low.startswith('بحث '): bot.reply_to(m, f"جاري البحث عن: `{txt[4:]}`")
+        elif txt_low.startswith('بحث '): bot.reply_to(m, f"جاري البحث عن: `{txt[5:]}`") # صلحتها من 4 الى 5
         elif txt_low.startswith('تيك '): bot.reply_to(m, "✅ جاري تحميل تيك توك...")
         elif txt_low.startswith('ساوند '): bot.reply_to(m, "✅ جاري تحميل ساوند...")
