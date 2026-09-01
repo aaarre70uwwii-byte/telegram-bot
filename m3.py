@@ -1,146 +1,131 @@
-import os
-import json
-import re
-from collections import defaultdict
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import re
 
-SETTINGS_FILE = "protection_settings.json"
-if os.path.exists(SETTINGS_FILE):
-    with open(SETTINGS_FILE, 'r') as f:
-        protection_settings = json.load(f)
-else:
-    protection_settings = {}
+locks = {}
+settings = {}
 
-def save_settings():
-    with open(SETTINGS_FILE, 'w') as f:
-        json.dump(protection_settings, f)
+def show_lock_menu(bot, chat_id):
+    text = """- اهلا بك في قائمة القفل - التعطيل :
+- اوامر القفل والفتح :
+━━━━━━━━━━━━
+- قفل - فتح جمثون
+- قفل - فتح السب
+- قفل - فتح الايرانيه
+- قفل - فتح الكتابه
+- قفل - فتح الاباحي
+- قفل - فتح تعديل الميديا
+- قفل - فتح التعديل
+- قفل - فتح الفيديو
+- قفل - فتح الصور
+- قفل - فتح الملصقات
+- قفل - فتح المتحركه
+- قفل - فتح الدردشه
+- قفل - فتح الروابط
+- قفل - فتح التاك
+- قفل - فتح البوتات
+- قفل - فتح المعرفات
+- قفل البوتات بالطرد
+- قفل - فتح الكلايش
+-️ قفل - فتح التكرار
+- قفل - فتح التوجيه
+- قفل - فتح الانلاين
+- قفل - فتح الجهات
+- قفل - فتح الكل
+- قفل - فتح الدخول
+- قفل - فتح الصوت
+- قفل - فتح التوجيه بالتقييد
+- قفل - فتح الروابط بالتقييد
+- قفل - فتح المتحركه بالتقييد
+- قفل - فتح الصور بالتقييد
+- قفل - فتح الفيديو بالتقييد
+*- اوامر التفعيل - التعطيل :*
+- تفعيل - تعطيل ضافني
+- تفعيل - تعطيل الاذكار
+- تفعيل - تعطيل الثنائي
+- تفعيل - تعطيل افتاري
+- تفعيل - تعطيل التسليه
+- تفعيل - تعطيل الكت
+- تفعيل - تعطيل الترحيب
+- تفعيل - تعطيل الردود
+- تفعيل - تعطيل الانذار
+- تفعيل - تعطيل التحذير
+- تفعيل - تعطيل الايدي
+- تفعيل - تعطيل الرابط
+- تفعيل - تعطيل اطردني
+- تفعيل - تعطيل الحظر
+- تفعيل - تعطيل الرفع
+- تفعيل - تعطيل التنزيل
+- تفعيل - تعطيل التحويل
+- تفعيل - تعطيل الحمايه
+- تفعيل - تعطيل المنشن
+- تفعيل - تعطيل وضع الاقتباسات
+- تفعيل - تعطيل الخدميه
+- تفعيل - تعطيل اليوتيوب
+- تفعيل - تعطيل الايدي بالصوره
+- تفعيل - تعطيل التحقق
+- تفعيل - تعطيل ردود السورس
+━━━━━━━━━━━━
+- الحالة : لعرض حالة القفل"""
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("⬅️ الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-spam_data = defaultdict(lambda: defaultdict(list))
+def is_admin(bot, chat_id, user_id):
+    try: return bot.get_chat_member(chat_id, user_id).status in ['administrator', 'creator']
+    except: return False
 
-RANK_LEVELS = {"مالك اساسي": 6, "مالك": 5, "منشئ": 4, "مدير": 3, "ادمن": 2, "مشرف": 2, "مميز": 1, "عضو": 0}
-LOCKS_LIST = ["الروابط","الصور","الفيديو","الملصقات","المتحركه","الصوت","الدردشه","التوجيه","المعرفات","السب","التكرار","البوتات","البوتات بالطرد"]
+def register_m3_handlers(bot):
 
-def get_user_rank(bot, chat_id, user_id):
-    chat_id = str(chat_id)
-    user_id = str(user_id)
-    try:
-        member = bot.get_chat_member(chat_id, user_id)
-        if member.status == "creator": return "مالك اساسي", 6
-        elif member.status == "administrator": return "مدير", 3
-    except: pass
-    return "عضو", 0
-
-def set_status(chat_id, feature, status):
-    chat_id = str(chat_id)
-    if chat_id not in protection_settings: protection_settings[chat_id] = {}
-    protection_settings[chat_id][feature] = status
-    save_settings()
-
-def get_status(chat_id, feature):
-    chat_id = str(chat_id)
-    return protection_settings.get(chat_id, {}).get(feature, "فتح")
-
-def get_locks_keyboard(chat_id):
-    markup = InlineKeyboardMarkup(row_width=2)
-    buttons = []
-    for f in LOCKS_LIST[:-1]:
-        status = get_status(chat_id, f)
-        text = f"🔒 {f}" if status == "قفل" else f"🔓 {f}"
-        buttons.append(InlineKeyboardButton(text, callback_data=f"lock_{f}"))
-    markup.add(*buttons)
-    markup.add(InlineKeyboardButton("🚷 قفل البوتات بالطرد", callback_data="lock_البوتات بالطرد"))
-    return markup
-
-def register_lock_handlers(bot, active_groups):
-
-    # 1. امر لوحة الحماية
-    @bot.message_handler(content_types=['text'], func=lambda m: m.text == "الحماية" and m.chat.type in ["group","supergroup"])
-    def locks_menu(m):
-        if m.chat.id not in active_groups: return
-        chat_id = m.chat.id
-        _, sender_level = get_user_rank(bot, chat_id, m.from_user.id)
-        if sender_level < 2: return bot.reply_to(m, "❌ هذا الامر للادمن فقط")
-        bot.reply_to(m, "⚙️ **اعدادات الحماية:**\nاضغط على الزر لقفل/فتح", parse_mode="Markdown", reply_markup=get_locks_keyboard(chat_id))
-
-    # 2. اوامر الكتابه الجديده: قفل و فتح
-    @bot.message_handler(content_types=['text'], chat_types=['group','supergroup'])
+    @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'] and m.text and is_admin(bot, m.chat.id, m.from_user.id))
     def lock_commands(m):
-        if m.chat.id not in active_groups: return
         chat_id = m.chat.id
-        text = m.text.strip()
-        _, sender_level = get_user_rank(bot, chat_id, m.from_user.id)
-        if sender_level < 2: return
+        txt = m.text.strip()
+        if chat_id not in locks: locks[chat_id] = {}
+        if chat_id not in settings: settings[chat_id] = {}
 
-        if text.startswith("قفل "):
-            feature = text.replace("قفل ", "")
-            if feature in LOCKS_LIST:
-                set_status(chat_id, feature, "قفل")
-                bot.reply_to(m, f"🔒 تم قفل {feature}")
+        # امر الحالة
+        if txt == 'الحالة':
+            msg = "📊 حالة القفل:\n"
+            for k,v in locks[chat_id].items():
+                msg += f"- {k}: {'🔒' if v else '🔓'}\n"
+            bot.reply_to(m, msg or "كل شي مفتوح")
+            return
 
-        elif text.startswith("فتح "):
-            feature = text.replace("فتح ", "")
-            if feature in LOCKS_LIST:
-                set_status(chat_id, feature, "فتح")
-                bot.reply_to(m, f"🔓 تم فتح {feature}")
+        lock_list = ['جمثون','السب','الايرانيه','الكتابه','الاباحي','تعديل الميديا','التعديل','الفيديو','الصور','الملصقات','المتحركه','الدردشه','الروابط','التاك','البوتات','المعرفات','الكلايش','التكرار','التوجيه','الانلاين','الجهات','الكل','الدخول','الصوت']
+        for item in lock_list:
+            if txt == f'قفل {item}': locks[chat_id][item] = True; bot.reply_to(m, f"🔒 تم قفل `{item}`"); return
+            elif txt == f'فتح {item}': locks[chat_id][item] = False; bot.reply_to(m, f"🔓 تم فتح `{item}`"); return
 
-    # 3. ازرار الحماية
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("lock_"))
-    def handle_lock_buttons(call):
-        chat_id = call.message.chat.id
-        if chat_id not in active_groups: return
-        user_id = call.from_user.id
-        _, sender_level = get_user_rank(bot, chat_id, user_id)
-        if sender_level < 2: return bot.answer_callback_query(call.id, "❌ للادمن فقط")
+        if txt == 'قفل البوتات بالطرد': locks[chat_id]['البوتات_طرد'] = True; bot.reply_to(m, "🔒 تم قفل البوتات بالطرد")
+        elif txt == 'فتح البوتات بالطرد': locks[chat_id]['البوتات_طرد'] = False; bot.reply_to(m, "🔓 تم فتح البوتات بالطرد")
 
-        feature = call.data.replace("lock_", "")
-        current = get_status(chat_id, feature)
-        new_status = "فتح" if current == "قفل" else "قفل"
-        set_status(chat_id, feature, new_status)
+        tقييد_list = ['التوجيه','الروابط','المتحركه','الصور','الفيديو']
+        for item in tقييد_list:
+            if txt == f'قفل {item} بالتقييد': locks[chat_id][f'{item}_تقييد'] = True; bot.reply_to(m, f"🔒 تم قفل `{item}` بالتقييد"); return
+            elif txt == f'فتح {item} بالتقييد': locks[chat_id][f'{item}_تقييد'] = False; bot.reply_to(m, f"🔓 تم فتح `{item}` بالتقييد"); return
 
-        bot.edit_message_reply_markup(chat_id, call.message_id, reply_markup=get_locks_keyboard(chat_id))
-        bot.answer_callback_query(call.id, f"{'🔒 تم القفل' if new_status == 'قفل' else '🔓 تم الفتح'} {feature}")
+        settings_list = ['ضافني','الاذكار','الثنائي','افتاري','التسليه','الكت','الترحيب','الردود','الانذار','التحذير','الايدي','الرابط','اطردني','الحظر','الرفع','التنزيل','التحويل','الحمايه','المنشن','وضع الاقتباسات','الخدميه','اليوتيوب','الايدي بالصوره','التحقق','ردود السورس']
+        for item in settings_list:
+            if txt == f'تفعيل {item}': settings[chat_id][item] = True; bot.reply_to(m, f"✅ تم تفعيل `{item}`"); return
+            elif txt == f'تعطيل {item}': settings[chat_id][item] = False; bot.reply_to(m, f"❌ تم تعطيل `{item}`"); return
 
-    # 4. نظام المنع التلقائي
-    @bot.message_handler(content_types=['text','photo','video','sticker','voice','animation','document','new_chat_members'], chat_types=['group','supergroup'])
-    def anti_system(m):
-        if m.chat.id not in active_groups: return
+    @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'], content_types=['text','photo','video','sticker','animation','voice','document','contact','audio','new_chat_members'])
+    def delete_locked(m):
         chat_id = m.chat.id
-        user_id = m.from_user.id
-        _, level = get_user_rank(bot, chat_id, user_id)
-        if level >= 2: return
-
-        BAD_WORDS = ["احا", "كس", "شرموط", "قحبه", "عرص", "نيك"]
+        if chat_id not in locks or is_admin(bot, chat_id, m.from_user.id): return
         try:
-            if m.text and get_status(chat_id, "الروابط") == "قفل" and re.search(r"(http|https|t\.me|@\w+)", m.text):
-                bot.delete_message(chat_id, m.message_id); return
-            if m.photo and get_status(chat_id, "الصور") == "قفل":
-                bot.delete_message(chat_id, m.message_id); return
-            if m.video and get_status(chat_id, "الفيديو") == "قفل":
-                bot.delete_message(chat_id, m.message_id); return
-            if m.sticker and get_status(chat_id, "الملصقات") == "قفل":
-                bot.delete_message(chat_id, m.message_id); return
-            if m.animation and get_status(chat_id, "المتحركه") == "قفل":
-                bot.delete_message(chat_id, m.message_id); return
-            if m.voice and get_status(chat_id, "الصوت") == "قفل":
-                bot.delete_message(chat_id, m.message_id); return
-            if m.text and get_status(chat_id, "الدردشه") == "قفل":
-                bot.delete_message(chat_id, m.message_id); return
-            if (m.forward_from or m.forward_sender_name or m.forward_from_chat) and get_status(chat_id, "التوجيه") == "قفل":
-                bot.delete_message(chat_id, m.message_id); return
-            if m.text and "@" in m.text and get_status(chat_id, "المعرفات") == "قفل":
-                bot.delete_message(chat_id, m.message_id); return
-            if m.text and get_status(chat_id, "السب") == "قفل" and any(word in m.text for word in BAD_WORDS):
-                bot.delete_message(chat_id, m.message_id); return
-            if m.text and get_status(chat_id, "التكرار") == "قفل":
-                spam_data[chat_id][user_id].append(m.text)
-                if len(spam_data[chat_id][user_id]) > 5: spam_data[chat_id][user_id].pop(0)
-                if spam_data[chat_id][user_id].count(m.text) >= 3:
-                    spam_data[chat_id][user_id].clear()
-                    bot.delete_message(chat_id, m.message_id); return
-            if m.from_user.is_bot and get_status(chat_id, "البوتات") == "قفل":
-                bot.delete_message(chat_id, m.message_id); return
-            if m.new_chat_members and get_status(chat_id, "البوتات بالطرد") == "قفل":
+            if locks[chat_id].get('الكتابه') and m.content_type == 'text': bot.delete_message(chat_id, m.message_id)
+            if locks[chat_id].get('الصور') and m.content_type == 'photo': bot.delete_message(chat_id, m.message_id)
+            if locks[chat_id].get('الفيديو') and m.content_type == 'video': bot.delete_message(chat_id, m.message_id)
+            if locks[chat_id].get('الملصقات') and m.content_type == 'sticker': bot.delete_message(chat_id, m.message_id)
+            if locks[chat_id].get('المتحركه') and m.content_type == 'animation': bot.delete_message(chat_id, m.message_id)
+            if locks[chat_id].get('الصوت') and m.content_type == 'voice': bot.delete_message(chat_id, m.message_id)
+            if locks[chat_id].get('الدردشه'): bot.delete_message(chat_id, m.message_id)
+            if locks[chat_id].get('الروابط') and m.text and re.search(r'(http|t.me|www\.|\.com)', m.text): bot.delete_message(chat_id, m.message_id)
+            if locks[chat_id].get('التاك') and m.text and '@' in m.text: bot.delete_message(chat_id, m.message_id)
+            if locks[chat_id].get('التوجيه') and m.forward_from: bot.delete_message(chat_id, m.message_id)
+            # طرد البوتات
+            if locks[chat_id].get('البوتات_طرد') and m.content_type == 'new_chat_members':
                 for user in m.new_chat_members:
                     if user.is_bot: bot.kick_chat_member(chat_id, user.id)
-                bot.delete_message(chat_id, m.message_id)
         except: pass
