@@ -1,50 +1,58 @@
-import telebot
-import os
-import time
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 import menu
-import m5
-import m6
 
-TOKEN = os.getenv("TOKEN")
-API_ID = os.getenv("API_ID")
-API_HASH = os.getenv("API_HASH")
-OWNER_ID = int(os.getenv("OWNER_ID", "0"))
+# ===== 1. قائمة القروب: ازرار انلاين =====
+def show_dev_menu(bot, chat_id):
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("📢 اذاعة", callback_data="dev_broadcast"),
+        InlineKeyboardButton("📊 احصائيات", callback_data="dev_stats"),
+        InlineKeyboardButton("🧹 تنظيف", callback_data="dev_clean")
+    )
+    markup.add(
+        InlineKeyboardButton("🔙 رجوع", callback_data="back_to_main")
+    )
+    bot.send_message(chat_id, "🔧 **اوامر المطور Dev**\nاختار الامر من الازرار:", reply_markup=markup, parse_mode="Markdown")
 
-bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
-activated_groups = set()
+# ===== 2. كيبورد الخاص: كتابة =====
+def show_dev_keyboard(bot, chat_id):
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add(KeyboardButton("📢 اذاعة"), KeyboardButton("📊 احصائيات"))
+    markup.add(KeyboardButton("🧹 تنظيف"), KeyboardButton("🔙 رجوع"))
+    bot.send_message(chat_id, "🔧 **لوحة المطور**\nاكتب الامر من الكيبورد:", reply_markup=markup, parse_mode="Markdown")
 
-def is_owner(user_id):
-    return user_id == OWNER_ID
+# ===== 3. تشغيل كل اوامر m5 =====
+def register_handlers(bot):
 
-@bot.message_handler(func=lambda m: m.text and m.text.lower().strip() == "تفعيل", chat_types=['group','supergroup'])
-def activate_group(m):
-    if not is_owner(m.from_user.id):
-        return bot.reply_to(m, "⛔ هذا الامر للمالك فقط")
-    activated_groups.add(m.chat.id)
-    bot.reply_to(m, "✅ تم تفعيل المجموعه بنجاح\nالان تقدر تستخدم /اوامر")
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().strip() == "تعطيل", chat_types=['group','supergroup'])
-def deactivate_group(m):
-    if not is_owner(m.from_user.id):
-        return bot.reply_to(m, "⛔ هذا الامر للمالك فقط")
-    activated_groups.discard(m.chat.id)
-    bot.reply_to(m, "❌ تم تعطيل المجموعه")
-
-@bot.message_handler(func=lambda m: m.chat.id not in activated_groups and m.chat.type in ['group','supergroup'])
-def not_activated(m):
-    if m.text and m.text.lower().strip() in ['الاوامر', '/اوامر', '1م', '2م', '3م', '4م', '5م', '6م']:
-        bot.reply_to(m, "⚠️ المجموعه غير مفعله\nالمالك لازم يكتب `تفعيل` اول")
-
-menu.register_handlers(bot)
-m5.register_m5_handlers(bot)
-m6.register_m6_handlers(bot)
-
-if __name__ == '__main__':
-    print("Bot is starting...")
-    print(f"Owner ID: {OWNER_ID}")
+    # --- اوامر الكيبورد حق الخاص ---
+    @bot.message_handler(func=lambda m: m.text == "📢 اذاعة" and m.chat.type == 'private')
+    def broadcast_text(m):
+        bot.send_message(m.chat.id, "ارسل نص الاذاعة وبرسلها لكل القروبات")
     
-    # اهم سطرين لحل مشكلة 409
-    bot.remove_webhook() # يمسح اي ويبهوك قديم
-    time.sleep(1) # انتظر ثانية
+    @bot.message_handler(func=lambda m: m.text == "📊 احصائيات" and m.chat.type == 'private')
+    def stats_text(m):
+        bot.send_message(m.chat.id, "جاري جلب الاحصائيات...")
     
-    bot.infinity_polling(none_stop=True, timeout=60, long_polling_timeout=60)
+    @bot.message_handler(func=lambda m: m.text == "🧹 تنظيف" and m.chat.type == 'private')
+    def clean_text(m):
+        bot.send_message(m.chat.id, "تم تنظيف ...")
+    
+    @bot.message_handler(func=lambda m: m.text == "🔙 رجوع" and m.chat.type == 'private')
+    def back_text(m):
+        menu.show_menu(bot, m.chat.id)
+
+    # --- اوامر الازرار حق القروب ---
+    @bot.callback_query_handler(func=lambda call: call.data == "dev_broadcast")
+    def cb_broadcast(call):
+        bot.answer_callback_query(call.id)
+        bot.send_message(call.message.chat.id, "ارسل نص الاذاعة")
+
+    @bot.callback_query_handler(func=lambda call: call.data == "dev_stats")
+    def cb_stats(call):
+        bot.answer_callback_query(call.id)
+        bot.send_message(call.message.chat.id, "احصائيات البوت: ...")
+
+    @bot.callback_query_handler(func=lambda call: call.data == "dev_clean")
+    def cb_clean(call):
+        bot.answer_callback_query(call.id)
+        bot.send_message(call.message.chat.id, "تم التنظيف")
