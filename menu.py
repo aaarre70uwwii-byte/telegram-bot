@@ -6,7 +6,6 @@ import m4
 import m5
 import m6
 
-# دالة جديدة عشان نشغل اوامر كل الملفات
 def register_all(bot):
     m1.register_handlers(bot)
     m2.register_handlers(bot)
@@ -66,10 +65,33 @@ def register_handlers(bot):
     @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['5م', '5', '/5'])
     def cmd_5(m): 
         if m.chat.type == 'private':
-            m5.show_dev_keyboard(bot, m.chat.id) # كيبورد للخاص
+            m5.show_dev_keyboard(bot, m.chat.id)
         else:
-            m5.show_dev_menu(bot, m.chat.id) # قائمة للقروب
+            m5.show_dev_menu(bot, m.chat.id)
     @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['6م', '6', '/6'])
     def cmd_6(m): m6.show_service_menu(bot, m.chat.id)
 
     @bot.callback_query_handler(func=lambda call: True)
+    def callback_handler(call):
+        bot.answer_callback_query(call.id)
+
+        if call.data == "menu_1": m1.show_admin_menu(bot, call.message.chat.id)
+        elif call.data == "menu_2": m2.show_settings_menu(bot, call.message.chat.id)
+        elif call.data == "menu_3": m3.show_lock_menu(bot, call.message.chat.id)
+        elif call.data == "menu_4": m4.show_fun_menu(bot, call.message.chat.id)
+        elif call.data == "menu_5": 
+            if call.message.chat.type == 'private':
+                m5.show_dev_keyboard(bot, call.message.chat.id)
+            else:
+                m5.show_dev_menu(bot, call.message.chat.id)
+        elif call.data == "menu_6": m6.show_service_menu(bot, call.message.chat.id)
+        
+        elif call.data == "menu_lock": m3.show_lock_menu(bot, call.message.chat.id)
+        elif call.data == "menu_active": 
+            bot.send_message(call.message.chat.id, "اكتب `تفعيل` لتفعيل المجموعه\nاكتب `تعطيل` لتعطيلها", parse_mode="Markdown")
+
+        elif call.data == "back_to_main":
+            bot.delete_message(call.message.chat.id, call.message_id)
+            show_menu(bot, call.message.chat.id)
+        elif call.data == "close_menu":
+            bot.delete_message(call.message.chat.id, call.message_id)
