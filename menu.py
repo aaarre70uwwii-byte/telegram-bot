@@ -1,97 +1,62 @@
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-import m1
-import m2
-import m3
-import m4
-import m5
-import m6
+# menu.py
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-def register_all(bot):
-    m1.register_handlers(bot)
-    m2.register_handlers(bot)
-    m3.register_handlers(bot)
-    m4.register_handlers(bot)
-    m5.register_handlers(bot)
-    m6.register_handlers(bot)
-
-def get_empty_menu():
-    markup = InlineKeyboardMarkup(row_width=3)
-    markup.add(
-        InlineKeyboardButton("🛡️ 1", callback_data="menu_1"),
-        InlineKeyboardButton("⚙️ 2", callback_data="menu_2"),
-        InlineKeyboardButton("🔧 3", callback_data="menu_3")
-    )
-    markup.add(
-        InlineKeyboardButton("📊 4", callback_data="menu_4"),
-        InlineKeyboardButton("🤖 5", callback_data="menu_5"),
-        InlineKeyboardButton("✨ 6", callback_data="menu_6")
-    )
-    markup.add(
-        InlineKeyboardButton("🔐 القفل والفتح", callback_data="menu_lock"),
-        InlineKeyboardButton("📊 التفعيل والتعطيل", callback_data="menu_active")
-    )
-    markup.add(
-        InlineKeyboardButton("❌ اخفاء الاوامر", callback_data="close_menu")
-    )
+def group_menu_keyboard():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.row(KeyboardButton("①"), KeyboardButton("②"))
+    markup.row(KeyboardButton("③"), KeyboardButton("④"))
+    markup.row(KeyboardButton("⑤"), KeyboardButton("⑥"))
+    markup.row(KeyboardButton("اخفاء الاوامر"))
     return markup
 
-def show_menu(bot, chat_id):
-    text = """- أهلاً بك عزي في قائمة الاوامر :
-━━━━━━━━━━━━
-◀️ 1م : اوامر الادمنيه
-◀️ 2م : اوامر الاعدادات
-◀️ 3م : اوامر القفل - الفتح
-◀️ 4م : اوامر التسلية
-◀️ 5م : اوامر Dev
-◀️ 6م : الاوامر الخدميه
-━━━━━━━━━━━━
-ارسل رقم الامر او اضغط الزر 👇"""
-    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=get_empty_menu())
+def get_m1_commands():
+    text = "📋 قائمة اوامر الادمنيه m1\n━━━━━━━━━━━━━━━\nرفع مالك اساسي - تنزيل مالك اساسي\n...الخ"
+    return text
 
-def register_handlers(bot):
+def get_m2_commands(): 
+    text = "⚙️ اهلا بك في قائمة اوامر الاعدادات m2\n━━━━━━━━━━━━━━━\nالرابط - المالكين الاساسين - الادمنيه\n...الخ"
+    return text
 
-    @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['الاوامر', '/اوامر', 'اوامر'], content_types=['text'])
-    def show_menu_text(m):
-        show_menu(bot, m.chat.id)
+def register_menu_handlers(bot):
 
-    @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['1م', '1', '/1'])
-    def cmd_1(m): m1.show_admin_menu(bot, m.chat.id)
-    @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['2م', '2', '/2'])
-    def cmd_2(m): m2.show_settings_menu(bot, m.chat.id)
-    @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['3م', '3', '/3'])
-    def cmd_3(m): m3.show_lock_menu(bot, m.chat.id)
-    @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['4م', '4', '/4'])
-    def cmd_4(m): m4.show_fun_menu(bot, m.chat.id)
-    @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['5م', '5', '/5'])
-    def cmd_5(m): 
-        if m.chat.type == 'private':
-            m5.show_dev_keyboard(bot, m.chat.id)
-        else:
-            m5.show_dev_menu(bot, m.chat.id)
-    @bot.message_handler(func=lambda m: m.text and m.text.lower().strip() in ['6م', '6', '/6'])
-    def cmd_6(m): m6.show_service_menu(bot, m.chat.id)
-
-    @bot.callback_query_handler(func=lambda call: True)
-    def callback_handler(call):
-        bot.answer_callback_query(call.id)
-
-        if call.data == "menu_1": m1.show_admin_menu(bot, call.message.chat.id)
-        elif call.data == "menu_2": m2.show_settings_menu(bot, call.message.chat.id)
-        elif call.data == "menu_3": m3.show_lock_menu(bot, call.message.chat.id)
-        elif call.data == "menu_4": m4.show_fun_menu(bot, call.message.chat.id)
-        elif call.data == "menu_5": 
-            if call.message.chat.type == 'private':
-                m5.show_dev_keyboard(bot, call.message.chat.id)
-            else:
-                m5.show_dev_menu(bot, call.message.chat.id)
-        elif call.data == "menu_6": m6.show_service_menu(bot, call.message.chat.id)
+    @bot.message_handler(func=lambda m: m.chat.type in ['group', 'supergroup'])
+    def group_handler(m):
+        txt = m.text.strip() if m.text else ""
+        if not txt: return
         
-        elif call.data == "menu_lock": m3.show_lock_menu(bot, call.message.chat.id)
-        elif call.data == "menu_active": 
-            bot.send_message(call.message.chat.id, "اكتب `تفعيل` لتفعيل المجموعه\nاكتب `تعطيل` لتعطيلها", parse_mode="Markdown")
-
-        elif call.data == "back_to_main":
-            bot.delete_message(call.message.chat.id, call.message_id)
-            show_menu(bot, call.message.chat.id)
-        elif call.data == "close_menu":
-            bot.delete_message(call.message.chat.id, call.message_id)
+        # 1. الازرار
+        if txt == "①":
+            bot.send_message(m.chat.id, get_m1_commands())
+        elif txt == "②":
+            bot.send_message(m.chat.id, get_m2_commands())
+        elif txt == "③": # ربط m3
+            try:
+                from m3 import get_m3_commands
+                bot.send_message(m.chat.id, get_m3_commands())
+            except Exception as e:
+                bot.send_message(m.chat.id, f"❌ خطأ في ملف m3: {e}")
+        elif txt == "④": # ربط m4
+            try:
+                from m4 import get_m4_commands # 1. استدعينا m4
+                bot.send_message(m.chat.id, get_m4_commands())
+            except Exception as e:
+                bot.send_message(m.chat.id, f"❌ خطأ في ملف m4: {e}")
+        elif txt == "⑤":
+            bot.send_message(m.chat.id, "👨‍💻 قائمة Dev اوامر\nضع اوامرك هنا")
+        elif txt == "⑥":
+            bot.send_message(m.chat.id, "🛠 قائمة الاوامر الخدميه\nضع اوامرك هنا")
+        elif txt == "اخفاء الاوامر":
+            bot.send_message(m.chat.id, "✅ تم اخفاء القائمة", reply_markup=ReplyKeyboardRemove())
+        
+        # 2. بس لو كتب start او menu نعرض القائمة. منعنا السبام
+        elif txt.lower() in ["/start", "/menu", "الاوامر"]:
+            text = "- أهلاً بك عزي في قائمة الاوامر :\n"
+            text += "━━━━━━━━━━━━━━━\n"
+            text += "① : اوامر الادمنيه m1\n"
+            text += "② : اوامر الاعدادات m2\n" 
+            text += "③ : اوامر القفل - الفتح\n"
+            text += "④ : اوامر التسليه m4\n" # 2. عدلنا الاسم
+            text += "⑤ : Dev اوامر\n"
+            text += "⑥ : الاوامر الخدميه\n"
+            text += "━━━━━━━━━━━━━━━"
+            bot.send_message(m.chat.id, text, reply_markup=group_menu_keyboard())
