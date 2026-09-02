@@ -9,7 +9,7 @@ from menu import register_menu_handlers
 from m1 import register_m1_handlers
 from m2 import register_m2_handlers
 from m3 import register_m3_handlers, set_feature
-from m4 import register_m4_handlers # 1. اضفنا m4
+from m4 import register_m4_handlers
 
 TOKEN = os.environ.get("TOKEN")  # حط التوكن في Railway Variables
 
@@ -40,15 +40,15 @@ register_menu_handlers(bot)  # 1. القائمة الاساسية
 register_m1_handlers(bot)    # 2. اوامر الادمنية
 register_m2_handlers(bot)    # 3. اوامر الاعدادات  
 register_m3_handlers(bot)    # 4. اوامر القفل
-register_m4_handlers(bot)    # 5. اوامر التسليه m4 # 2. سجلنا m4
+register_m4_handlers(bot)    # 5. اوامر التسليه m4
 
 print("✅ البوت شغال 100%")
 print("✅ تم اضافة امر التفعيل")
-print("✅ تم اضافة اوامر التسليه m4") # 3. رسالة تاكيد
+print("✅ تم اضافة اوامر التسليه m4")
 
 while True:
     try:
-        bot.infinity_polling(skip_pending=True, non_stop=True, timeout=60, long_polling_timeout=60)
+        bot.infinity_polling(timeout=60, long_polling_timeout=60)
     except Exception as e:
         print(f"❌ خطأ: {e}")
         time.sleep(5)
