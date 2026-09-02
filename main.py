@@ -1,54 +1,45 @@
-# main.py
 import os
-import telebot
-import time
-import json
+import sys
+import logging
+from telegram.ext import Application, CommandHandler
 
-# استدعاء كل الملفات
+# استدعاء دوال الربط من الملفات الفرعية
+from dev_panel import start as dev_start, register_dev_handlers
 from menu import register_menu_handlers
-from m1 import register_m1_handlers
-from m2 import register_m2_handlers
-from m3 import register_m3_handlers, set_feature
-from m4 import register_m4_handlers
 
-TOKEN = os.environ.get("TOKEN")  # حط التوكن في Railway Variables
+# إعدادات المراقبة والسجلات لمنع تعليق السورس
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
+    level=logging.INFO
+)
 
+# 🌐 قراءة المتغيرات تلقائياً من لوحة تحكم Railway الفعالة في صورتك
+TOKEN = os.getenv('TOKEN')
+OWNER_ID = os.getenv('OWNER_ID')
+
+# التحقق من وجود المتغيرات الهامة لمنع توقف البوت عند الإقلاع
 if not TOKEN:
-    print("❌ خطأ: ضع التوكن في متغير TOKEN")
-    exit()
+    print("❌ [خطأ]: لم يتم العثور على متغير TOKEN في إعدادات Railway!")
+    sys.exit(1)
 
-bot = telebot.TeleBot(TOKEN, parse_mode="HTML", num_threads=4)
-bot.delete_webhook(drop_pending_updates=True)
+def main():
+    # بناء تطبيق البوت الموحد باستخدام التوكن المستدعى من الاستضافة
+    application = Application.builder().token(TOKEN).build()
 
-# امر التفعيل للجروبات
-@bot.message_handler(func=lambda m: m.chat.type in ['group', 'supergroup'] and m.text == "تفعيل")
-def activate_group(m):
-    chat_id = m.chat.id
-    try:
-        member = bot.get_chat_member(chat_id, m.from_user.id)
-        if member.status in ['creator', 'administrator']:
-            set_feature(chat_id, "مفعلة", True)
-            bot.send_message(chat_id, "✅ تم تفعيل المجموعة بنجاح\nالان تقدر تستخدم اوامر البوت")
-        else:
-            bot.send_message(chat_id, "❌ هذا الامر للادمنيه فقط")
-    except:
-        pass
+    # 1. ربط أمر /start الأساسي
+    application.add_handler(CommandHandler("start", dev_start))
 
-# تسجيل كل الهاندلرز - الترتيب مهم
-print("جاري تشغيل البوت...")
-register_menu_handlers(bot)  # 1. القائمة الاساسية
-register_m1_handlers(bot)    # 2. اوامر الادمنية
-register_m2_handlers(bot)    # 3. اوامر الاعدادات  
-register_m3_handlers(bot)    # 4. اوامر القفل
-register_m4_handlers(bot)    # 5. اوامر التسليه m4
+    # 2. استدعاء وربط مستمعات أزرار المطور بالخاص من ملف dev_panel.py
+    register_dev_handlers(application)
 
-print("✅ البوت شغال 100%")
-print("✅ تم اضافة امر التفعيل")
-print("✅ تم اضافة اوامر التسليه m4")
+    # 3. استدعاء وربط مستمعات أوامر المجموعات والكيبورد الأخضر من ملف menu.py
+    register_menu_handlers(application)
 
-while True:
-    try:
-        bot.infinity_polling(timeout=60, long_polling_timeout=60)
-    except Exception as e:
-        print(f"❌ خطأ: {e}")
-        time.sleep(5)
+    # بدء تشغيل البوت الموحد بنجاح
+    print(f"⚡ [النظام]: تم جلب البيانات بنجاح من Railway.")
+    print(f"👑 [OWNER_ID]: {OWNER_ID}")
+    print("🚀 [main.py] يعمل الآن على الاستضافة بنجاح ودون تعليق.")
+    application.run_polling()
+
+if __name__ == '__main__':
+    main()
