@@ -1,188 +1,180 @@
-# dev_panel.py
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-import os, sys, json
+import os
+import sqlite3
+import logging
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-DEV_ID = 7488375443
+# إعداد السجلات لمراقبة العمليات ومنع تعليق البوت
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# ملفات التخزين
-DB_FILE = 'dev_db.json'
+# ----------------- الإعدادات الأساسية المستدعاة من Railway -----------------
+DEVELOPER_ID = int(os.getenv('OWNER_ID', 7488375443))
 
-def load_db():
-    try:
-        with open(DB_FILE, 'r', encoding='utf-8') as f: return json.load(f)
-    except: return {"gban": [], "gmute": [], "bot_name": "بوت الخدمي", "channel": "", "welcome": "", "devs": [DEV_ID], "service": True, "contact": True, "replies": {}}
+# ----------------- تهيئة قاعدة البيانات -----------------
+def init_db():
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS groups (group_id INTEGER PRIMARY KEY)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS replies (keyword TEXT PRIMARY KEY, response TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)''')
 
-def save_db(data):
-    with open(DB_FILE, 'w', encoding='utf-8') as f: json.dump(data, f, ensure_ascii=False, indent=2)
+    # قيم افتراضية للإعدادات باسم 𝐓𝐢𝐚
+    default_settings = [
+        ('bot_name', '𝐓𝐢𝐚'),
+        ('service_status', '✅ مفعل'),
+        ('contact_status', '✅ مفعل'),
+        ('updates_channel', 'لا يوجد حالياً (أرسل الرابط لتحديثه)'),
+        ('welcome_text', 'أهلاً بك في 𝐓𝐢𝐚! لمتابعة التحديثات اشترك هنا: ')
+    ]
+    for key, value in default_settings:
+        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?,?)", (key, value))
 
-db = load_db()
+    conn.commit()
+    conn.close()
 
-def is_dev(user_id):
-    return user_id in db["devs"]
+init_db()
 
-def dev_keyboard():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    markup.row(KeyboardButton("أعدادات ألبوت"), KeyboardButton("قائمة ألعام"))
-    markup.row(KeyboardButton("تغير المطور الاساسي"), KeyboardButton("أضف رد عام"))
-    markup.row(KeyboardButton("تغير أسم البوت"), KeyboardButton("مسح رد عام"))
-    markup.row(KeyboardButton("تفعيل ألبوت"), KeyboardButton("تحديث الملفات"))
-    markup.row(KeyboardButton("أضف الترحيب نص+بصوره"), KeyboardButton("جلب ألنسخه الأحتياطيه"))
-    markup.row(KeyboardButton("تعطيل البوت ألخدمي"), KeyboardButton("تفعيل البوت ألخدمي"))
-    markup.row(KeyboardButton("تعطيل التواصل"), KeyboardButton("تفعيل التواصل"))
-    markup.row(KeyboardButton("الاحصايات"), KeyboardButton("الاذاعه خاص+مجموعات"))
-    markup.row(KeyboardButton("ألمطورين"), KeyboardButton("تغير قناه البوت"))
-    markup.row(KeyboardButton("اخفاء قائمة البوت"), KeyboardButton("المساعد"))
-    return markup
+# ----------------- كيبورد المطور المخصص -----------------
+def get_dev_keyboard():
+    keyboard = [
+        [KeyboardButton("قائمة ألعاب"), KeyboardButton("أعدادات ألبوت")],
+        [KeyboardButton("أضف رد عام"), KeyboardButton("تغير المطور الاساسي")],
+        [KeyboardButton("مسح رد عام"), KeyboardButton("تغير أسم البوت")],
+        [KeyboardButton("تحديث الملفات"), KeyboardButton("تفعيل ألبوت")],
+        [KeyboardButton("جلب ألنسخه ألأحتياطيه"), KeyboardButton("أضف الترحيب نص+بصوره")],
+        [KeyboardButton("تفعيل البوت ألخدمي"), KeyboardButton("تعطيل البوت ألخدمي")],
+        [KeyboardButton("تفعيل التواصل"), KeyboardButton("تعطيل التواصل")],
+        [KeyboardButton("الاذاعه خاص+مجموعات"), KeyboardButton("الاحصايات")],
+        [KeyboardButton("تغير قناه البوت"), KeyboardButton("ألمطورين")],
+        [KeyboardButton("المساعد"), KeyboardButton("اخفاء قائمة البوت")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
 
-def register_dev_handlers(bot):
-    temp = {} # لتخزين الحالات
+# ----------------- أمر تشغيل البوت -----------------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    chat_type = update.effective_chat.type
 
-    @bot.message_handler(commands=['start'])
-    def start_pm(m):
-        if m.chat.type == 'private' and is_dev(m.from_user.id):
-            bot.send_message(m.chat.id, "مرحبا المطور 👑\nاهلا بك في لوحة التحكم", reply_markup=dev_keyboard())
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    if chat_type in ['group', 'supergroup']:
+        cursor.execute("INSERT OR IGNORE INTO groups (group_id) VALUES (?)", (update.effective_chat.id,))
+    else:
+        cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    conn.commit()
+    conn.close()
 
-    @bot.message_handler(func=lambda m: m.chat.type == 'private' and is_dev(m.from_user.id))
-    def dev_panel(m):
-        txt = m.text
-        cid = m.chat.id
+    if user_id == DEVELOPER_ID:
+        await update.message.reply_text(
+            "👋 مرحباً بك يا مطور 𝐓𝐢𝐚! لوحة التحكم مفعّلة 👇",
+            reply_markup=get_dev_keyboard()
+        )
+    else:
+        conn = sqlite3.connect('bot_data.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key='welcome_text'")
+        welcome = cursor.fetchone()
+        cursor.execute("SELECT value FROM settings WHERE key='updates_channel'")
+        channel = cursor.fetchone()
+        conn.close()
 
-        # 1
-        if txt == "أعدادات ألبوت":
-            msg = f"📜 اعدادات البوت:\n- اسم البوت: {db['bot_name']}\n- قناة البوت: @{db['channel']}\n- البوت الخدمي: {'مفعل' if db['service'] else 'معطل'}\n- التواصل: {'مفعل' if db['contact'] else 'معطل'}\n- المطورين: {len(db['devs'])}"
-            bot.send_message(cid, msg, reply_markup=dev_keyboard())
+        full_welcome_msg = f"{welcome[0] if welcome else ''}\n\n📢 قناة التحديثات: {channel[0] if channel else ''}"
+        await update.message.reply_text(full_welcome_msg)
 
-        # 2
-        elif txt == "قائمة ألعام":
-            msg = f"🚫 محظورين عام: {len(db['gban'])}\n🔇 مكتومين عام: {len(db['gmute'])}"
-            bot.send_message(cid, msg, reply_markup=dev_keyboard())
+# ----------------- معالجة أزرار التحكم -----------------
+async def handle_dev_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    if user_id!= DEVELOPER_ID: return
 
-        # 3
-        elif txt == "تغير المطور الاساسي":
-            msg = bot.send_message(cid, "ارسل ايدي المطور الجديد")
-            bot.register_next_step_handler(msg, set_dev)
+    text = update.message.text
+    chat_id = update.effective_chat.id
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
 
-        # 4
-        elif txt == "أضف رد عام":
-            msg = bot.send_message(cid, "ارسل الكلمة")
-            bot.register_next_step_handler(msg, get_reply_key)
+    if text == "أعدادات ألبوت":
+        cursor.execute("SELECT key, value FROM settings")
+        all_set = cursor.fetchall()
+        msg = "⚙️ **إعدادات 𝐓𝐢𝐚 الحالية:**\n\n" + "\n".join([f"🔹 {k}: {v}" for k,v in all_set])
+        await update.message.reply_text(msg, parse_mode="Markdown")
+    elif text == "الاحصايات":
+        cursor.execute("SELECT COUNT(*) FROM users"); u_count = cursor.fetchone()
+        cursor.execute("SELECT COUNT(*) FROM groups"); g_count = cursor.fetchone()
+        await update.message.reply_text(f"📊 **إحصائيات 𝐓𝐢𝐚:**\n\n👤 الخاص: {u_count[0]}\n👥 المجموعات: {g_count[0]}")
+    elif text == "جلب ألنسخه ألأحتياطيه":
+        await update.message.reply_text("📦 جاري جلب النسخة...")
+        try: await context.bot.send_document(chat_id=chat_id, document=open('bot_data.db', 'rb'), filename="backup_Tia.db")
+        except Exception as e: await update.message.reply_text(f"❌ فشل: {str(e)}")
+    elif text == "اخفاء قائمة البوت":
+        await update.message.reply_text("🙈 تم الإخفاء.", reply_markup=ReplyKeyboardRemove())
+    elif text in ["أضف رد عام", "مسح رد عام", "تغير أسم البوت", "أضف الترحيب نص+بصوره", "الاذاعه خاص+مجموعات", "تغير قناه البوت", "تغير المطور الاساسي"]:
+        actions = {"أضف رد عام": 'add_reply', "مسح رد عام": 'del_reply', "تغير أسم البوت": 'change_name', "أضف الترحيب نص+بصوره": 'change_welcome', "الاذاعه خاص+مجموعات": 'broadcast', "تغير قناه البوت": 'change_updates_channel', "تغير المطور الاساسي": 'change_dev'}
+        context.user_data['action'] = actions[text]
+        await update.message.reply_text("📝 ارسل المطلوب الآن...")
 
-        # 5
-        elif txt == "مسح رد عام":
-            msg = bot.send_message(cid, "ارسل الكلمة اللي تريد مسحها")
-            bot.register_next_step_handler(msg, del_reply)
+    conn.commit()
+    conn.close()
 
-        # 6
-        elif txt == "تغير أسم البوت":
-            msg = bot.send_message(cid, "ارسل الاسم الجديد للبوت")
-            bot.register_next_step_handler(msg, set_name)
+# ----------------- استقبال المدخلات والردود والإذاعة -----------------
+async def handle_inputs_and_replies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    text = update.message.text
+    if not text: return
 
-        # 7
-        elif txt == "تفعيل ألبوت":
-            bot.send_message(cid, "✅ تم تفعيل البوت", reply_markup=dev_keyboard())
+    # 1. اذا كان المطور يعمل عملية
+    if user_id == DEVELOPER_ID:
+        action = context.user_data.get('action')
+        if action:
+            conn = sqlite3.connect('bot_data.db')
+            cursor = conn.cursor()
 
-        # 8
-        elif txt == "تحديث الملفات":
-            global db; db = load_db()
-            bot.send_message(cid, "✅ تم تحديث الملفات واعادة تحميل قاعدة البيانات", reply_markup=dev_keyboard())
+            if action == 'add_reply' and '=' in text:
+                keyword, response = text.split('=', 1)
+                cursor.execute("INSERT OR REPLACE INTO replies (keyword, response) VALUES (?,?)", (keyword.strip(), response.strip()))
+                await update.message.reply_text(f"✅ تم اضافة الرد: `{keyword.strip()}`")
+            elif action == 'del_reply':
+                cursor.execute("DELETE FROM replies WHERE keyword=?", (text,))
+                await update.message.reply_text(f"🗑️ تم مسح الرد: `{text}`")
+            elif action == 'broadcast':
+                cursor.execute("SELECT user_id FROM users"); users = cursor.fetchall()
+                cursor.execute("SELECT group_id FROM groups"); groups = cursor.fetchall()
+                await update.message.reply_text(f"📢 جاري الاذاعة لـ {len(users)} مستخدم و {len(groups)} مجموعة...")
+                for u in users:
+                    try: await context.bot.send_message(chat_id=u[0], text=text)
+                    except: pass
+                for g in groups:
+                    try: await context.bot.send_message(chat_id=g[0], text=text)
+                    except: pass
+                await update.message.reply_text("✅ تمت الاذاعة بنجاح")
+            elif action == 'change_dev':
+                global DEVELOPER_ID
+                DEVELOPER_ID = int(text)
+                await update.message.reply_text(f"👑 تم تغيير المطور الى: `{DEVELOPER_ID}`")
+            elif action == 'change_name':
+                cursor.execute("UPDATE settings SET value=? WHERE key='bot_name'", (text,))
+                await update.message.reply_text(f"✏️ تم تغيير اسم 𝐓𝐢𝐚 الى: {text}")
+            elif action == 'change_welcome':
+                cursor.execute("UPDATE settings SET value=? WHERE key='welcome_text'", (text,))
+                await update.message.reply_text("🖼️ تم تغيير نص الترحيب")
+            elif action == 'change_updates_channel':
+                cursor.execute("UPDATE settings SET value=? WHERE key='updates_channel'", (text,))
+                await update.message.reply_text(f"📢 تم تغيير قناة التحديثات")
 
-        # 9
-        elif txt == "أضف الترحيب نص+بصوره":
-            msg = bot.send_message(cid, "ارسل رسالة الترحيب")
-            bot.register_next_step_handler(msg, set_welcome)
+            context.user_data['action'] = None
+            conn.commit()
+            conn.close()
+            return
 
-        # 10
-        elif txt == "جلب ألنسخه الأحتياطيه":
-            if os.path.exists(DB_FILE):
-                with open(DB_FILE, 'rb') as f: bot.send_document(cid, f, caption="📦 النسخة الاحتياطية", reply_markup=dev_keyboard())
-            else: bot.send_message(cid, "لا يوجد نسخة", reply_markup=dev_keyboard())
+    # 2. الردود التلقائية للكل
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT response FROM replies WHERE keyword=?", (text,))
+    reply = cursor.fetchone()
+    conn.close()
+    if reply:
+        await update.message.reply_text(reply[0])
 
-        # 11
-        elif txt == "تعطيل البوت ألخدمي":
-            db["service"] = False; save_db(db)
-            bot.send_message(cid, "⛔️ تم تعطيل البوت الخدمي", reply_markup=dev_keyboard())
-
-        # 12
-        elif txt == "تفعيل البوت ألخدمي":
-            db["service"] = True; save_db(db)
-            bot.send_message(cid, "✅ تم تفعيل البوت الخدمي", reply_markup=dev_keyboard())
-
-        # 13
-        elif txt == "تعطيل التواصل":
-            db["contact"] = False; save_db(db)
-            bot.send_message(cid, "⛔️ تم تعطيل التواصل", reply_markup=dev_keyboard())
-
-        # 14
-        elif txt == "تفعيل التواصل":
-            db["contact"] = True; save_db(db)
-            bot.send_message(cid, "✅ تم تفعيل التواصل", reply_markup=dev_keyboard())
-
-        # 15
-        elif txt == "الاحصايات":
-            msg = f"📊 الاحصائيات:\nالمطورين: {len(db['devs'])}\nالمحظورين: {len(db['gban'])}\nالمكتومين: {len(db['gmute'])}\nالردود: {len(db['replies'])}"
-            bot.send_message(cid, msg, reply_markup=dev_keyboard())
-
-        # 16
-        elif txt == "الاذاعه خاص+مجموعات":
-            msg = bot.send_message(cid, "📢 ارسل الان الاذاعة للكل")
-            bot.register_next_step_handler(msg, broadcast)
-
-        # 17
-        elif txt == "ألمطورين":
-            devs = '\n'.join([str(i) for i in db['devs']])
-            bot.send_message(cid, f"👑 قائمة المطورين:\n{devs}", reply_markup=dev_keyboard())
-
-        # 18
-        elif txt == "تغير قناه البوت":
-            msg = bot.send_message(cid, "ارسل يوزر القناة بدون @")
-            bot.register_next_step_handler(msg, set_channel)
-
-        # 19
-        elif txt == "اخفاء قائمة البوت":
-            bot.send_message(cid, "✅ تم اخفاء القائمة", reply_markup=ReplyKeyboardRemove())
-
-        # 20
-        elif txt == "المساعد":
-            bot.send_message(cid, "🤖 اوامر المساعد كلها من الازرار\nاختر من القائمة", reply_markup=dev_keyboard())
-
-    # دوال الخطوات التالية
-    def set_dev(m):
-        try:
-            db["devs"] = [int(m.text)]; save_db(db)
-            bot.send_message(m.chat.id, f"✅ تم تغير المطور الى: {m.text}", reply_markup=dev_keyboard())
-        except: bot.send_message(m.chat.id, "❌ ايدي غلط", reply_markup=dev_keyboard())
-
-    def get_reply_key(m):
-        temp[m.chat.id] = {"key": m.text}
-        msg = bot.send_message(m.chat.id, "الان ارسل الرد")
-        bot.register_next_step_handler(msg, save_reply)
-
-    def save_reply(m):
-        key = temp[m.chat.id]["key"]
-        db["replies"][key] = m.text; save_db(db)
-        bot.send_message(m.chat.id, f"✅ تم حفظ الرد على: {key}", reply_markup=dev_keyboard())
-
-    def del_reply(m):
-        if m.text in db["replies"]:
-            del db["replies"][m.text]; save_db(db)
-            bot.send_message(m.chat.id, f"✅ تم مسح الرد: {m.text}", reply_markup=dev_keyboard())
-        else: bot.send_message(m.chat.id, "❌ الكلمة غير موجودة", reply_markup=dev_keyboard())
-
-    def set_name(m):
-        db["bot_name"] = m.text; save_db(db)
-        bot.send_message(m.chat.id, f"✅ تم تغير اسم البوت الى: {m.text}", reply_markup=dev_keyboard())
-
-    def set_channel(m):
-        db["channel"] = m.text; save_db(db)
-        bot.send_message(m.chat.id, f"✅ تم تغير قناة البوت الى: @{m.text}", reply_markup=dev_keyboard())
-
-    def set_welcome(m):
-        db["welcome"] = m.text; save_db(db)
-        bot.send_message(m.chat.id, "✅ تم حفظ رسالة الترحيب", reply_markup=dev_keyboard())
-
-    def broadcast(m):
-        bot.send_message(m.chat.id, f"✅ تم استلام الاذاعة\nنص: {m.text}\nملاحظة: اربطها بقائمة المجموعات عندك", reply_markup=dev_keyboard())
-
-# في ملفك الرئيسي m5.py استدعيها كذا:
-# from dev_panel import register_dev_handlers
-# register_dev_handlers(bot)
+# ----------------- دالة الربط للسورس الموحد -----------------
+def register_dev_handlers(application: Application):
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_dev_buttons))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_inputs_and_replies))
