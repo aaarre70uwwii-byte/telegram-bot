@@ -1,98 +1,86 @@
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-import menu
+import json
+import os
+import telebot
 
-def show_settings_menu(bot, chat_id):
-    text = """- اهلا بك في قائمة اوامر الاعدادات :
-━━━━━━━━━━━━ 
+DB_FILE = 'group_db.json'
+SETTINGS_FILE = 'group_settings.json'
 
-- اوامر رؤية الاعدادات :
+def load_db():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
 
-- الرابط
-- المالكين
-- المالكين الاساسين
-- المنشئين 
-- الادمنيه
-- المدراء
-- المميزين
-- المحظورين
-- القوانين
-- المكتومين 
-- معلوماتي 
-- الحمايه  
-- الاعدادت
-- المجموعه
+def save_db(data):
+    with open(DB_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-- اوامر وضع الاعدادات :
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
 
-- اضف رابط = بخاص البوت
-- مسح الرابط
-- انشاء رابط
-- ضع الترحيب
-- ضع قوانين
-- ضـع رابط
-- اضف امر
-- تعيين الايدي
-- اضف قناه (باليوزر ، بالايدي)
-- حذف قناه (باليوزر ، بالايدي)
+def save_settings(data):
+    with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-- اوامر التحميل
-- تفعيل - تعطيل التحميل
-- لليوتيوب
-- بحث + اسم الاغنيه
-- للتيك توك
-- تيك + الرابط
-- للساوند
-- ساوند + الرابط
-━━━━━━━━━━━━"""
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("⬅️ الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
-    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
+def get_chat_data(chat_id):
+    db = load_db()
+    chat_id = str(chat_id)
+    if chat_id not in db:
+        db[chat_id] = {"owner": None, "admins": [], "mods": [], "vip": [], "banned": [], "muted": []}
+        save_db(db) # اضفت الحفظ هنا
+    return db, db[chat_id]
+
+def get_chat_settings(chat_id):
+    settings = load_settings()
+    chat_id = str(chat_id)
+    if chat_id not in settings:
+        settings[chat_id] = {"link": None, "welcome": "اهلا بك", "rules": "لا يوجد", "channel": None, "download": True}
+        save_settings(settings) # اضفت الحفظ هنا
+    return settings, settings[chat_id]
 
 def is_admin(bot, chat_id, user_id):
-    try:
-        member = bot.get_chat_member(chat_id, user_id)
-        return member.status in ['administrator', 'creator']
-    except:
-        return False
+    try: return bot.get_chat_member(chat_id, user_id).status in ['creator', 'administrator']
+    except: return False
 
-def register_handlers(bot): # <-- غيرت الاسم هنا
+def register_m2_handlers(bot):
+    @bot.message_handler(func=lambda m: m.chat.type in ['group', 'supergroup'])
+    def m2_handler(m):
+        txt = m.text.strip() if m.text else ""
+        if not txt: return
+        chat_id, user_id = m.chat.id, m.from_user.id
+        db, data = get_chat_data(chat_id)
+        settings, s = get_chat_settings(chat_id)
+        if not is_admin(bot, chat_id, user_id): return
 
-    @bot.message_handler(func=lambda m: m.chat.type in ['group','supergroup'] and m.text and is_admin(bot, m.chat.id, m.from_user.id), chat_types=['group','supergroup'])
-    def settings_commands(m):
-        txt = m.text.strip()
-        txt_low = txt.lower()
-        
-        # اوامر الرؤية
-        if txt_low == 'الرابط': bot.reply_to(m, "الرابط: `لا يوجد رابط`")
-        elif txt_low == 'المالكين': bot.reply_to(m, "قائمة المالكين: فارغة")
-        elif txt_low == 'المالكين الاساسين': bot.reply_to(m, "قائمة المالكين الاساسين: فارغة")
-        elif txt_low == 'المنشئين': bot.reply_to(m, "قائمة المنشئين: فارغة")
-        elif txt_low == 'الادمنيه': bot.reply_to(m, "قائمة الادمنيه: فارغة")
-        elif txt_low == 'المدراء': bot.reply_to(m, "قائمة المدراء: فارغة")
-        elif txt_low == 'المميزين': bot.reply_to(m, "قائمة المميزين: فارغة")
-        elif txt_low == 'المحظورين': bot.reply_to(m, "قائمة المحظورين: فارغة")
-        elif txt_low == 'القوانين': bot.reply_to(m, "لا توجد قوانين")
-        elif txt_low == 'المكتومين': bot.reply_to(m, "قائمة المكتومين: فارغة")
-        elif txt_low == 'معلوماتي': bot.reply_to(m, f"اسمك: {m.from_user.first_name}\nايديك: `{m.from_user.id}`")
-        elif txt_low == 'الحمايه': bot.reply_to(m, "حالة الحماية: مفعلة")
-        elif txt_low == 'الاعدادت': bot.reply_to(m, "الاعدادات الافتراضية")
-        elif txt_low == 'المجموعه': bot.reply_to(m, f"اسم المجموعة: {m.chat.title}")
-        
-        # اوامر الوضع
-        elif txt_low.startswith('اضف رابط'): bot.reply_to(m, "ارسل الرابط في الخاص")
-        elif txt_low == 'مسح الرابط': bot.reply_to(m, "✅ تم مسح الرابط")
-        elif txt_low == 'انشاء رابط': bot.reply_to(m, "✅ تم انشاء رابط جديد")
-        elif txt_low.startswith('ضع الترحيب'): bot.reply_to(m, "✅ تم وضع الترحيب")
-        elif txt_low.startswith('ضع قوانين'): bot.reply_to(m, "✅ تم وضع القوانين")
-        elif txt_low.startswith('ضـع رابط'): bot.reply_to(m, "✅ تم وضع الرابط")
-        elif txt_low.startswith('اضف امر'): bot.reply_to(m, "ارسل: `اضف امر الكلمة`")
-        elif txt_low.startswith('تعيين الايدي'): bot.reply_to(m, "✅ تم تعيين الايدي")
-        elif txt_low.startswith('اضف قناه'): bot.reply_to(m, "✅ تم اضافة القناة")
-        elif txt_low.startswith('حذف قناه'): bot.reply_to(m, "✅ تم حذف القناة")
-        
-        # اوامر التحميل
-        elif txt_low == 'تفعيل التحميل': bot.reply_to(m, "✅ تم تفعيل التحميل")
-        elif txt_low == 'تعطيل التحميل': bot.reply_to(m, "✅ تم تعطيل التحميل")
-        elif txt_low.startswith('بحث '): bot.reply_to(m, f"جاري البحث عن: `{txt[5:]}`") # صلحتها من 4 الى 5
-        elif txt_low.startswith('تيك '): bot.reply_to(m, "✅ جاري تحميل تيك توك...")
-        elif txt_low.startswith('ساوند '): bot.reply_to(m, "✅ جاري تحميل ساوند...")
+        # رؤية
+        if txt == "الرابط": bot.reply_to(m, f"🔗 {s.get('link') or 'لا يوجد رابط محفوظ'}")
+        elif txt == "المالكين الاساسين": bot.reply_to(m, f"👑 {data.get('owner') or 'لا يوجد'}")
+        elif txt == "الادمنيه": bot.reply_to(m, f"👨‍💼 عدد الادمنيه: {len(data.get('admins',[]))}")
+        elif txt == "المدراء": bot.reply_to(m, f"👮 عدد المدراء: {len(data.get('mods',[]))}")
+        elif txt == "المميزين": bot.reply_to(m, f"⭐ عدد المميزين: {len(data.get('vip',[]))}")
+        elif txt == "المحظورين": bot.reply_to(m, f"⛔️ عدد المحظورين: {len(data.get('banned',[]))}")
+        elif txt == "المكتومين": bot.reply_to(m, f"🔇 عدد المكتومين: {len(data.get('muted',[]))}")
+        elif txt == "القوانين": bot.reply_to(m, f"📜 القوانين:\n{s.get('rules')}")
+        elif txt == "الترحيب": bot.reply_to(m, f"👋 رسالة الترحيب:\n{s.get('welcome')}")
+        elif txt == "معلوماتي": bot.reply_to(m, f"🆔 الاسم: {m.from_user.first_name}\n🆔 الايدي: `{user_id}`", parse_mode="Markdown")
+        elif txt == "المجموعه": bot.reply_to(m, f"👥 اسم المجموعه: {bot.get_chat(chat_id).title}\n🆔 ايدي المجموعه: `{chat_id}`", parse_mode="Markdown")
+
+        # وضع
+        elif txt.startswith("اضف رابط"):
+            parts = txt.split(" ", 2)
+            if len(parts) < 3: bot.reply_to(m,"❌ ارسل: اضف رابط + الرابط"); return
+            s["link"]=parts[2]; save_settings(settings); bot.reply_to(m,"✅ تم حفظ الرابط")
+        elif txt == "مسح الرابط": s["link"]=None; save_settings(settings); bot.reply_to(m,"✅ تم مسح الرابط")
+        elif txt == "انشاء رابط":
+            try:
+                s["link"]=bot.export_chat_invite_link(chat_id); save_settings(settings); bot.reply_to(m,f"✅ تم انشاء الرابط:\n{s['link']}")
+            except: bot.reply_to(m,"❌ فشلت. تأكد ان البوت ادمن وعنده صلاحية اضافة اعضاء")
+        elif txt.startswith("ضع قوانين"): s["rules"]=txt.replace("ضع قوانين","",1).strip(); save_settings(settings); bot.reply_to(m,"✅ تم حفظ القوانين")
+        elif txt.startswith("ضع الترحيب"): s["welcome"]=txt.replace("ضع الترحيب","",1).strip(); save_settings(settings); bot.reply_to(m,"✅ تم حفظ الترحيب")
+
+        # تحميل
+        elif txt == "تفعيل التحميل": s["download"]=True; save_settings(settings); bot.reply_to(m,"✅ تم تفعيل التحميل")
+        elif txt == "تعطيل التحميل": s["download"]=False; save_settings(settings); bot.reply_to(m,"✅ تم تعطيل التحميل")
