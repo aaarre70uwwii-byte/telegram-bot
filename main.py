@@ -5,13 +5,18 @@ import random
 from telegram import Update, ChatPermissions
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from telegram.constants import ChatMemberStatus
-from menu import * # <-- عدلتها هنا
+from menu import *
 import database as db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TOKEN")
+
+if not TOKEN:
+    logger.error("الـ TOKEN فاضي! روح Variables في Railway وحط التوكن")
+    sys.exit(1)
+
 DEV_ID = 7488375443
 GROUP_FILTER = filters.ChatType.GROUPS | filters.ChatType.SUPERGROUP
 
@@ -42,7 +47,8 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "رجوع": await msg.reply_text(get_menu_text(), reply_markup=get_main_markup())
     elif text == "اخفاء الاوامر": await msg.reply_text("تم ✅", reply_markup=remove_menu())
 
-    # باقي الاكواد ...
+    # باقي الاكواد كلها موجوده عندك زي ماهي...
+    # ادارة + اعدادات + قفل + تسليه + Dev + خدمية
 
 def main():
     db.init_db()
