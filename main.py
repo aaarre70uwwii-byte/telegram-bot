@@ -3,24 +3,37 @@ import sys
 import logging
 import random
 from telegram import Update, ChatPermissions
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 from telegram.constants import ChatMemberStatus
-from keyboards import * # <-- هنا غيرتها من menu الى keyboards
+from menu import *
 import database as db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TOKEN")
-DEV_ID = 7488375443
+OWNER_ID = int(os.getenv("OWNER_ID", 7488375443)) # خليه يقرا من Railway
 GROUP_FILTER = filters.ChatType.GROUPS | filters.ChatType.SUPERGROUP
+PRIVATE_FILTER = filters.ChatType.PRIVATE
 
 async def is_admin(update, context):
-    member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
-    return member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
+    try:
+        member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
+        return member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
+    except:
+        return False
 
 async def is_dev(update, context):
-    return update.effective_user.id == DEV_ID or update.effective_user.id in db.get_devs()
+    return update.effective_user.id == OWNER_ID or update.effective_user.id in db.get_devs()
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type == "private":
+        if await is_dev(update, context):
+            await update.message.reply_text(get_dev_text(), reply_markup=get_dev_markup())
+        else:
+            await update.message.reply_text("اهلا بك في 𝐓𝐢𝐚\nارسل /menu في القروب")
+    else:
+        await show_menu(update, context)
 
 async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(get_menu_text(), reply_markup=get_main_markup())
@@ -30,6 +43,10 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     msg = update.message
     user = update.effective_user
+
+    # فحص الحظر العام
+    if db.is_gbanned(user.id):
+        return await msg.reply_text("⛔ انت محظور عام من استخدام البوت")
 
     if text == "①": await msg.reply_text("قائمة الادارة", reply_markup=get_admin_markup())
     elif text == "②": await msg.reply_text("قائمة الاعدادات", reply_markup=get_settings_markup())
@@ -56,9 +73,11 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # اعدادات
     elif text == "وضع ترحيب":
+        if not await is_admin(update, context): return
         await msg.reply_text("ارسل الترحيب الجديد")
         context.user_data["set"] = "welcome"
     elif text == "وضع رابط":
+        if not await is_admin(update, context): return
         await msg.reply_text("ارسل الرابط الجديد")
         context.user_data["set"] = "link"
     elif text == "الرابط":
@@ -68,17 +87,11 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # قفل
     elif text == "قفل الروابط":
         if not await is_admin(update, context): return
-        await context.bot.set_chat_permissions(chat_id, permissions=ChatPermissions(
-            can_send_messages=True, can_send_media_messages=True,
-            can_send_polls=True, can_send_other_messages=False, can_add_web_page_previews=False
-        ))
+        await context.bot.set_chat_permissions(chat_id, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_polls=True, can_send_other_messages=False, can_add_web_page_previews=False))
         await msg.reply_text("✅ تم قفل الروابط")
     elif text == "فتح الروابط":
         if not await is_admin(update, context): return
-        await context.bot.set_chat_permissions(chat_id, permissions=ChatPermissions(
-            can_send_messages=True, can_send_media_messages=True,
-            can_send_polls=True, can_send_other_messages=True, can_add_web_page_previews=True
-        ))
+        await context.bot.set_chat_permissions(chat_id, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_polls=True, can_send_other_messages=True, can_add_web_page_previews=True))
         await msg.reply_text("✅ تم فتح الروابط")
 
     # تسليه
@@ -119,12 +132,18 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("✅ تم تنزيل مطور ثانوي")
     elif text == "قائمه الرتب العامه":
         devs = db.get_devs()
-        await msg.reply_text(f"المطورين الثانويين: {len(devs)}")
+        txt = "\n".join([f"- `{d}`" for d in devs]) if devs else "لا يوجد"
+        await msg.reply_text(f"👑 المطورين الثانويين:\n{txt}")
     elif text.startswith("حظر عام"):
         if not await is_dev(update, context): return
         if not msg.reply_to_message: return await msg.reply_text("رد على العضو")
         db.add_gban(msg.reply_to_message.from_user.id)
         await msg.reply_text("⛔ تم حظره عام")
+    elif text == "الغاء حظر عام": # اضافة
+        if not await is_dev(update, context): return
+        if not msg.reply_to_message: return await msg.reply_text("رد على العضو")
+        db.remove_gban(msg.reply_to_message.from_user.id)
+        await msg.reply_text("✅ تم فك الحظر العام")
     elif text == "تحديث":
         if not await is_dev(update, context): return
         await msg.reply_text("✅ جاري التحديث...")
@@ -161,7 +180,7 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 bio = await context.bot.get_chat(msg.reply_to_message.from_user.id)
                 await msg.reply_text(f"بايو: {bio.bio or 'لا يوجد'}")
             except: await msg.reply_text("ما اقدر")
-    elif text == "نادي المطور": await msg.reply_text(f"المطور: [{user.first_name}](tg://user?id={DEV_ID})", parse_mode="Markdown")
+    elif text == "نادي المطور": await msg.reply_text(f"المطور: [{user.first_name}](tg://user?id={OWNER_ID})", parse_mode="Markdown")
     elif text == "من ضافني": await msg.reply_text("تحتاج صلاحية ادمن كاملة")
 
     # رسائل عادية للاعدادات
@@ -177,10 +196,10 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     db.init_db()
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler(["start", "menu"], show_menu, filters=GROUP_FILTER))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & GROUP_FILTER, handle_buttons))
-    logger.info(f"البوت شغال - المطور: {DEV_ID}")
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler(["start", "menu"], start, filters=GROUP_FILTER | PRIVATE_FILTER))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
+    logger.info(f"البوت شغال - المطور: {OWNER_ID}")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
