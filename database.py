@@ -22,28 +22,20 @@ def get_settings(chat_id):
     c.execute("SELECT welcome, link FROM settings WHERE chat_id=?", (chat_id,))
     row = c.fetchone()
     conn.close()
-    if row: return {"welcome": row[0], "link": row[1]}
+    if row: return {"welcome": row[0] or "اهلا بك", "link": row[1] or "لا يوجد"}
     return {"welcome": "اهلا بك", "link": "لا يوجد"}
 
 def set_welcome(chat_id, text):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("SELECT chat_id FROM settings WHERE chat_id=?", (chat_id,))
-    if c.fetchone():
-        c.execute("UPDATE settings SET welcome=? WHERE chat_id=?", (text, chat_id))
-    else:
-        c.execute("INSERT INTO settings (chat_id, welcome) VALUES (?,?)", (chat_id, text))
+    c.execute("INSERT OR REPLACE INTO settings (chat_id, welcome, link) VALUES (?,?, COALESCE((SELECT link FROM settings WHERE chat_id=?), 'لا يوجد'))", (chat_id, text, chat_id))
     conn.commit()
     conn.close()
 
 def set_link(chat_id, link):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("SELECT chat_id FROM settings WHERE chat_id=?", (chat_id,))
-    if c.fetchone():
-        c.execute("UPDATE settings SET link=? WHERE chat_id=?", (link, chat_id))
-    else:
-        c.execute("INSERT INTO settings (chat_id, link) VALUES (?,?)", (chat_id, link))
+    c.execute("INSERT OR REPLACE INTO settings (chat_id, welcome, link) VALUES (?, COALESCE((SELECT welcome FROM settings WHERE chat_id=?), 'اهلا بك'),?)", (chat_id, chat_id, link))
     conn.commit()
     conn.close()
 
@@ -105,7 +97,7 @@ def add_vote(chat_id, user_id, voter_id):
     c = conn.cursor()
     c.execute("SELECT voters FROM votes WHERE chat_id=? AND user_id=?", (chat_id, user_id))
     row = c.fetchone()
-    voters = row[0].split(",") if row else []
+    voters = row[0].split(",") if row and row[0] else []
     if str(voter_id) not in voters:
         voters.append(str(voter_id))
     c.execute("REPLACE INTO votes (chat_id, user_id, voters) VALUES (?,?,?)", (chat_id, user_id, ",".join(voters)))
@@ -113,6 +105,7 @@ def add_vote(chat_id, user_id, voter_id):
     conn.close()
     return len(voters)
 
+# ----------------- دوال المطور والحظر العام -----------------
 def add_dev(user_id):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -141,3 +134,18 @@ def add_gban(user_id):
     c.execute("REPLACE INTO ranks (chat_id, user_id, rank) VALUES (0,?,?)", (user_id, "gban"))
     conn.commit()
     conn.close()
+
+def remove_gban(user_id): # <-- اضافة
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("DELETE FROM ranks WHERE chat_id=0 AND user_id=? AND rank='gban'", (user_id,))
+    conn.commit()
+    conn.close()
+
+def is_gbanned(user_id): # <-- اضافة
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT 1 FROM ranks WHERE chat_id=0 AND user_id=? AND rank='gban'", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row is not None
