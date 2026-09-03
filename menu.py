@@ -9,7 +9,7 @@ MAIN_KEYBOARD = [
     [KeyboardButton("⑤"), KeyboardButton("⑥")],
     [KeyboardButton("اخفاء الاوامر")]
 ]
-MAIN_MARKUP = ReplyKeyboardMarkup(MAIN_KEYBOARD, resize_keyboard=True, selective=True, input_field_placeholder="اختر قسم...")
+MAIN_MARKUP = ReplyKeyboardMarkup(MAIN_KEYBOARD, resize_keyboard=True, selective=True)
 
 ADMIN_KEYBOARD = [
     [KeyboardButton("رفع ادمن"), KeyboardButton("تنزيل ادمن")],
@@ -75,4 +75,4 @@ def get_menu_text(): return "اهلا بك في قائمة البوت\nاختر 
 def get_lock_text(): return "قائمة القفل والفتح:"
 def get_fun_text(): return "قائمة اوامر التسليه:"
 def get_dev_text(): return "اهلا بك عزي Dev\nصلاحيات المطور الكاملة"
-def get_service_text(): return "اهلا بك عزي\n- اوامر الخدميه :\n━━━━━━━━━━━━"
+def get_service_text(): return "اهلا بك عزيزي\n- اوامر الخدميه :\n━━━━━━━━━━━━"
