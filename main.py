@@ -23,29 +23,31 @@ def db(query, params=(), fetch=False):
     conn.commit(); conn.close()
     return res
 
-db("""CREATE TABLE IF NOT EXISTS ranks (group_id INTEGER, user_id INTEGER, rank TEXT, type TEXT DEFAULT 'قروب', PRIMARY KEY(group_id, user_id, type));
-CREATE TABLE IF NOT EXISTS group_settings (group_id INTEGER PRIMARY KEY, link TEXT, welcome TEXT, rules TEXT, channel TEXT);
-CREATE TABLE IF NOT EXISTS lock (group_id INTEGER, type TEXT, status TEXT, PRIMARY KEY(group_id, type));
-CREATE TABLE IF NOT EXISTS enable (group_id INTEGER, type TEXT, status INTEGER, PRIMARY KEY(group_id, type));
-CREATE TABLE IF NOT EXISTS marriage (group_id INTEGER, user1 INTEGER, user2 INTEGER, PRIMARY KEY(group_id, user1, user2));
-CREATE TABLE IF NOT EXISTS vote_aktmoh (group_id INTEGER, target_id INTEGER, voters TEXT, count INTEGER, time REAL, PRIMARY KEY(group_id, target_id));
-CREATE TABLE IF NOT EXISTS devs (user_id INTEGER PRIMARY KEY);
-CREATE TABLE IF NOT EXISTS gban (user_id INTEGER, reason TEXT, PRIMARY KEY(user_id));
-CREATE TABLE IF NOT EXISTS gmute (user_id INTEGER, reason TEXT, PRIMARY KEY(user_id));
-CREATE TABLE IF NOT EXISTS global_replies (word TEXT, reply TEXT, type TEXT, PRIMARY KEY(word));
-CREATE TABLE IF NOT EXISTS multi_replies (word TEXT, reply TEXT, id INTEGER);
-CREATE TABLE IF NOT EXISTS bot_settings (key TEXT PRIMARY KEY, value TEXT);
-CREATE TABLE IF NOT EXISTS groups (chat_id INTEGER PRIMARY KEY);
-CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY);
-CREATE TABLE IF NOT EXISTS inline_replies (word TEXT, reply TEXT, url TEXT, PRIMARY KEY(word));
-CREATE TABLE IF NOT EXISTS m6_multi_replies (word TEXT, reply TEXT);""")
+# ===== تعديل مهم: كل جدول لحاله =====
+def init_db():
+    db("CREATE TABLE IF NOT EXISTS ranks (group_id INTEGER, user_id INTEGER, rank TEXT, type TEXT DEFAULT 'قروب', PRIMARY KEY(group_id, user_id, type))")
+    db("CREATE TABLE IF NOT EXISTS group_settings (group_id INTEGER PRIMARY KEY, link TEXT, welcome TEXT, rules TEXT, channel TEXT)")
+    db("CREATE TABLE IF NOT EXISTS lock (group_id INTEGER, type TEXT, status TEXT, PRIMARY KEY(group_id, type))")
+    db("CREATE TABLE IF NOT EXISTS enable (group_id INTEGER, type TEXT, status INTEGER, PRIMARY KEY(group_id, type))")
+    db("CREATE TABLE IF NOT EXISTS marriage (group_id INTEGER, user1 INTEGER, user2 INTEGER, PRIMARY KEY(group_id, user1, user2))")
+    db("CREATE TABLE IF NOT EXISTS vote_aktmoh (group_id INTEGER, target_id INTEGER, voters TEXT, count INTEGER, time REAL, PRIMARY KEY(group_id, target_id))")
+    db("CREATE TABLE IF NOT EXISTS devs (user_id INTEGER PRIMARY KEY)")
+    db("CREATE TABLE IF NOT EXISTS gban (user_id INTEGER, reason TEXT, PRIMARY KEY(user_id))")
+    db("CREATE TABLE IF NOT EXISTS gmute (user_id INTEGER, reason TEXT, PRIMARY KEY(user_id))")
+    db("CREATE TABLE IF NOT EXISTS global_replies (word TEXT, reply TEXT, type TEXT, PRIMARY KEY(word))")
+    db("CREATE TABLE IF NOT EXISTS multi_replies (word TEXT, reply TEXT, id INTEGER)")
+    db("CREATE TABLE IF NOT EXISTS bot_settings (key TEXT PRIMARY KEY, value TEXT)")
+    db("CREATE TABLE IF NOT EXISTS groups (chat_id INTEGER PRIMARY KEY)")
+    db("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)")
+    db("CREATE TABLE IF NOT EXISTS inline_replies (word TEXT, reply TEXT, url TEXT, PRIMARY KEY(word))")
+    db("CREATE TABLE IF NOT EXISTS m6_multi_replies (word TEXT, reply TEXT)")
 
 RANKS_ADM = {"مالك اساسي": "owner_basic", "مالك": "owner", "مشرف": "mod", "منشئ": "creator", "مدير": "manager", "ادمن": "admin", "مميز": "vip"}
 RANKS_FUN = {"هطف": "الهطوف", "بثر": "البثرين", "حمار": "الحمير", "كلب": "الكلاب", "كلبه": "الكلبات", "عتوي": "العتوين", "عتويه": "العتويات", "لحجي": "اللحوج", "لحجيه": "اللحجيات", "خروف": "الخرفان", "خفيفه": "الخفيفات", "خفيف": "الخفيفين"}
 LOCK_TYPES = ["السب", "الروابط", "البوتات", "الكتابه", "الصور", "الفيديو", "الملصقات", "الصوت", "التوجيه", "الايرانيه", "الاباحي"]
 ENABLE_TYPES = ["الانذار", "التحذير", "الترحيب", "الايدي", "الرفع", "التنزيل", "الحمايه", "التسليه", "اكتموه", "زوجني", "اهمس"]
 
-BAD_WORDS = ["كس", "قحبه", "شرموط", "منيوك", "نيك"] # زود الكلمات اللي تريدها
+BAD_WORDS = ["كس", "قحبه", "شرموط", "منيوك", "نيك"]
 
 def get_dev_keyboard():
     keyboard = [
@@ -85,54 +87,35 @@ async def broadcast(context, text):
         try: await context.bot.send_message(chat_id, text)
         except: pass
 
-# ===== تنفيذ الاقفال =====
 async def check_locks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message: return
     msg = update.message; chat_id = msg.chat.id; user_id = msg.from_user.id
     if await is_admin(update, context): return
 
-    # عام
     res = db("SELECT 1 FROM gban WHERE user_id=?", (user_id,), True)
     if res: await msg.delete(); return
     res = db("SELECT 1 FROM gmute WHERE user_id=?", (user_id,), True)
     if res: await msg.delete(); return
 
-    # قفل الكتابه
     if await get_lock_status(chat_id, "الكتابه") == "مقفول" and msg.text:
         await msg.delete(); return
-
-    # قفل الصور
     if await get_lock_status(chat_id, "الصور") == "مقفول" and msg.photo:
         await msg.delete(); return
-
-    # قفل الفيديو
     if await get_lock_status(chat_id, "الفيديو") == "مقفول" and msg.video:
         await msg.delete(); return
-
-    # قفل الصوت
     if await get_lock_status(chat_id, "الصوت") == "مقفول" and msg.voice:
         await msg.delete(); return
-
-    # قفل الملصقات
     if await get_lock_status(chat_id, "الملصقات") == "مقفول" and msg.sticker:
         await msg.delete(); return
-
-    # قفل التوجيه
     if await get_lock_status(chat_id, "التوجيه") == "مقفول" and msg.forward_date:
         await msg.delete(); return
-
-    # قفل الروابط
     if await get_lock_status(chat_id, "الروابط") == "مقفول" and msg.text:
         if re.search(r'(https?://|t.me/|@)', msg.text):
             await msg.delete(); return
-
-    # قفل البوتات
     if await get_lock_status(chat_id, "البوتات") == "مقفول" and msg.new_chat_members:
         for member in msg.new_chat_members:
             if member.is_bot:
                 await msg.delete(); await context.bot.ban_chat_member(chat_id, member.id)
-
-    # قفل السب
     if await get_lock_status(chat_id, "السب") == "مقفول" and msg.text:
         text = msg.text.lower()
         if any(word in text for word in BAD_WORDS):
@@ -173,7 +156,7 @@ async def handle_m3(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if text == f"فتح {t}": db("INSERT OR REPLACE INTO lock VALUES (?,?,?)", (chat.id, t, "مفتوح")); return await update.message.reply_text(f"• أهلاً بك في {BOT_NAME}\nتم فتح {t}")
     for t in ENABLE_TYPES:
         if text == f"تفعيل {t}": db("INSERT OR REPLACE INTO enable VALUES (?,?,?)", (chat.id, t, 1)); return await update.message.reply_text(f"• أهلاً بك في {BOT_NAME}\nتم تفعيل {t}")
-        if text == f"تعطيل {t}": db("INSERT OR REPLACE INTO enable VALUES (?,?,?)", (chat.id, t, 0)); return await msg.reply_text(f"• أهلاً بك في {BOT_NAME}\nتم تعطيل {t}")
+        if text == f"تعطيل {t}": db("INSERT OR REPLACE INTO enable VALUES (?,?,?)", (chat.id, t, 0)); return await update.message.reply_text(f"• أهلاً بك في {BOT_NAME}\nتم تعطيل {t}")
 
 async def handle_m4(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message: return
@@ -356,11 +339,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     if not TOKEN: raise SystemExit("حط TOKEN و OWNER_ID في المتغيرات البيئيه")
+    init_db() # <--- اهم سطر اضفته
     app = ApplicationBuilder().token(TOKEN).build()
-
-    # اهم شي: هذا الهاندلر لازم يكون اول واحد عشان يفحص قبل الكل
     app.add_handler(MessageHandler(filters.ALL, check_locks), group=0)
-
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS & filters.Regex("^الاوامر$"), show_menu))
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS, handle_m1))
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS, handle_m2))
