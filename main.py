@@ -7,7 +7,7 @@ import uuid
 import re
 from deep_translator import GoogleTranslator
 from telegram import Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import ApplicationBuilder, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.ext import Application, MessageHandler, CallbackQueryHandler, ContextTypes, filters # عدلت هنا
 
 TOKEN = os.getenv("TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID", 0))
@@ -339,8 +339,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     if not TOKEN: raise SystemExit("حط TOKEN و OWNER_ID في المتغيرات البيئيه")
-    init_db() # <--- اهم سطر اضفته
-    app = ApplicationBuilder().token(TOKEN).build()
+    init_db()
+    app = Application.builder().token(TOKEN).build() # عدلت هنا
     app.add_handler(MessageHandler(filters.ALL, check_locks), group=0)
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS & filters.Regex("^الاوامر$"), show_menu))
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS, handle_m1))
