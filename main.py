@@ -9,8 +9,8 @@ from menu import menu, button
 from m1 import m1_commands
 from m2 import m2_commands
 
-# قراءة المتغيرات من Railway
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+# قراءة المتغيرات من Railway - نفس اللي بالصورة
+TOKEN = os.getenv("TOKEN")
 API_ID = int(os.getenv("API_ID", 0))
 API_HASH = os.getenv("API_HASH")
 OWNER_ID = int(os.getenv("OWNER_ID", 0))
@@ -74,11 +74,11 @@ async def m2_wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await m2_commands(update, context)
 
 def main():
-    if not BOT_TOKEN:
-        print("خطأ: BOT_TOKEN غير موجود")
+    if not TOKEN:
+        print("خطأ: TOKEN غير موجود في Variables")
         return
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(TOKEN).build()
 
     # الهاندلرات
     app.add_handler(CommandHandler("start", start))
