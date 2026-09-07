@@ -1,58 +1,42 @@
 import os
-import sqlite3
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# استدعاء القائمة
-from menu import menu, button
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("TOKEN")
 
-TOKEN = os.getenv("TOKEN")
+app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# قاعدة بيانات بسيطة للتفعيل
-conn = sqlite3.connect("bot.db", check_same_thread=False)
-cur = conn.cursor()
-cur.execute('''CREATE TABLE IF NOT EXISTS group_settings (group_id INTEGER PRIMARY KEY, active INTEGER DEFAULT 0)''')
-conn.commit()
+@app.on_message(filters.command("menu") & filters.group)
+async def menu(client, message):
+    text = """- اهلا بك عزي في قائمة الاوامر :
+——————————————————
+• 1م : اوامر الادمنيه
+• 2م : اوامر الاعدادات  
+• 3م : اوامر القفل - الفتح
+• 4م : اوامر التسليه
+• 5م : Dev اوامر
+• 6م : الاوامر الخدميه
+——————————————————"""
 
-def is_group_active(group_id):
-    cur.execute("SELECT active FROM group_settings WHERE group_id =?", (group_id,))
-    result = cur.fetchone()
-    return result and result[0] == 1
+    keyboard = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("①", callback_data="m1"), InlineKeyboardButton("②", callback_data="m2")],
+            [InlineKeyboardButton("③", callback_data="m3"), InlineKeyboardButton("④", callback_data="m4"), 
+             InlineKeyboardButton("⑤", callback_data="m5"), InlineKeyboardButton("⑥", callback_data="m6")],
+            [InlineKeyboardButton("اخفاء الاوامر", callback_data="close")]
+        ]
+    )
+    await message.reply_text(text, reply_markup=keyboard)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("• البوت شغال ✅\n• اكتب /menu لعرض القائمة")
+@app.on_callback_query()
+async def button(client, callback_query):
+    data = callback_query.data
+    
+    if data == "close":
+        await callback_query.message.delete()
+    else:
+        await callback_query.answer("• هذا القسم قريباً...", show_alert=True)
 
-async def activate_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type == 'private': return
-    member = await context.bot.get_chat_member(update.effective_chat.id, update.effective_user.id)
-    if member.status not in ['administrator', 'creator']:
-        await update.message.reply_text("• هذا الامر للادمنية فقط ❌"); return
-
-    cur.execute("INSERT OR REPLACE INTO group_settings (group_id, active) VALUES (?, 1)", (update.effective_chat.id,))
-    conn.commit()
-    await update.message.reply_text("• تم تفعيل المجموعة بنجاح ✅")
-
-async def menu_wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type == 'group' or update.effective_chat.type == 'supergroup':
-        if not is_group_active(update.effective_chat.id):
-            await update.message.reply_text("• القروب غير مفعل\n• اكتب `تفعيل` اول")
-            return
-    await menu(update, context) # ← كملت السطر ده
-
-def main():
-    if not TOKEN:
-        print("خطأ: TOKEN غير موجود")
-        return
-
-    app = Application.builder().token(TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("menu", menu_wrapper))
-    app.add_handler(MessageHandler(filters.Regex("^تفعيل$") & filters.ChatType.GROUPS, activate_group))
-    app.add_handler(CallbackQueryHandler(button)) # للازرار
-
-    print("البوت شغال...")
-    app.run_polling() # ← مهم عشان يشتغل
-
-if __name__ == "__main__":
-    main()
+print("البوت شغال...")
